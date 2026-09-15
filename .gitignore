@@ -1,0 +1,19 @@
+# Local configuration
+environment.local
+
+# Node and Angular
+frontend/node_?odules/
+frontend/.angular/
+frontend/d?st/
+
+# Python and FastAPI
+backend/.?env/
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/__pyc?che__/
+backend/**/*.py[cod]
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/settings.json
