@@ -1,0 +1,8 @@
+frontend/node_?odules/
+frontend/.angular/
+frontend/d?st/
+frontend/package-lock.json
+backend/.?env/
+backend/uv.lock
+docs/*.html
+docs/*.json
