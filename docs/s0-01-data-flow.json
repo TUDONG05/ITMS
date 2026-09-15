@@ -1,0 +1,285 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "S0-01 — Luồng dữ liệu ITMS",
+    "quality_profile": "showcase",
+    "viewBox": [1250, 570],
+    "views": [
+      {
+        "id": "core-request",
+        "label": "Luồng nghiệp vụ",
+        "focus": ["actors", "web", "access", "core", "postgres", "files"],
+        "note": "Yêu cầu nghiệp vụ đi qua RBAC trước khi đọc/ghi dữ liệu."
+      },
+      {
+        "id": "rag-request",
+        "label": "Luồng AI/RAG",
+        "focus": ["actors", "web", "access", "rag", "core", "postgres", "files", "vectors", "llm"],
+        "note": "Retrieval, internal API và phản hồi có citation luôn giữ scope của người hỏi."
+      },
+      {
+        "id": "storage-boundary",
+        "label": "Lưu trữ",
+        "focus": ["core", "rag", "postgres", "files", "vectors"],
+        "note": "Dữ liệu nghiệp vụ, vector, tệp và audit có trách nhiệm tách biệt."
+      }
+    ]
+  },
+  "stages": [
+    { "label": "Tác nhân" },
+    { "label": "Giao diện" },
+    { "label": "Kiểm soát" },
+    { "label": "Dịch vụ" },
+    { "label": "Lưu trữ / tích hợp" }
+  ],
+  "nodes": [
+    {
+      "id": "actors",
+      "type": "external",
+      "label": "Người dùng ITMS",
+      "stage": 0,
+      "row": 2,
+      "yOffset": -56,
+      "tag": "role",
+      "width": 130
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Angular Web Client",
+      "stage": 1,
+      "row": 2,
+      "yOffset": -56,
+      "tag": "HTTPS",
+      "width": 140
+    },
+    {
+      "id": "access",
+      "type": "security",
+      "label": "Request Auth + RBAC Gate",
+      "stage": 2,
+      "row": 2,
+      "yOffset": -56,
+      "tag": "deny by default",
+      "width": 180
+    },
+    {
+      "id": "core",
+      "type": "backend",
+      "label": "Core Services M01–M06",
+      "stage": 3,
+      "row": 0,
+      "yOffset": -18,
+      "tag": "FastAPI",
+      "width": 160
+    },
+    {
+      "id": "rag",
+      "type": "backend",
+      "label": "M07 · RAG + Citation Gate",
+      "stage": 3,
+      "row": 3,
+      "yOffset": -35,
+      "tag": "read-only · isolated failure",
+      "width": 185
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL",
+      "stage": 4,
+      "row": 0,
+      "yOffset": -18,
+      "tag": "durable",
+      "width": 160
+    },
+    {
+      "id": "files",
+      "type": "database",
+      "label": "Object Storage",
+      "stage": 4,
+      "row": 1,
+      "yOffset": -12,
+      "tag": "training + submission files",
+      "width": 180
+    },
+    {
+      "id": "vectors",
+      "type": "database",
+      "label": "pgvector Index",
+      "stage": 4,
+      "row": 2,
+      "yOffset": -6,
+      "tag": "scoped chunks + embeddings",
+      "width": 185
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "LLM Provider",
+      "stage": 4,
+      "row": 3,
+      "yOffset": -35,
+      "tag": "timeout + fallback",
+      "width": 150
+    }
+  ],
+  "flows": [
+    {
+      "id": "user-input",
+      "from": "actors",
+      "to": "web",
+      "label": "thao tác người dùng",
+      "classification": "user input",
+      "variant": "emphasis",
+      "labelAt": [205, 282]
+    },
+    {
+      "id": "api-request",
+      "from": "web",
+      "to": "access",
+      "label": "REST/JSON + JWT",
+      "classification": "authenticated request",
+      "variant": "security",
+      "labelAt": [418, 282]
+    },
+    {
+      "id": "authorized-core",
+      "from": "access",
+      "to": "core",
+      "label": "request theo role/scope",
+      "classification": "scoped business data",
+      "variant": "security",
+      "labelAt": [620, 205]
+    },
+    {
+      "id": "authorized-rag",
+      "from": "access",
+      "to": "rag",
+      "label": "câu hỏi + scope người dùng",
+      "classification": "scoped prompt",
+      "variant": "security",
+      "labelAt": [630, 405]
+    },
+    {
+      "id": "core-sql",
+      "from": "core",
+      "to": "postgres",
+      "label": "đọc / ghi bản ghi nghiệp vụ",
+      "classification": "business records",
+      "variant": "emphasis",
+      "labelAt": [1100, 82]
+    },
+    {
+      "id": "core-files",
+      "from": "core",
+      "to": "files",
+      "label": "tệp + scope / phiên bản",
+      "classification": "uploaded content",
+      "labelAt": [1000, 205]
+    },
+    {
+      "id": "rag-business-api",
+      "from": "rag",
+      "to": "core",
+      "label": "internal API + user scope",
+      "classification": "read-only authorized lookup",
+      "variant": "security",
+      "labelAt": [535, 250]
+    },
+    {
+      "id": "rag-files",
+      "from": "rag",
+      "to": "files",
+      "label": "đọc tài liệu đã cấp quyền",
+      "classification": "authorized knowledge",
+      "variant": "security",
+      "labelAt": [930, 315]
+    },
+    {
+      "id": "rag-vectors",
+      "from": "rag",
+      "to": "vectors",
+      "label": "index / tìm chunk theo scope",
+      "classification": "scoped embeddings",
+      "variant": "security",
+      "labelAt": [1140, 380]
+    },
+    {
+      "id": "rag-history",
+      "from": "rag",
+      "to": "postgres",
+      "label": "hội thoại + citation + audit",
+      "classification": "conversation history",
+      "fromSide": "top",
+      "toSide": "right",
+      "via": [[745, 415], [1220, 415], [1220, 139]],
+      "labelAt": [1140, 165]
+    },
+    {
+      "id": "rag-llm",
+      "from": "rag",
+      "to": "llm",
+      "label": "prompt tối thiểu ↔ draft answer",
+      "classification": "minimized prompt",
+      "variant": "emphasis",
+      "labelAt": [950, 515]
+    },
+    {
+      "id": "core-response",
+      "from": "core",
+      "to": "web",
+      "label": "scoped DTO / signed URL → Web/User",
+      "classification": "authorized response",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [[745, 70], [315, 70]],
+      "labelAt": [520, 60]
+    },
+    {
+      "id": "rag-response",
+      "from": "rag",
+      "to": "web",
+      "label": "citation verified / fallback → Web/User",
+      "classification": "grounded response",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [[745, 515], [315, 515]],
+      "labelAt": [520, 545]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Luồng nghiệp vụ chính",
+      "items": [
+        "Client gửi token; Backend xác thực và áp dụng RBAC/data scope",
+        "Core service kiểm tra quy tắc trước khi transaction",
+        "Response chỉ chứa dữ liệu thuộc phạm vi người dùng"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Luồng AI/RAG",
+      "items": [
+        "Scope được kiểm tra trước retrieval và mọi internal tool call",
+        "Upload: gắn scope/phiên bản → parse/chunk → embedding → pgvector",
+        "Object storage giữ tệp gốc; PostgreSQL giữ metadata và lịch sử chat",
+        "LLM trả draft về M07; M07 kiểm citation trước khi phản hồi",
+        "Thiếu bằng chứng hoặc provider lỗi thì trả fallback an toàn"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Tách lỗi & bảo vệ dữ liệu",
+      "items": [
+        "M07 cô lập timeout/lỗi provider; Core ITMS vẫn hoạt động khi AI/email lỗi",
+        "Tệp dùng signed access; secret không đi vào log",
+        "Audit lưu trong PostgreSQL, ghi thao tác nhạy cảm và không sửa từ nghiệp vụ"
+      ]
+    }
+  ]
+}

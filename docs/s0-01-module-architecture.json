@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "S0-01 — Sơ đồ module ITMS",
+    "quality_profile": "showcase",
+    "viewBox": [1250, 630],
+    "views": [
+      {
+        "id": "core-modules",
+        "label": "Các module nghiệp vụ",
+        "focus": ["m01", "m02", "m03", "m04", "m05", "m06", "m07"],
+        "note": "Bảy module nghiệp vụ bám theo SRS mục 3.2 và 4.1–4.7."
+      },
+      {
+        "id": "internship-flow",
+        "label": "Luồng thực tập chính",
+        "focus": ["m01", "m02", "m03", "m04", "m05", "m06"],
+        "note": "Từ xác thực đến đào tạo, task, đánh giá và điều hành."
+      },
+      {
+        "id": "ai-boundary",
+        "label": "Ranh giới AI/RAG",
+        "focus": ["api", "m07"],
+        "note": "M07 chỉ đọc dữ liệu qua cùng API/RBAC gate và giữ scope của người hỏi."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Web Client",
+      "sublabel": "Angular · giao diện theo vai trò",
+      "pos": [40, 330],
+      "size": [165, 72]
+    },
+    {
+      "id": "api",
+      "type": "security",
+      "label": "API + RBAC Gate",
+      "sublabel": "middleware trước mọi M01–M07",
+      "pos": [245, 330],
+      "size": [180, 72]
+    },
+    {
+      "id": "m01",
+      "type": "backend",
+      "label": "M01 · Tài khoản & RBAC",
+      "sublabel": "Xác thực · phiên · hồ sơ · quyền",
+      "pos": [485, 80],
+      "size": [195, 72]
+    },
+    {
+      "id": "m02",
+      "type": "backend",
+      "label": "M02 · Quản lý thực tập",
+      "sublabel": "Đợt · intern · mentor · phân công",
+      "pos": [485, 330],
+      "size": [190, 72]
+    },
+    {
+      "id": "m03",
+      "type": "backend",
+      "label": "M03 · Đào tạo & kiểm tra",
+      "sublabel": "Roadmap · nội dung · exam · tiến độ",
+      "pos": [730, 80],
+      "size": [200, 72]
+    },
+    {
+      "id": "m04",
+      "type": "backend",
+      "label": "M04 · Task & bài nộp",
+      "sublabel": "Giao · nộp · review · comment",
+      "pos": [730, 260],
+      "size": [200, 72]
+    },
+    {
+      "id": "m05",
+      "type": "backend",
+      "label": "M05 · Đánh giá & vòng đời",
+      "sublabel": "Đánh giá · gia hạn · kết thúc",
+      "pos": [730, 440],
+      "size": [200, 72]
+    },
+    {
+      "id": "m06",
+      "type": "backend",
+      "label": "M06 · Điều hành & tương tác",
+      "sublabel": "Thông báo · phản ánh · báo cáo · audit",
+      "pos": [980, 260],
+      "size": [210, 72]
+    },
+    {
+      "id": "m07",
+      "type": "backend",
+      "label": "M07 · Trợ lý AI/RAG",
+      "sublabel": "Kho tài liệu · retrieval · citation",
+      "pos": [980, 520],
+      "size": [210, 72]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "FastAPI Backend · REST/JSON",
+      "wraps": ["api", "m01", "m02", "m03", "m04", "m05", "m06", "m07"],
+      "pad": 28
+    },
+    {
+      "kind": "security-group",
+      "label": "RBAC + kiểm soát phạm vi dữ liệu tại Backend",
+      "wraps": ["api", "m01", "m02", "m03", "m04", "m05", "m06", "m07"],
+      "pad": 16
+    }
+  ],
+  "connections": [
+    {
+      "id": "web-auth",
+      "from": "web",
+      "to": "api",
+      "label": "HTTPS · JWT/session",
+      "variant": "security",
+      "labelAt": [225, 416]
+    },
+    {
+      "id": "internship-training",
+      "from": "m02",
+      "to": "m03",
+      "label": "đợt + intern được phân"
+    },
+    {
+      "id": "internship-task",
+      "from": "m02",
+      "to": "m04",
+      "label": "intern + mentor phụ trách",
+      "variant": "emphasis",
+      "labelAt": [805, 416]
+    },
+    {
+      "id": "internship-evaluation",
+      "from": "m02",
+      "to": "m05",
+      "label": "quá trình thực tập"
+    },
+    {
+      "id": "training-events",
+      "from": "m03",
+      "to": "m06",
+      "label": "tiến độ + kết quả thi"
+    },
+    {
+      "id": "task-events",
+      "from": "m04",
+      "to": "m06",
+      "label": "giao · nộp · review",
+      "labelAt": [1025, 246]
+    },
+    {
+      "id": "evaluation-events",
+      "from": "m05",
+      "to": "m06",
+      "label": "đánh giá + phê duyệt"
+    },
+    {
+      "id": "rag-business-data",
+      "from": "m07",
+      "to": "api",
+      "label": "API nội bộ · read-only · user scope",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Ranh giới module",
+      "items": [
+        "Đề xuất: Angular chỉ hiển thị và điều phối tương tác; không quyết định quyền",
+        "Đề xuất: FastAPI chứa nghiệp vụ, validation, RBAC và audit",
+        "Mỗi module sở hữu use case của nhóm FR tương ứng"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Quy tắc xuyên suốt",
+      "items": [
+        "API/RBAC gate chạy trước mọi M01–M07; module đích vẫn kiểm tra quyền",
+        "M07 gọi API nội bộ read-only bằng đúng user scope; không dùng M06 làm façade",
+        "M07 không tự phê duyệt hoặc thay đổi quyết định nhạy cảm",
+        "M01/M02 phát sự kiện audit/thông báo cho M06 theo use case"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Lưu trữ dùng chung",
+      "items": [
+        "PostgreSQL lưu nghiệp vụ; pgvector lưu chỉ mục RAG",
+        "Object storage lưu tài liệu và tệp bài nộp",
+        "Truy cập dữ liệu đi qua repository/service của Backend"
+      ]
+    }
+  ]
+}
