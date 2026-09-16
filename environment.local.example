@@ -1,3 +1,19 @@
 # Copy this file to environment.local and load it in the shell before starting Backend.
 ITMS_ENVIRONMENT=development
 ITMS_CORS_ORIGINS=http://localhost:4200
+
+# PostgreSQL Configuration
+POSTGRES_DB=itms_db
+POSTGRES_USER=itms_user
+POSTGRES_PASSWORD=itms_password_secret
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
+
+# MinIO Configuration
+MINIO_ROOT_USER=minio_admin
+MINIO_ROOT_PASSWORD=minio_password_secret
+MINIO_HOST=127.0.0.1
+MINIO_PORT=9000
+
+# Security Configuration
+SECRET_KEY=supersecretkey_change_me_in_prod
