@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.core.security import UserRole, require_roles
 from app.core.settings import get_settings
 
 router = APIRouter(tags=["system"])
@@ -14,3 +15,11 @@ def get_health() -> dict[str, str]:
         "service": "itms-backend",
         "environment": settings.environment,
     }
+
+
+@router.get(
+    "/protected-route",
+    dependencies=[Depends(require_roles([UserRole.ADMIN]))],
+)
+def protected_admin_route() -> dict[str, str]:
+    return {"message": "Welcome Admin!"}

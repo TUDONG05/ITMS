@@ -1,3 +1,6 @@
 # Copy this file to environment.local and load it in the shell before starting Backend.
 ITMS_ENVIRONMENT=development
 ITMS_CORS_ORIGINS=http://localhost:4200
+# Generate a unique value with: openssl rand -hex 32
+ITMS_JWT_SECRET=<replace-with-a-unique-secret>
+ITMS_JWT_ISSUER=itms-backend
