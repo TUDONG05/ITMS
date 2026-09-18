@@ -36,6 +36,10 @@ def _origins(value: str) -> tuple[str, ...]:
 class Settings:
     environment: str
     cors_origins: tuple[str, ...]
+    jwt_secret: str
+    jwt_issuer: str
+    jwt_audience: str
+    access_token_ttl_seconds: int
     database_url: str | None = None
     db_echo: bool = False
 
@@ -48,6 +52,10 @@ def get_settings() -> Settings:
     return Settings(
         environment=os.getenv("ITMS_ENVIRONMENT", "development"),
         cors_origins=_origins(os.getenv("ITMS_CORS_ORIGINS", "http://localhost:4200")),
+        jwt_secret=os.getenv("ITMS_JWT_SECRET", "development-only-secret-change-me"),
+        jwt_issuer=os.getenv("ITMS_JWT_ISSUER", "itms-backend"),
+        jwt_audience=os.getenv("ITMS_JWT_AUDIENCE", "itms-web-client"),
+        access_token_ttl_seconds=int(os.getenv("ITMS_ACCESS_TOKEN_TTL_SECONDS", "900")),
         database_url=db_url,
         db_echo=db_echo_raw in ("true", "1", "yes"),
     )

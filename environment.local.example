@@ -4,3 +4,7 @@ ITMS_CORS_ORIGINS=http://localhost:4200
 ITMS_DATABASE_URL=postgresql+psycopg://postgres:your_password_here@localhost:5432/itms
 ITMS_DB_ECHO=false
 
+ITMS_JWT_SECRET=replace-with-a-long-random-development-secret
+ITMS_JWT_ISSUER=itms-backend
+ITMS_JWT_AUDIENCE=itms-web-client
+ITMS_ACCESS_TOKEN_TTL_SECONDS=900
