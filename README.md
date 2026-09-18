@@ -51,6 +51,17 @@ npm start
 - Backend health: `http://localhost:8000/api/v1/health`
 - Web client chuyển `/api/*` tới Backend qua `proxy.conf.json`.
 
+## Đăng nhập demo
+
+Trang Angular gọi `POST /api/v1/auth/login` và nhận JWT access token ngắn hạn. Dùng tài khoản sau để kiểm thử:
+
+```text
+Email: intern@itms.local
+Mật khẩu: Intern@12345
+```
+
+`GET /api/v1/me` kiểm tra token theo `Authorization: Bearer <access_token>`. Bản hiện tại dùng tài khoản và phiên trong bộ nhớ để demo luồng M01; persistence, refresh/logout và đổi/quên mật khẩu sẽ được bổ sung cùng data model của M01.
+
 ## Kiểm tra chất lượng
 
 ```bash
@@ -69,6 +80,6 @@ npm run compile
 
 ## Ranh giới Sprint 0
 
-S0-02 chỉ dựng source, môi trường và health probe. OpenAPI/DTO thuộc S0-04; xác thực, RBAC, database, migration và CI thuộc các task Sprint 0 tiếp theo. Quy ước API/RBAC đã chốt ở `docs/s0-01-api-access-control.md`.
+S0-02 dựng source, môi trường và health probe. Luồng đăng nhập demo M01 đã có UI Angular, endpoint JWT và kiểm tra `/me`; OpenAPI/DTO đầy đủ, persistence, refresh session, RBAC hoàn chỉnh, migration và CI thuộc các task Sprint 0 tiếp theo. Quy ước API/RBAC đã chốt ở `docs/s0-01-api-access-control.md`.
 
 Tiền tố API công khai là cố định: `/api/v1`.
