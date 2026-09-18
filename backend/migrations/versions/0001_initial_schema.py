@@ -44,9 +44,8 @@ def upgrade() -> None:
         sa.Column(
             "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
         ),
-        sa.UniqueConstraint("email", name="uq_users_email"),
     )
-    op.create_index("ix_users_email", "users", ["email"])
+    op.create_index("ix_users_email", "users", ["email"], unique=True)
 
     # 2. InternshipPeriods table
     op.create_table(
@@ -71,9 +70,8 @@ def upgrade() -> None:
             "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
         ),
         sa.CheckConstraint("end_date >= start_date", name="ck_internship_periods_dates"),
-        sa.UniqueConstraint("name", name="uq_internship_periods_name"),
     )
-    op.create_index("ix_internship_periods_name", "internship_periods", ["name"])
+    op.create_index("ix_internship_periods_name", "internship_periods", ["name"], unique=True)
 
     # 3. Internships table
     op.create_table(
