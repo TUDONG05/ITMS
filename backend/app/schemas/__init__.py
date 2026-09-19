@@ -2,8 +2,7 @@ from app.schemas.base import BaseSchema, IdentifiableSchema
 from app.schemas.health import HealthResponse
 from app.schemas.internship import (
     InternshipBase,
-    InternshipPeriodBase,
-    InternshipPeriodRead,
+    InternshipMemberBase,
     InternshipRead,
 )
 from app.schemas.user import UserBase, UserCreate, UserRead
@@ -13,8 +12,7 @@ __all__ = [
     "HealthResponse",
     "IdentifiableSchema",
     "InternshipBase",
-    "InternshipPeriodBase",
-    "InternshipPeriodRead",
+    "InternshipMemberBase",
     "InternshipRead",
     "UserBase",
     "UserCreate",

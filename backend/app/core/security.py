@@ -39,6 +39,7 @@ def create_access_token(
     *,
     subject: str,
     session_id: str,
+    token_version: int,
     secret: str,
     issuer: str,
     audience: str,
@@ -49,6 +50,7 @@ def create_access_token(
     payload = {
         "sub": subject,
         "sid": session_id,
+        "tv": token_version,
         "iat": now,
         "exp": now + expires_in_seconds,
         "iss": issuer,
@@ -85,7 +87,11 @@ def decode_access_token(
         raise InvalidAccessTokenError
     if payload.get("iss") != issuer or payload.get("aud") != audience:
         raise InvalidAccessTokenError
-    if not isinstance(payload.get("sub"), str) or not isinstance(payload.get("sid"), str):
+    if (
+        not isinstance(payload.get("sub"), str)
+        or not isinstance(payload.get("sid"), str)
+        or not isinstance(payload.get("tv"), int)
+    ):
         raise InvalidAccessTokenError
     if not isinstance(payload.get("exp"), int) or payload["exp"] <= int(time.time()):
         raise InvalidAccessTokenError

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.orm import Session
 
 from app.auth.service import Account, get_auth_service
 from app.core.settings import get_settings
+from app.db.session import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -39,10 +41,10 @@ class LoginResponse(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest) -> LoginResponse:
+def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
     """Authenticate an active account and issue a short-lived access token."""
     settings = get_settings()
-    access_token, account = get_auth_service().login(payload.email, payload.password, settings)
+    access_token, account = get_auth_service().login(db, payload.email, payload.password, settings)
     return LoginResponse(
         access_token=access_token,
         token_type="bearer",

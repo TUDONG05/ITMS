@@ -8,8 +8,43 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from uuid import UUID
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
+from app.core.security import hash_password
+from app.models.enums import UserRole, UserStatus
+from app.models.user import User
 
 PROJECT_ROOT = Path(__file__).parents[1]
+DEMO_USER_ID = "a0b59b90-3c25-4b08-92d5-e04269c9da31"
+DEMO_USER_UUID = UUID(DEMO_USER_ID)
+
+
+@pytest.fixture(autouse=True)
+def auth_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give the Uvicorn process a persisted database containing a real user."""
+    database_path = tmp_path / "auth.db"
+    database_url = f"sqlite:///{database_path}"
+    engine = create_engine(database_url)
+    User.__table__.create(engine)
+    with Session(engine) as db:
+        db.add(
+            User(
+                id=DEMO_USER_UUID,
+                email="intern@itms.local",
+                password_hash=hash_password("Intern@12345"),
+                full_name="Thực tập sinh Demo",
+                role=UserRole.INTERN,
+                status=UserStatus.ACTIVE,
+            )
+        )
+        db.commit()
+    engine.dispose()
+    monkeypatch.setenv("ITMS_DATABASE_URL", database_url)
+    monkeypatch.setenv("ITMS_JWT_SECRET", "test-secret-only")
 
 
 def _available_port() -> int:
@@ -79,7 +114,7 @@ def test_login_issues_access_token_and_allows_me_request() -> None:
         assert login_body["token_type"] == "bearer"
         assert login_body["expires_in"] == 900
         assert login_body["user"] == {
-            "id": "a0b59b90-3c25-4b08-92d5-e04269c9da31",
+            "id": DEMO_USER_ID,
             "email": "intern@itms.local",
             "full_name": "Thực tập sinh Demo",
             "role": "INTERN",
