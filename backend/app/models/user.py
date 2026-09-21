@@ -2,65 +2,45 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, String
+from sqlalchemy import CheckConstraint, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.models.enums import UserRole, UserStatus
-
-if TYPE_CHECKING:
-    from app.models.exam import ExamAttempt
-    from app.models.interaction import AuditLog, Feedback, Notification
-    from app.models.internship import Internship, MentorAssignment
-    from app.models.knowledge import Conversation, Document
-    from app.models.roadmap import LearningProgress
 
 
 class User(Base):
+    """Shared identity for administrators, mentors, and interns."""
+
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("role IN ('ADMIN', 'MENTOR', 'INTERN')", name="ck_users_role"),
+        CheckConstraint("status IN ('ACTIVE', 'LOCKED', 'INACTIVE')", name="ck_users_status"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role", native_enum=True), nullable=False
+    full_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    password_reset_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    password_reset_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
-    status: Mapped[UserStatus] = mapped_column(
-        Enum(UserStatus, name="user_status", native_enum=True),
-        nullable=False,
-        default=UserStatus.ACTIVE,
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(UTC),
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
-    )
-
-    # Relationships
-    internships: Mapped[list[Internship]] = relationship(
-        "Internship", back_populates="intern", foreign_keys="Internship.intern_id"
-    )
-    mentor_assignments: Mapped[list[MentorAssignment]] = relationship(
-        "MentorAssignment", back_populates="mentor", foreign_keys="MentorAssignment.mentor_id"
-    )
-    notifications: Mapped[list[Notification]] = relationship(
-        "Notification", back_populates="recipient"
-    )
-    audit_logs: Mapped[list[AuditLog]] = relationship("AuditLog", back_populates="actor")
-    feedbacks: Mapped[list[Feedback]] = relationship("Feedback", back_populates="sender")
-    conversations: Mapped[list[Conversation]] = relationship("Conversation", back_populates="user")
-    uploaded_documents: Mapped[list[Document]] = relationship("Document", back_populates="uploader")
-    exam_attempts: Mapped[list[ExamAttempt]] = relationship("ExamAttempt", back_populates="intern")
-    learning_progresses: Mapped[list[LearningProgress]] = relationship(
-        "LearningProgress", back_populates="intern"
     )
