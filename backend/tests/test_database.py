@@ -6,93 +6,46 @@ from fastapi.testclient import TestClient
 
 from app.db.base import Base
 from app.main import app
-from app.models.enums import (
-    ContentType,
-    DocumentStatus,
-    EvaluationStatus,
-    EvaluationType,
-    ExamAttemptStatus,
-    FeedbackStatus,
-    InternshipPeriodStatus,
-    InternshipStatus,
-    LearningProgressStatus,
-    LifecycleApprovalDecision,
-    LifecycleRequestStatus,
-    LifecycleRequestType,
-    QuestionDifficulty,
-    QuestionType,
-    RoadmapStatus,
-    TaskPriority,
-    TaskStatus,
-    UserRole,
-    UserStatus,
-)
-from app.schemas.internship import (
-    InternshipBase,
-    InternshipPeriodBase,
-    InternshipPeriodRead,
-    InternshipRead,
-)
+from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole, UserStatus
+from app.schemas.internship import InternshipBase, InternshipMemberBase, InternshipRead
 from app.schemas.user import UserCreate, UserRead
 
 
-def test_all_27_entities_registered():
-    """Verify that exactly 27 tables matching S0-03 are registered in SQLAlchemy metadata."""
+def test_all_20_entities_registered():
+    """Verify the 20 business entities of the agreed MVP schema are registered."""
     expected_tables = {
         "users",
-        "internship_periods",
         "internships",
-        "mentor_assignments",
+        "internship_members",
+        "internship_requests",
         "roadmaps",
-        "roadmap_phases",
-        "contents",
+        "phases",
+        "learning_contents",
         "learning_progress",
-        "exams",
+        "quizzes",
         "questions",
-        "exam_questions",
-        "exam_attempts",
-        "attempt_answers",
+        "quiz_attempts",
         "tasks",
         "task_submissions",
         "task_comments",
-        "task_status_history",
+        "evaluation_criteria",
         "evaluations",
-        "lifecycle_requests",
-        "lifecycle_approvals",
         "notifications",
-        "feedback",
-        "audit_logs",
-        "documents",
-        "document_chunks",
-        "conversations",
-        "chat_messages",
+        "notification_reads",
+        "ai_conversations",
+        "ai_messages",
     }
     actual_tables = set(Base.metadata.tables.keys())
-    assert len(actual_tables) == 27
+    assert len(actual_tables) == 20
     assert actual_tables == expected_tables
 
 
 def test_core_enums_defined():
-    """Verify all 12 core SRS enums plus proposed enums are correctly declared."""
+    """Verify the role and internship values defined for the MVP schema."""
     assert UserRole.INTERN == "INTERN"
     assert UserStatus.ACTIVE == "ACTIVE"
-    assert InternshipPeriodStatus.PLANNED == "PLANNED"
-    assert InternshipStatus.ACTIVE == "ACTIVE"
-    assert RoadmapStatus.PUBLISHED == "PUBLISHED"
-    assert ContentType.TEXT == "TEXT"
-    assert ExamAttemptStatus.SUBMITTED == "SUBMITTED"
-    assert TaskPriority.HIGH == "HIGH"
-    assert TaskStatus.COMPLETED == "COMPLETED"
-    assert EvaluationType.FINAL == "FINAL"
-    assert EvaluationStatus.PUBLISHED == "PUBLISHED"
-    assert DocumentStatus.INDEXED == "INDEXED"
-    assert LifecycleRequestType.EXTEND == "EXTEND"
-    assert LifecycleRequestStatus.PENDING == "PENDING"
-    assert LifecycleApprovalDecision.APPROVED == "APPROVED"
-    assert FeedbackStatus.PENDING == "PENDING"
-    assert QuestionType.SINGLE_CHOICE == "SINGLE_CHOICE"
-    assert QuestionDifficulty.EASY == "EASY"
-    assert LearningProgressStatus.COMPLETED == "COMPLETED"
+    assert InternshipStatus.OPEN == "OPEN"
+    assert InternshipMemberStatus.EXTENDED == "EXTENDED"
 
 
 def test_user_schemas():
@@ -120,47 +73,45 @@ def test_user_schemas():
 
 def test_internship_schemas_validation():
     now = datetime.now(UTC)
-    period_id = uuid.uuid4()
+    mentor_id = uuid.uuid4()
     intern_id = uuid.uuid4()
     internship_id = uuid.uuid4()
 
-    # Valid period
-    period = InternshipPeriodRead(
-        id=period_id,
+    # Valid internship period
+    internship = InternshipRead(
+        id=internship_id,
         name="Internship 2026-Q1",
         start_date=date(2026, 1, 1),
         end_date=date(2026, 3, 31),
-        status=InternshipPeriodStatus.ACTIVE,
+        status=InternshipStatus.OPEN,
         created_at=now,
+        updated_at=now,
     )
-    assert period.name == "Internship 2026-Q1"
+    assert internship.name == "Internship 2026-Q1"
 
     # Invalid period: end_date < start_date
     with pytest.raises(ValueError, match="end_date must not be before start_date"):
-        InternshipPeriodBase(
+        InternshipBase(
             name="Invalid Period",
             start_date=date(2026, 5, 1),
             end_date=date(2026, 4, 1),
         )
 
-    # Valid internship
-    internship = InternshipRead(
-        id=internship_id,
+    member = InternshipMemberBase(
         intern_id=intern_id,
-        period_id=period_id,
-        status=InternshipStatus.ACTIVE,
+        internship_id=internship_id,
+        mentor_id=mentor_id,
+        status=InternshipMemberStatus.ACTIVE,
         start_date=date(2026, 1, 1),
         end_date=date(2026, 3, 31),
-        created_at=now,
-        updated_at=now,
     )
-    assert internship.status == InternshipStatus.ACTIVE
+    assert member.status == InternshipMemberStatus.ACTIVE
 
     # Invalid internship: end_date < start_date
     with pytest.raises(ValueError, match="end_date must not be before start_date"):
-        InternshipBase(
+        InternshipMemberBase(
             intern_id=intern_id,
-            period_id=period_id,
+            internship_id=internship_id,
             start_date=date(2026, 6, 1),
             end_date=date(2026, 5, 1),
         )
