@@ -13,7 +13,7 @@ import { ApiErrorResponse, AuthService } from '../../core/api/auth.service';
   template: `
     <main class="auth-page">
       <form class="auth-card" [formGroup]="form" (ngSubmit)="submit()">
-        <a class="back-link" routerLink="/login">← Quay lại</a>
+        <a class="back-link" [routerLink]="dashboardLink">← Quay lại dashboard</a>
         <h1>Đổi mật khẩu</h1>
         <p class="auth-card__intro">Đặt mật khẩu mới để bảo vệ tài khoản ITMS của bạn.</p>
 
@@ -80,6 +80,7 @@ export class ChangePasswordComponent {
   protected readonly isSubmitting = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly message = signal<string | null>(null);
+  protected readonly dashboardLink = dashboardLinkForCurrentUser();
 
   protected submit(): void {
     if (
@@ -105,6 +106,15 @@ export class ChangePasswordComponent {
         error: (error: unknown) =>
           this.errorMessage.set(errorMessage(error, 'Không thể đổi mật khẩu.')),
       });
+  }
+}
+
+function dashboardLinkForCurrentUser(): string[] {
+  try {
+    const role = (JSON.parse(sessionStorage.getItem('itms_authenticated_user') ?? '{}') as { role?: string }).role?.toLowerCase();
+    return role && ['intern', 'mentor', 'admin'].includes(role) ? ['/dashboard', role] : ['/login'];
+  } catch {
+    return ['/login'];
   }
 }
 

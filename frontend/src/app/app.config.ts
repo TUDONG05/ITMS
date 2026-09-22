@@ -1,9 +1,44 @@
 import { provideHttpClient } from '@angular/common/http';
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
+import { provideNzIcons } from 'ng-zorro-antd/icon';
 import { provideNzI18n, vi_VN } from 'ng-zorro-antd/i18n';
+import {
+  AppstoreOutline,
+  AuditOutline,
+  BarChartOutline,
+  BellOutline,
+  BookOutline,
+  CalendarOutline,
+  CheckSquareOutline,
+  FileTextOutline,
+  FormOutline,
+  HomeOutline,
+  KeyOutline,
+  LogoutOutline,
+  MenuOutline,
+  ReadOutline,
+  RobotOutline,
+  SettingOutline,
+  SolutionOutline,
+  StarOutline,
+  TeamOutline,
+  TrophyOutline,
+  UserOutline,
+} from '@ant-design/icons-angular/icons';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
-  providers: [provideBrowserGlobalErrorListeners(), provideRouter(routes), provideHttpClient(), provideNzI18n(vi_VN)],
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes),
+    provideHttpClient(),
+    provideNzI18n(vi_VN),
+    provideNzIcons([
+      AppstoreOutline, AuditOutline, BarChartOutline, BellOutline, BookOutline, CalendarOutline,
+      CheckSquareOutline, FileTextOutline, FormOutline, HomeOutline, KeyOutline, LogoutOutline,
+      MenuOutline, ReadOutline, RobotOutline, SettingOutline, SolutionOutline, StarOutline,
+      TeamOutline, TrophyOutline, UserOutline,
+    ]),
+  ],
 };
