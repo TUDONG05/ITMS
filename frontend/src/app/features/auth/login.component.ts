@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 
@@ -124,7 +125,6 @@ import { ApiErrorResponse, AuthenticatedUser, AuthService } from '../../core/api
             {{ isSubmitting() ? 'Đang đăng nhập…' : 'Đăng nhập' }}
           </button>
 
-          <p class="demo-credentials">Demo: intern&#64;itms.local / Intern&#64;12345</p>
         </form>
       </section>
     </main>
@@ -132,6 +132,7 @@ import { ApiErrorResponse, AuthenticatedUser, AuthService } from '../../core/api
 })
 export class LoginComponent {
   private readonly authService = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly formBuilder = inject(FormBuilder).nonNullable;
 
   protected readonly form = this.formBuilder.group({
@@ -161,7 +162,9 @@ export class LoginComponent {
       .subscribe({
         next: (response) => {
           sessionStorage.setItem('itms_access_token', response.access_token);
+          sessionStorage.setItem('itms_authenticated_user', JSON.stringify(response.user));
           this.authenticatedUser.set(response.user);
+          void this.router.navigate(['/dashboard', response.user.role.toLowerCase()]);
         },
         error: (error: unknown) => this.errorMessage.set(getErrorMessage(error)),
       });

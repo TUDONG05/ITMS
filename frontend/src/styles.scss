@@ -26,6 +26,13 @@ input {
   font: inherit;
 }
 
+.dashboard-page { display: grid; min-height: 100vh; place-items: center; padding: 24px; }
+.dashboard-card { width: min(600px, 100%); padding: 48px; border-radius: 24px; background: #fff; box-shadow: 0 20px 40px -10px rgb(15 23 42 / 16%); }
+.dashboard-card__eyebrow { color: #e11d48; font-weight: 800; letter-spacing: .12em; }
+.dashboard-card h1 { margin: 16px 0 12px; }
+.dashboard-card p { color: #64748b; }
+.dashboard-card button { margin-top: 20px; padding: 10px 18px; border: 0; border-radius: 8px; background: #e11d48; color: #fff; cursor: pointer; }
+
 .login-page {
   display: grid;
   min-height: 100vh;
