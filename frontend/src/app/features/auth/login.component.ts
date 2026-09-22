@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 
@@ -8,7 +8,7 @@ import { ApiErrorResponse, AuthenticatedUser, AuthService } from '../../core/api
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="login-page">
@@ -116,15 +116,12 @@ import { ApiErrorResponse, AuthenticatedUser, AuthService } from '../../core/api
               <input id="remember-me" type="checkbox" formControlName="rememberMe" />
               <span>Ghi nhớ đăng nhập</span>
             </label>
-            <a href="mailto:support@itms.local?subject=Qu%C3%AAn%20m%E1%BA%ADt%20kh%E1%BA%A9u"
-              >Quên mật khẩu?</a
-            >
+            <a routerLink="/forgot-password">Quên mật khẩu?</a>
           </div>
 
           <button class="submit-button" type="submit" [disabled]="isSubmitting()">
             {{ isSubmitting() ? 'Đang đăng nhập…' : 'Đăng nhập' }}
           </button>
-
         </form>
       </section>
     </main>
@@ -161,8 +158,7 @@ export class LoginComponent {
       .pipe(finalize(() => this.isSubmitting.set(false)))
       .subscribe({
         next: (response) => {
-          sessionStorage.setItem('itms_access_token', response.access_token);
-          sessionStorage.setItem('itms_authenticated_user', JSON.stringify(response.user));
+          this.authService.storeSession(response);
           this.authenticatedUser.set(response.user);
           void this.router.navigate(['/dashboard', response.user.role.toLowerCase()]);
         },

@@ -30,7 +30,15 @@ def main() -> None:
         for email, password, full_name, role in DEMO_USERS:
             user = db.scalar(select(User).where(User.email == email))
             if user is None:
-                db.add(User(email=email, password_hash=hash_password(password), full_name=full_name, role=role, status=UserStatus.ACTIVE))
+                db.add(
+                    User(
+                        email=email,
+                        password_hash=hash_password(password),
+                        full_name=full_name,
+                        role=role,
+                        status=UserStatus.ACTIVE,
+                    )
+                )
                 print(f"Created development user: {email}")
             else:
                 user.password_hash = hash_password(password)
