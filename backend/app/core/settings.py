@@ -36,8 +36,17 @@ def _origins(value: str) -> tuple[str, ...]:
 class Settings:
     environment: str
     cors_origins: tuple[str, ...]
+    jwt_secret: str
+    jwt_issuer: str
+    jwt_audience: str
+    access_token_ttl_seconds: int
     database_url: str | None = None
     db_echo: bool = False
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 465
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
 
 
 @lru_cache
@@ -48,6 +57,15 @@ def get_settings() -> Settings:
     return Settings(
         environment=os.getenv("ITMS_ENVIRONMENT", "development"),
         cors_origins=_origins(os.getenv("ITMS_CORS_ORIGINS", "http://localhost:4200")),
+        jwt_secret=os.getenv("ITMS_JWT_SECRET", "development-only-secret-change-me"),
+        jwt_issuer=os.getenv("ITMS_JWT_ISSUER", "itms-backend"),
+        jwt_audience=os.getenv("ITMS_JWT_AUDIENCE", "itms-web-client"),
+        access_token_ttl_seconds=int(os.getenv("ITMS_ACCESS_TOKEN_TTL_SECONDS", "900")),
         database_url=db_url,
         db_echo=db_echo_raw in ("true", "1", "yes"),
+        smtp_host=os.getenv("ITMS_SMTP_HOST", "smtp.gmail.com"),
+        smtp_port=int(os.getenv("ITMS_SMTP_PORT", "465")),
+        smtp_username=os.getenv("ITMS_SMTP_USERNAME"),
+        smtp_password=os.getenv("ITMS_SMTP_PASSWORD"),
+        smtp_from_email=os.getenv("ITMS_SMTP_FROM_EMAIL"),
     )

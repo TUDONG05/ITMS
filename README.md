@@ -51,6 +51,29 @@ npm start
 - Backend health: `http://localhost:8000/api/v1/health`
 - Web client chuyển `/api/*` tới Backend qua `proxy.conf.json`.
 
+## Đăng nhập demo
+
+Trang Angular gọi `POST /api/v1/auth/login` và nhận JWT access token ngắn hạn. API truy vấn tài khoản từ bảng `users` trong PostgreSQL.
+
+Thiết lập database local trước khi chạy backend:
+
+```bash
+cp environment.local.example environment.local
+# Cập nhật ITMS_DATABASE_URL trong environment.local theo PostgreSQL của bạn
+cd backend
+uv run alembic upgrade head
+uv run python scripts/seed_demo_user.py
+```
+
+Dùng tài khoản sau để kiểm thử:
+
+```text
+Email: intern@itms.local
+Mật khẩu: Intern@12345
+```
+
+`GET /api/v1/me` kiểm tra token theo `Authorization: Bearer <access_token>` và tải lại người dùng từ database. Phiên JWT active hiện vẫn nằm trong bộ nhớ; refresh/logout và đổi/quên mật khẩu sẽ được bổ sung cùng data model của M01.
+
 ## Kiểm tra chất lượng
 
 ```bash
@@ -69,6 +92,6 @@ npm run compile
 
 ## Ranh giới Sprint 0
 
-S0-02 chỉ dựng source, môi trường và health probe. OpenAPI/DTO thuộc S0-04; xác thực, RBAC, database, migration và CI thuộc các task Sprint 0 tiếp theo. Quy ước API/RBAC đã chốt ở `docs/s0-01-api-access-control.md`.
+S0-02 dựng source, môi trường và health probe. Luồng đăng nhập M01 đã có UI Angular, endpoint JWT, truy vấn PostgreSQL qua SQLAlchemy, migration khởi tạo và kiểm tra `/me`; refresh session, RBAC hoàn chỉnh và CI thuộc các task Sprint 0 tiếp theo. Quy ước API/RBAC đã chốt ở `docs/s0-01-api-access-control.md`.
 
 Tiền tố API công khai là cố định: `/api/v1`.
