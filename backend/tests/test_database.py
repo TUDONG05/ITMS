@@ -14,26 +14,11 @@ from app.schemas.user import UserCreate, UserRead
 def test_all_20_entities_registered():
     """Verify the 20 business entities of the agreed MVP schema are registered."""
     expected_tables = {
-        "users",
-        "internships",
-        "internship_members",
-        "internship_requests",
-        "roadmaps",
-        "phases",
-        "learning_contents",
-        "learning_progress",
-        "quizzes",
-        "questions",
-        "quiz_attempts",
-        "tasks",
-        "task_submissions",
-        "task_comments",
-        "evaluation_criteria",
-        "evaluations",
-        "notifications",
-        "notification_reads",
-        "ai_conversations",
-        "ai_messages",
+        "nguoi_dung", "dot_thuc_tap", "thanh_vien_thuc_tap", "yeu_cau_thuc_tap",
+        "lo_trinh_dao_tao", "giai_doan", "noi_dung_dao_tao", "tien_do_hoc_tap",
+        "bai_kiem_tra", "cau_hoi", "lan_lam_bai", "cong_viec", "bai_nop_cong_viec",
+        "binh_luan_cong_viec", "tieu_chi_danh_gia", "danh_gia", "thong_bao",
+        "luot_doc_thong_bao", "hoi_thoai_ai", "tin_nhan_ai",
     }
     actual_tables = set(Base.metadata.tables.keys())
     assert len(actual_tables) == 20

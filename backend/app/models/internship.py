@@ -20,9 +20,9 @@ from app.db.base import Base
 
 
 class Internship(Base):
-    __tablename__ = "internships"
+    __tablename__ = "dot_thuc_tap"
     __table_args__ = (
-        CheckConstraint("end_date >= start_date", name="ck_internships_dates"),
+        CheckConstraint("ngay_ket_thuc >= ngay_bat_dau", name="ck_internships_dates"),
         CheckConstraint(
             "status IN ('DRAFT', 'OPEN', 'ONGOING', 'COMPLETED', 'CANCELLED')",
             name="ck_internships_status",
@@ -30,13 +30,16 @@ class Internship(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    name: Mapped[str] = mapped_column("ten", String(200), nullable=False, unique=True)
+    description: Mapped[str | None] = mapped_column("mo_ta", Text, nullable=True)
+    start_date: Mapped[date] = mapped_column("ngay_bat_dau", Date, nullable=False)
+    end_date: Mapped[date] = mapped_column("ngay_ket_thuc", Date, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="DRAFT")
     created_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        "nguoi_tao_id",
+        UUID(as_uuid=True),
+        ForeignKey("nguoi_dung.id", ondelete="SET NULL"),
+        nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
@@ -47,39 +50,52 @@ class Internship(Base):
 
 
 class InternshipMember(Base):
-    __tablename__ = "internship_members"
+    __tablename__ = "thanh_vien_thuc_tap"
     __table_args__ = (
-        UniqueConstraint("internship_id", "intern_id", name="uq_internship_members_intern"),
+        UniqueConstraint(
+            "dot_thuc_tap_id", "thuc_tap_sinh_id", name="uq_internship_members_intern"
+        ),
         CheckConstraint(
-            "end_date IS NULL OR start_date IS NULL OR end_date >= start_date",
+            "ngay_ket_thuc IS NULL OR ngay_bat_dau IS NULL OR ngay_ket_thuc >= ngay_bat_dau",
             name="ck_internship_members_dates",
         ),
         CheckConstraint(
             "status IN ('ACTIVE', 'EXTENDED', 'STOPPED', 'COMPLETED')",
             name="ck_internship_members_status",
         ),
-        Index("ix_internship_members_mentor_id", "mentor_id"),
-        Index("ix_internship_members_roadmap_id", "roadmap_id"),
+        Index("ix_internship_members_internship_id", "dot_thuc_tap_id"),
+        Index("ix_internship_members_intern_id", "thuc_tap_sinh_id"),
+        Index("ix_internship_members_mentor_id", "nguoi_huong_dan_id"),
+        Index("ix_internship_members_roadmap_id", "lo_trinh_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     internship_id: Mapped[uuid.UUID] = mapped_column(
+        "dot_thuc_tap_id",
         UUID(as_uuid=True),
-        ForeignKey("internships.id", ondelete="CASCADE"),
+        ForeignKey("dot_thuc_tap.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     intern_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+        "thuc_tap_sinh_id",
+        UUID(as_uuid=True),
+        ForeignKey("nguoi_dung.id", ondelete="RESTRICT"),
+        nullable=False,
     )
     mentor_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        "nguoi_huong_dan_id",
+        UUID(as_uuid=True),
+        ForeignKey("nguoi_dung.id", ondelete="SET NULL"),
+        nullable=True,
     )
     roadmap_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("roadmaps.id", ondelete="SET NULL"), nullable=True
+        "lo_trinh_id",
+        UUID(as_uuid=True),
+        ForeignKey("lo_trinh_dao_tao.id", ondelete="SET NULL"),
+        nullable=True,
     )
-    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    start_date: Mapped[date | None] = mapped_column("ngay_bat_dau", Date, nullable=True)
+    end_date: Mapped[date | None] = mapped_column("ngay_ket_thuc", Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
@@ -90,35 +106,44 @@ class InternshipMember(Base):
 
 
 class InternshipRequest(Base):
-    __tablename__ = "internship_requests"
+    __tablename__ = "yeu_cau_thuc_tap"
     __table_args__ = (
         CheckConstraint(
-            "type IN ('EXTEND', 'STOP', 'COMPLETE')", name="ck_internship_requests_type"
+            "loai IN ('EXTEND', 'STOP', 'COMPLETE')", name="ck_internship_requests_type"
         ),
         CheckConstraint(
             "status IN ('PENDING', 'APPROVED', 'REJECTED')", name="ck_internship_requests_status"
         ),
         Index("ix_internship_requests_status", "status"),
+        Index("ix_internship_requests_internship_member_id", "thanh_vien_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     internship_member_id: Mapped[uuid.UUID] = mapped_column(
+        "thanh_vien_id",
         UUID(as_uuid=True),
-        ForeignKey("internship_members.id", ondelete="CASCADE"),
+        ForeignKey("thanh_vien_thuc_tap.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     requested_by: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+        "nguoi_yeu_cau_id",
+        UUID(as_uuid=True),
+        ForeignKey("nguoi_dung.id", ondelete="RESTRICT"),
+        nullable=False,
     )
-    type: Mapped[str] = mapped_column(String(20), nullable=False)
-    reason: Mapped[str] = mapped_column(Text, nullable=False)
-    requested_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    type: Mapped[str] = mapped_column("loai", String(20), nullable=False)
+    reason: Mapped[str] = mapped_column("ly_do", Text, nullable=False)
+    requested_end_date: Mapped[date | None] = mapped_column(
+        "ngay_ket_thuc_de_xuat", Date, nullable=True
+    )
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING")
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        "nguoi_duyet_id",
+        UUID(as_uuid=True),
+        ForeignKey("nguoi_dung.id", ondelete="SET NULL"),
+        nullable=True,
     )
-    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_note: Mapped[str | None] = mapped_column("ghi_chu_duyet", Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
