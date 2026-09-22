@@ -19,13 +19,7 @@ import { ApiErrorResponse, AuthenticatedUser, AuthService } from '../../core/api
       <section class="login-panel" aria-labelledby="login-heading">
         <form class="login-card" [formGroup]="form" (ngSubmit)="submit()">
           <div class="brand" aria-label="ITMS">
-            <span class="brand__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-                <path d="M6 12v5c3 3 9 3 12 0v-5" />
-              </svg>
-            </span>
-            <span>ITMS</span>
+            <img class="brand__logo" src="/itms-logo.png" alt="ITMS — Hệ thống quản lý thực tập sinh" />
           </div>
 
           <h1 id="login-heading">Đăng nhập</h1>
