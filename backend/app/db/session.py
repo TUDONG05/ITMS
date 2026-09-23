@@ -12,6 +12,15 @@ _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
 
 
+def _sqlalchemy_url(database_url: str) -> str:
+    """Select psycopg v3 when a provider supplies a generic PostgreSQL URL."""
+    if database_url.startswith("postgres://"):
+        return f"postgresql+psycopg://{database_url.removeprefix('postgres://')}"
+    if database_url.startswith("postgresql://"):
+        return f"postgresql+psycopg://{database_url.removeprefix('postgresql://')}"
+    return database_url
+
+
 def get_engine() -> Engine:
     global _engine
     if _engine is None:
@@ -21,7 +30,7 @@ def get_engine() -> Engine:
                 "DATABASE_URL is not configured. Set ITMS_DATABASE_URL or DATABASE_URL."
             )
         _engine = create_engine(
-            settings.database_url,
+            _sqlalchemy_url(settings.database_url),
             echo=settings.db_echo,
             pool_pre_ping=True,
         )
