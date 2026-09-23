@@ -50,9 +50,25 @@ import { ApiErrorResponse, AuthService } from '../../core/api/auth.service';
           <div class="form-group">
             <label for="new-password">Mật khẩu mới</label>
             <div class="input-wrapper">
-              <input id="new-password" [type]="isNewPasswordVisible() ? 'text' : 'password'" autocomplete="new-password" formControlName="newPassword" />
-              <button class="password-toggle" type="button" [attr.aria-label]="isNewPasswordVisible() ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'" (click)="toggleNewPasswordVisibility()">
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <input
+                id="new-password"
+                [type]="isNewPasswordVisible() ? 'text' : 'password'"
+                autocomplete="new-password"
+                formControlName="newPassword"
+              />
+              <button
+                class="password-toggle"
+                type="button"
+                [attr.aria-label]="isNewPasswordVisible() ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
+                (click)="toggleNewPasswordVisibility()"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
                   <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
                   <circle cx="12" cy="12" r="3" />
                 </svg>
@@ -62,16 +78,37 @@ import { ApiErrorResponse, AuthService } from '../../core/api/auth.service';
           <div class="form-group">
             <label for="confirmation">Xác nhận mật khẩu mới</label>
             <div class="input-wrapper">
-              <input id="confirmation" [type]="isConfirmationVisible() ? 'text' : 'password'" autocomplete="new-password" formControlName="confirmation" />
-              <button class="password-toggle" type="button" [attr.aria-label]="isConfirmationVisible() ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'" (click)="toggleConfirmationVisibility()">
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <input
+                id="confirmation"
+                [type]="isConfirmationVisible() ? 'text' : 'password'"
+                autocomplete="new-password"
+                formControlName="confirmation"
+              />
+              <button
+                class="password-toggle"
+                type="button"
+                [attr.aria-label]="isConfirmationVisible() ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
+                (click)="toggleConfirmationVisibility()"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
                   <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
                   <circle cx="12" cy="12" r="3" />
                 </svg>
               </button>
             </div>
           </div>
-          <button class="submit-button" type="button" [disabled]="isSubmitting()" (click)="resetPassword()">
+          <button
+            class="submit-button"
+            type="button"
+            [disabled]="isSubmitting()"
+            (click)="resetPassword()"
+          >
             Đặt lại mật khẩu
           </button>
         </div>
@@ -117,19 +154,26 @@ export class ForgotPasswordComponent {
       this.errorMessage.set('Mật khẩu mới cần ít nhất 8 ký tự.');
       return;
     }
-    if (this.otpForm.controls.otp.invalid || this.otpForm.value.newPassword !== this.otpForm.value.confirmation) {
+    if (
+      this.otpForm.controls.otp.invalid ||
+      this.otpForm.value.newPassword !== this.otpForm.value.confirmation
+    ) {
       this.otpForm.markAllAsTouched();
       this.errorMessage.set('Kiểm tra lại mã OTP và xác nhận mật khẩu mới.');
       return;
     }
     this.isSubmitting.set(true);
-    this.authService.resetPassword({
-      email: this.form.value.email ?? '',
-      otp: this.otpForm.value.otp ?? '',
-      new_password: this.otpForm.value.newPassword ?? '',
-    })
+    this.authService
+      .resetPassword({
+        email: this.form.value.email ?? '',
+        otp: this.otpForm.value.otp ?? '',
+        new_password: this.otpForm.value.newPassword ?? '',
+      })
       .pipe(finalize(() => this.isSubmitting.set(false)))
-      .subscribe({ next: () => this.message.set('Đặt lại mật khẩu thành công. Bạn có thể đăng nhập lại.'), error: (error: unknown) => this.errorMessage.set(errorMessage(error)) });
+      .subscribe({
+        next: () => this.message.set('Đặt lại mật khẩu thành công. Bạn có thể đăng nhập lại.'),
+        error: (error: unknown) => this.errorMessage.set(errorMessage(error)),
+      });
   }
 
   protected toggleNewPasswordVisibility(): void {

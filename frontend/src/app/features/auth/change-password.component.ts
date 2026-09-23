@@ -111,7 +111,9 @@ export class ChangePasswordComponent {
 
 function dashboardLinkForCurrentUser(): string[] {
   try {
-    const role = (JSON.parse(sessionStorage.getItem('itms_authenticated_user') ?? '{}') as { role?: string }).role?.toLowerCase();
+    const role = (
+      JSON.parse(sessionStorage.getItem('itms_authenticated_user') ?? '{}') as { role?: string }
+    ).role?.toLowerCase();
     return role && ['intern', 'mentor', 'admin'].includes(role) ? ['/dashboard', role] : ['/login'];
   } catch {
     return ['/login'];

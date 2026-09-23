@@ -19,7 +19,11 @@ import { ApiErrorResponse, AuthenticatedUser, AuthService } from '../../core/api
       <section class="login-panel" aria-labelledby="login-heading">
         <form class="login-card" [formGroup]="form" (ngSubmit)="submit()">
           <div class="brand" aria-label="ITMS">
-            <img class="brand__logo" src="/itms-logo.png" alt="ITMS — Hệ thống quản lý thực tập sinh" />
+            <img
+              class="brand__logo"
+              src="/itms-logo.png"
+              alt="ITMS — Hệ thống quản lý thực tập sinh"
+            />
           </div>
 
           <h1 id="login-heading">Đăng nhập</h1>

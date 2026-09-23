@@ -142,9 +142,8 @@ class AuthService:
 
     def _can_send_password_reset(self, email: str) -> bool:
         previous_request = self._password_reset_requests.get(email)
-        return (
-            previous_request is None
-            or datetime.now(UTC) - previous_request >= timedelta(minutes=1)
+        return previous_request is None or datetime.now(UTC) - previous_request >= timedelta(
+            minutes=1
         )
 
     def _consume_password_reset_attempt(self, email: str) -> bool:

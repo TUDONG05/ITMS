@@ -46,7 +46,6 @@ export interface MessageResponse {
   message: string;
 }
 
-
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
