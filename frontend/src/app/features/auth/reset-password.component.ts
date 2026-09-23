@@ -24,16 +24,16 @@ import { ApiErrorResponse, AuthService } from '../../core/api/auth.service';
         }
         <div class="form-group">
           <label for="reset-email">Email</label>
-          <input
-            id="reset-email"
-            type="email"
-            autocomplete="email"
-            formControlName="email"
-          />
+          <input id="reset-email" type="email" autocomplete="email" formControlName="email" />
         </div>
         <div class="form-group">
           <label for="reset-otp">Mã OTP</label>
-          <input id="reset-otp" inputmode="numeric" autocomplete="one-time-code" formControlName="otp" />
+          <input
+            id="reset-otp"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            formControlName="otp"
+          />
         </div>
         <div class="form-group">
           <label for="reset-new-password">Mật khẩu mới</label>
@@ -109,7 +109,6 @@ export class ResetPasswordComponent {
 
 function errorMessage(error: unknown): string {
   return error instanceof HttpErrorResponse
-    ? ((error.error as ApiErrorResponse).error?.message ??
-        'Mã OTP không hợp lệ hoặc đã hết hạn.')
+    ? ((error.error as ApiErrorResponse).error?.message ?? 'Mã OTP không hợp lệ hoặc đã hết hạn.')
     : 'Không thể kết nối đến máy chủ.';
 }
