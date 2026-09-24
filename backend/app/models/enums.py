@@ -2,66 +2,83 @@ from enum import StrEnum
 
 
 class UserRole(StrEnum):
-    INTERN = "INTERN"
-    MENTOR = "MENTOR"
-    MANAGER = "MANAGER"
     ADMIN = "ADMIN"
+    MENTOR = "MENTOR"
+    INTERN = "INTERN"
 
 
 class UserStatus(StrEnum):
     ACTIVE = "ACTIVE"
-    INACTIVE = "INACTIVE"
     LOCKED = "LOCKED"
-
-
-class InternshipPeriodStatus(StrEnum):
-    PLANNED = "PLANNED"
-    ACTIVE = "ACTIVE"
-    CLOSED = "CLOSED"
-    CANCELLED = "CANCELLED"
+    INACTIVE = "INACTIVE"
 
 
 class InternshipStatus(StrEnum):
-    PLANNED = "PLANNED"
+    DRAFT = "DRAFT"
+    OPEN = "OPEN"
+    ONGOING = "ONGOING"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+
+
+class MemberStatus(StrEnum):
     ACTIVE = "ACTIVE"
     EXTENDED = "EXTENDED"
+    STOPPED = "STOPPED"
     COMPLETED = "COMPLETED"
-    TERMINATED = "TERMINATED"
 
 
 class RoadmapStatus(StrEnum):
     DRAFT = "DRAFT"
-    PUBLISHED = "PUBLISHED"
+    ACTIVE = "ACTIVE"
     ARCHIVED = "ARCHIVED"
 
 
 class ContentType(StrEnum):
-    TEXT = "TEXT"
-    LINK = "LINK"
-    FILE = "FILE"
+    LESSON = "LESSON"
+    DOCUMENT = "DOCUMENT"
     VIDEO = "VIDEO"
+    LINK = "LINK"
 
 
-class ExamAttemptStatus(StrEnum):
+class LearningProgressStatus(StrEnum):
+    NOT_STARTED = "NOT_STARTED"
     IN_PROGRESS = "IN_PROGRESS"
-    SUBMITTED = "SUBMITTED"
-    GRADED = "GRADED"
-    EXPIRED = "EXPIRED"
+    COMPLETED = "COMPLETED"
+
+
+class QuizStatus(StrEnum):
+    DRAFT = "DRAFT"
+    PUBLISHED = "PUBLISHED"
+    CLOSED = "CLOSED"
+
+
+class QuestionType(StrEnum):
+    SINGLE_CHOICE = "SINGLE_CHOICE"
+    MULTIPLE_CHOICE = "MULTIPLE_CHOICE"
+    TRUE_FALSE = "TRUE_FALSE"
+    TEXT = "TEXT"
 
 
 class TaskPriority(StrEnum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
-    URGENT = "URGENT"
 
 
 class TaskStatus(StrEnum):
-    ASSIGNED = "ASSIGNED"
-    PENDING_REVIEW = "PENDING_REVIEW"
+    TODO = "TODO"
+    IN_PROGRESS = "IN_PROGRESS"
+    SUBMITTED = "SUBMITTED"
     REVISION_REQUIRED = "REVISION_REQUIRED"
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
+
+
+class SubmissionStatus(StrEnum):
+    SUBMITTED = "SUBMITTED"
+    REVISION_REQUIRED = "REVISION_REQUIRED"
+    ACCEPTED = "ACCEPTED"
 
 
 class EvaluationType(StrEnum):
@@ -74,57 +91,29 @@ class EvaluationStatus(StrEnum):
     PUBLISHED = "PUBLISHED"
 
 
-class DocumentStatus(StrEnum):
-    PENDING = "PENDING"
-    INDEXED = "INDEXED"
-    FAILED = "FAILED"
-    ARCHIVED = "ARCHIVED"
+class CriteriaStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
 
 
-# Proposed Enums for unspecified fields in SRS
-class LifecycleRequestType(StrEnum):
+class InternshipRequestType(StrEnum):
     EXTEND = "EXTEND"
-    TERMINATE = "TERMINATE"
+    STOP = "STOP"
     COMPLETE = "COMPLETE"
 
 
-class LifecycleRequestStatus(StrEnum):
+class InternshipRequestStatus(StrEnum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
 
 
-class LifecycleApprovalDecision(StrEnum):
-    APPROVED = "APPROVED"
-    REJECTED = "REJECTED"
+class TargetType(StrEnum):
+    ALL = "ALL"
+    ROLE = "ROLE"
+    USER = "USER"
 
 
-class FeedbackStatus(StrEnum):
-    PENDING = "PENDING"
-    PROCESSING = "PROCESSING"
-    RESOLVED = "RESOLVED"
-    REJECTED = "REJECTED"
-
-
-class QuestionType(StrEnum):
-    SINGLE_CHOICE = "SINGLE_CHOICE"
-    MULTIPLE_CHOICE = "MULTIPLE_CHOICE"
-    TRUE_FALSE = "TRUE_FALSE"
-
-
-class QuestionDifficulty(StrEnum):
-    EASY = "EASY"
-    MEDIUM = "MEDIUM"
-    HARD = "HARD"
-
-
-class LearningProgressStatus(StrEnum):
-    NOT_STARTED = "NOT_STARTED"
-    IN_PROGRESS = "IN_PROGRESS"
-    COMPLETED = "COMPLETED"
-
-
-class ChatMessageSenderType(StrEnum):
+class AIMessageRole(StrEnum):
     USER = "USER"
     ASSISTANT = "ASSISTANT"
-    SYSTEM = "SYSTEM"

@@ -1,38 +1,31 @@
-from app.models.evaluation import Evaluation, LifecycleApproval, LifecycleRequest
-from app.models.exam import AttemptAnswer, Exam, ExamAttempt, ExamQuestion, Question
-from app.models.interaction import AuditLog, Feedback, Notification
-from app.models.internship import Internship, InternshipPeriod, MentorAssignment
-from app.models.knowledge import ChatMessage, Conversation, Document, DocumentChunk
-from app.models.roadmap import Content, LearningProgress, Roadmap, RoadmapPhase
-from app.models.task import Task, TaskComment, TaskStatusHistory, TaskSubmission
+from app.models.ai import AIConversation, AIMessage
+from app.models.evaluation import Evaluation, EvaluationCriteria, InternshipRequest
+from app.models.internship import Internship, InternshipMember
+from app.models.notification import Notification, NotificationRead
+from app.models.quiz import Question, Quiz, QuizAttempt
+from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
+from app.models.task import Task, TaskComment, TaskSubmission
 from app.models.user import User
 
 __all__ = [
-    "AttemptAnswer",
-    "AuditLog",
-    "ChatMessage",
-    "Content",
-    "Conversation",
-    "Document",
-    "DocumentChunk",
+    "AIConversation",
+    "AIMessage",
     "Evaluation",
-    "Exam",
-    "ExamAttempt",
-    "ExamQuestion",
-    "Feedback",
+    "EvaluationCriteria",
     "Internship",
-    "InternshipPeriod",
+    "InternshipMember",
+    "InternshipRequest",
+    "LearningContent",
     "LearningProgress",
-    "LifecycleApproval",
-    "LifecycleRequest",
-    "MentorAssignment",
     "Notification",
+    "NotificationRead",
+    "Phase",
     "Question",
+    "Quiz",
+    "QuizAttempt",
     "Roadmap",
-    "RoadmapPhase",
     "Task",
     "TaskComment",
-    "TaskStatusHistory",
     "TaskSubmission",
     "User",
 ]

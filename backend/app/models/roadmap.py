@@ -5,13 +5,11 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    Boolean,
-    CheckConstraint,
     DateTime,
-    Enum,
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -20,29 +18,24 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.models.enums import ContentType, LearningProgressStatus, RoadmapStatus
 
 if TYPE_CHECKING:
-    from app.models.exam import Exam
-    from app.models.internship import InternshipPeriod
+    from app.models.internship import InternshipMember
+    from app.models.quiz import Quiz
     from app.models.user import User
 
 
 class Roadmap(Base):
     __tablename__ = "roadmaps"
-    __table_args__ = (Index("ix_roadmaps_period_id", "period_id"),)
+    __table_args__ = (
+        Index("ix_roadmaps_created_by", "created_by"),
+        Index("ix_roadmaps_status", "status"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    period_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("internship_periods.id", ondelete="CASCADE"), nullable=False
-    )
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[RoadmapStatus] = mapped_column(
-        Enum(RoadmapStatus, name="roadmap_status", native_enum=True),
-        nullable=False,
-        default=RoadmapStatus.DRAFT,
-    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="DRAFT")
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -51,76 +44,99 @@ class Roadmap(Base):
         nullable=False,
         default=lambda: datetime.now(UTC),
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
     # Relationships
-    period: Mapped[InternshipPeriod] = relationship("InternshipPeriod", back_populates="roadmaps")
-    phases: Mapped[list[RoadmapPhase]] = relationship(
-        "RoadmapPhase",
+    creator: Mapped[User | None] = relationship(
+        "User", back_populates="created_roadmaps", foreign_keys=[created_by]
+    )
+    phases: Mapped[list[Phase]] = relationship(
+        "Phase",
         back_populates="roadmap",
         cascade="all, delete-orphan",
-        order_by="RoadmapPhase.sequence_no",
+        order_by="Phase.order_no",
+    )
+    members: Mapped[list[InternshipMember]] = relationship(
+        "InternshipMember", back_populates="roadmap"
     )
 
 
-class RoadmapPhase(Base):
-    __tablename__ = "roadmap_phases"
+class Phase(Base):
+    __tablename__ = "phases"
     __table_args__ = (
-        UniqueConstraint("roadmap_id", "sequence_no", name="uq_roadmap_phases_sequence"),
-        CheckConstraint(
-            "duration_days IS NULL OR duration_days > 0", name="ck_roadmap_phases_duration"
-        ),
-        Index("ix_roadmap_phases_roadmap_id", "roadmap_id"),
+        UniqueConstraint("roadmap_id", "order_no", name="uq_phases_order"),
+        Index("ix_phases_roadmap_id", "roadmap_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     roadmap_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("roadmaps.id", ondelete="CASCADE"), nullable=False
     )
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    sequence_no: Mapped[int] = mapped_column(Integer, nullable=False)
-    duration_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    completion_rule: Mapped[str | None] = mapped_column(Text, nullable=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    order_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
     # Relationships
     roadmap: Mapped[Roadmap] = relationship("Roadmap", back_populates="phases")
-    contents: Mapped[list[Content]] = relationship(
-        "Content",
+    learning_contents: Mapped[list[LearningContent]] = relationship(
+        "LearningContent",
         back_populates="phase",
         cascade="all, delete-orphan",
-        order_by="Content.sequence_no",
+        order_by="LearningContent.order_no",
     )
-    exams: Mapped[list[Exam]] = relationship(
-        "Exam", back_populates="phase", cascade="all, delete-orphan"
+    quizzes: Mapped[list[Quiz]] = relationship(
+        "Quiz", back_populates="phase", cascade="all, delete-orphan"
     )
 
 
-class Content(Base):
-    __tablename__ = "contents"
+class LearningContent(Base):
+    __tablename__ = "learning_contents"
     __table_args__ = (
-        UniqueConstraint("phase_id", "sequence_no", name="uq_contents_sequence"),
-        CheckConstraint(
-            "content_type != 'TEXT' OR (content_body IS NOT NULL AND content_body != '')",
-            name="ck_contents_text_body",
-        ),
-        Index("ix_contents_phase_id", "phase_id"),
+        UniqueConstraint("phase_id", "order_no", name="uq_learning_contents_order"),
+        Index("ix_learning_contents_phase_id", "phase_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     phase_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("roadmap_phases.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("phases.id", ondelete="CASCADE"), nullable=False
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    content_type: Mapped[ContentType] = mapped_column(
-        Enum(ContentType, name="content_type", native_enum=True), nullable=False
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    type: Mapped[str] = mapped_column(String(20), nullable=False, default="TEXT")
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resource_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    order_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
     )
-    content_body: Mapped[str | None] = mapped_column(Text, nullable=True)
-    resource_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    sequence_no: Mapped[int] = mapped_column(Integer, nullable=False)
-    is_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
     # Relationships
-    phase: Mapped[RoadmapPhase] = relationship("RoadmapPhase", back_populates="contents")
-    learning_progresses: Mapped[list[LearningProgress]] = relationship(
+    phase: Mapped[Phase] = relationship("Phase", back_populates="learning_contents")
+    progresses: Mapped[list[LearningProgress]] = relationship(
         "LearningProgress", back_populates="content", cascade="all, delete-orphan"
     )
 
@@ -128,25 +144,36 @@ class Content(Base):
 class LearningProgress(Base):
     __tablename__ = "learning_progress"
     __table_args__ = (
-        UniqueConstraint("intern_id", "content_id", name="uq_learning_progress_intern_content"),
-        Index("ix_learning_progress_intern_id", "intern_id"),
+        UniqueConstraint(
+            "internship_member_id", "content_id", name="uq_learning_progress_member_content"
+        ),
+        Index("ix_learning_progress_member_id", "internship_member_id"),
         Index("ix_learning_progress_content_id", "content_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    intern_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    internship_member_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("internship_members.id", ondelete="CASCADE"),
+        nullable=False,
     )
     content_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("contents.id", ondelete="CASCADE"), nullable=False
-    )
-    status: Mapped[LearningProgressStatus] = mapped_column(
-        Enum(LearningProgressStatus, name="learning_progress_status", native_enum=True),
+        UUID(as_uuid=True),
+        ForeignKey("learning_contents.id", ondelete="CASCADE"),
         nullable=False,
-        default=LearningProgressStatus.NOT_STARTED,
     )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="NOT_STARTED")
+    progress_percent: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
     # Relationships
-    intern: Mapped[User] = relationship("User", back_populates="learning_progresses")
-    content: Mapped[Content] = relationship("Content", back_populates="learning_progresses")
+    member: Mapped[InternshipMember] = relationship(
+        "InternshipMember", back_populates="learning_progresses"
+    )
+    content: Mapped[LearningContent] = relationship("LearningContent", back_populates="progresses")
