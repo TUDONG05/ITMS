@@ -3,17 +3,12 @@ name = "backend"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
-    "alembic>=1.14.1",
     "fastapi>=0.141.1",
-    "psycopg[binary]>=3.2.4",
-    "pydantic-settings>=2.8.0",
-    "sqlalchemy>=2.0.38",
     "uvicorn[standard]>=0.53.0",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "pytest>=9.1.1",
     "ruff>=0.16.7",
 ]
@@ -28,7 +23,3 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
-
-[tool.ruff.lint.per-file-ignores]
-"migrations/*" = ["E501"]
-

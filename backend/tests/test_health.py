@@ -18,14 +18,14 @@ def _available_port() -> int:
 
 
 def _request_health(url: str) -> tuple[int, bytes]:
-    deadline = time.monotonic() + 15
+    deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
         try:
             with urlopen(url, timeout=0.5) as response:  # noqa: S310
                 return response.status, response.read()
         except URLError:
             time.sleep(0.1)
-    raise AssertionError("Uvicorn did not expose the health endpoint within fifteen seconds.")
+    raise AssertionError("Uvicorn did not expose the health endpoint within five seconds.")
 
 
 def test_health_returns_service_status() -> None:
