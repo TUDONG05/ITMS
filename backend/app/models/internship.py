@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     CheckConstraint,
@@ -14,9 +15,12 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class Internship(Base):
@@ -46,6 +50,10 @@ class Internship(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    members: Mapped[list[InternshipMember]] = relationship(
+        "InternshipMember", cascade="all, delete-orphan"
     )
 
 
@@ -103,6 +111,9 @@ class InternshipMember(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
+
+    intern: Mapped[User] = relationship("User", foreign_keys=[intern_id])
+    mentor: Mapped[User | None] = relationship("User", foreign_keys=[mentor_id])
 
 
 class InternshipRequest(Base):
