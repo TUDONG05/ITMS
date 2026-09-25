@@ -12,7 +12,7 @@ import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { AuthService } from '../../core/api/auth.service';
-import { InternshipManagementComponent } from "../internships/internship-management.component";
+import { InternshipManagementComponent } from '../internships/internship-management.component';
 
 enum Role {
   Intern = 'INTERN',

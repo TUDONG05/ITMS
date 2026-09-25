@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 from pydantic import Field, model_validator
 
-from app.models.enums import InternshipStatus, InternshipMemberStatus, UserRole
+from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole
 from app.schemas.base import BaseSchema
 
 

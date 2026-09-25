@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.db.session import get_session_factory
 from app.main import app
-from app.models.enums import InternshipStatus, InternshipMemberStatus, UserRole, UserStatus
+from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole, UserStatus
 from app.models.internship import Internship
 from app.models.user import User
 

@@ -1,11 +1,5 @@
 import { CommonModule } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  OnInit,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -58,7 +52,9 @@ import {
       <div class="page-header">
         <div class="header-titles">
           <h2>Quản lý Đợt thực tập</h2>
-          <p>Tạo mới, theo dõi tiến độ các đợt thực tập và quản lý danh sách thực tập sinh & mentor.</p>
+          <p>
+            Tạo mới, theo dõi tiến độ các đợt thực tập và quản lý danh sách thực tập sinh & mentor.
+          </p>
         </div>
         <button nz-button nzType="primary" (click)="openCreateModal()">
           <span nz-icon nzType="plus"></span>
@@ -116,12 +112,7 @@ import {
                       <span nz-icon nzType="team"></span>
                       Quản lý Intern
                     </button>
-                    <button
-                      nz-button
-                      nzType="text"
-                      nzSize="small"
-                      (click)="openEditModal(item)"
-                    >
+                    <button nz-button nzType="text" nzSize="small" (click)="openEditModal(item)">
                       <span nz-icon nzType="edit"></span>
                       Sửa
                     </button>
@@ -144,7 +135,9 @@ import {
           <ng-template #memberCardTitle>
             <div class="member-panel-header">
               <span nz-icon nzType="team" class="panel-icon"></span>
-              <span>Danh sách Intern trong đợt: <strong>{{ current.name }}</strong></span>
+              <span
+                >Danh sách Intern trong đợt: <strong>{{ current.name }}</strong></span
+              >
               <nz-tag [nzColor]="getStatusColor(current.status)" style="margin-left: 8px;">
                 {{ getStatusLabel(current.status) }}
               </nz-tag>
@@ -245,11 +238,7 @@ import {
             <nz-form-item>
               <nz-form-label nzRequired>Tên đợt thực tập</nz-form-label>
               <nz-form-control nzErrorTip="Vui lòng nhập tên đợt thực tập (tối thiểu 3 ký tự)">
-                <input
-                  nz-input
-                  formControlName="name"
-                  placeholder="Ví dụ: Đợt thực tập Thu 2026"
-                />
+                <input nz-input formControlName="name" placeholder="Ví dụ: Đợt thực tập Thu 2026" />
               </nz-form-control>
             </nz-form-item>
 
@@ -610,11 +599,9 @@ export class InternshipManagementComponent implements OnInit {
   loadUsers(): void {
     this.internshipService.getUsers('INTERN').subscribe({
       next: (users) => this.availableInterns.set(users),
-      error: () => {},
     });
     this.internshipService.getUsers('MENTOR').subscribe({
       next: (users) => this.availableMentors.set(users),
-      error: () => {},
     });
   }
 
@@ -766,7 +753,7 @@ export class InternshipManagementComponent implements OnInit {
         },
         error: (err) => {
           this.message.error(
-            err?.error?.detail || 'Không thể thêm Intern (có thể đã tồn tại trong đợt).'
+            err?.error?.detail || 'Không thể thêm Intern (có thể đã tồn tại trong đợt).',
           );
           this.isSavingMember.set(false);
         },
