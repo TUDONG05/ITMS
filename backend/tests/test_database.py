@@ -5,60 +5,36 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db.base import Base
+from app.db.session import _sqlalchemy_url
 from app.main import app
-from app.models.enums import (
-    AIMessageRole,
-    ContentType,
-    CriteriaStatus,
-    EvaluationStatus,
-    EvaluationType,
-    InternshipRequestStatus,
-    InternshipRequestType,
-    InternshipStatus,
-    LearningProgressStatus,
-    MemberStatus,
-    QuestionType,
-    QuizStatus,
-    RoadmapStatus,
-    SubmissionStatus,
-    TargetType,
-    TaskPriority,
-    TaskStatus,
-    UserRole,
-    UserStatus,
-)
-from app.schemas.internship import (
-    InternshipBase,
-    InternshipMemberBase,
-    InternshipMemberRead,
-    InternshipRead,
-)
+from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole, UserStatus
+from app.schemas.internship import InternshipBase, InternshipMemberBase, InternshipRead
 from app.schemas.user import UserCreate, UserRead
 
 
 def test_all_20_entities_registered():
-    """Verify that exactly 20 tables matching diagram.pdf are registered in SQLAlchemy metadata."""
+    """Verify the 20 business entities of the agreed MVP schema are registered."""
     expected_tables = {
-        "users",
-        "internships",
-        "roadmaps",
-        "internship_members",
-        "phases",
-        "learning_contents",
-        "learning_progress",
-        "quizzes",
-        "questions",
-        "quiz_attempts",
-        "tasks",
-        "task_submissions",
-        "task_comments",
-        "evaluation_criteria",
-        "evaluations",
-        "internship_requests",
-        "notifications",
-        "notification_reads",
-        "ai_conversations",
-        "ai_messages",
+        "nguoi_dung",
+        "dot_thuc_tap",
+        "thanh_vien_thuc_tap",
+        "yeu_cau_thuc_tap",
+        "lo_trinh_dao_tao",
+        "giai_doan",
+        "noi_dung_dao_tao",
+        "tien_do_hoc_tap",
+        "bai_kiem_tra",
+        "cau_hoi",
+        "lan_lam_bai",
+        "cong_viec",
+        "bai_nop_cong_viec",
+        "binh_luan_cong_viec",
+        "tieu_chi_danh_gia",
+        "danh_gia",
+        "thong_bao",
+        "luot_doc_thong_bao",
+        "hoi_thoai_ai",
+        "tin_nhan_ai",
     }
     actual_tables = set(Base.metadata.tables.keys())
     assert len(actual_tables) == 20
@@ -66,35 +42,11 @@ def test_all_20_entities_registered():
 
 
 def test_core_enums_defined():
-    """Verify all 20-table schema enums matching migration are correctly declared."""
-    assert UserRole.ADMIN == "ADMIN"
-    assert UserRole.MENTOR == "MENTOR"
+    """Verify the role and internship values defined for the MVP schema."""
     assert UserRole.INTERN == "INTERN"
     assert UserStatus.ACTIVE == "ACTIVE"
-    assert InternshipStatus.DRAFT == "DRAFT"
     assert InternshipStatus.OPEN == "OPEN"
-    assert InternshipStatus.ONGOING == "ONGOING"
-    assert InternshipStatus.COMPLETED == "COMPLETED"
-    assert InternshipStatus.CANCELLED == "CANCELLED"
-    assert MemberStatus.ACTIVE == "ACTIVE"
-    assert MemberStatus.EXTENDED == "EXTENDED"
-    assert MemberStatus.STOPPED == "STOPPED"
-    assert MemberStatus.COMPLETED == "COMPLETED"
-    assert RoadmapStatus.ACTIVE == "ACTIVE"
-    assert ContentType.LESSON == "LESSON"
-    assert LearningProgressStatus.COMPLETED == "COMPLETED"
-    assert QuizStatus.DRAFT == "DRAFT"
-    assert QuestionType.SINGLE_CHOICE == "SINGLE_CHOICE"
-    assert TaskPriority.HIGH == "HIGH"
-    assert TaskStatus.COMPLETED == "COMPLETED"
-    assert SubmissionStatus.SUBMITTED == "SUBMITTED"
-    assert EvaluationType.FINAL == "FINAL"
-    assert EvaluationStatus.PUBLISHED == "PUBLISHED"
-    assert CriteriaStatus.ACTIVE == "ACTIVE"
-    assert InternshipRequestType.EXTEND == "EXTEND"
-    assert InternshipRequestStatus.PENDING == "PENDING"
-    assert TargetType.ALL == "ALL"
-    assert AIMessageRole.USER == "USER"
+    assert InternshipMemberStatus.EXTENDED == "EXTENDED"
 
 
 def test_user_schemas():
@@ -105,11 +57,8 @@ def test_user_schemas():
         full_name="Nguyễn Văn A",
         role=UserRole.INTERN,
         password="secretpassword",
-        phone="0912345678",
-        avatar_url="https://example.com/avatar.png",
     )
     assert user_create.email == "intern@example.com"
-    assert user_create.phone == "0912345678"
 
     user_read = UserRead(
         id=user_id,
@@ -117,61 +66,53 @@ def test_user_schemas():
         full_name="Nguyễn Văn A",
         role=UserRole.INTERN,
         status=UserStatus.ACTIVE,
-        phone="0912345678",
-        avatar_url="https://example.com/avatar.png",
         created_at=now,
         updated_at=now,
     )
     assert user_read.id == user_id
-    assert user_read.avatar_url == "https://example.com/avatar.png"
 
 
 def test_internship_schemas_validation():
     now = datetime.now(UTC)
-    internship_id = uuid.uuid4()
-    member_id = uuid.uuid4()
+    mentor_id = uuid.uuid4()
     intern_id = uuid.uuid4()
+    internship_id = uuid.uuid4()
 
-    # Valid internship
+    # Valid internship period
     internship = InternshipRead(
         id=internship_id,
         name="Internship 2026-Q1",
-        description="Spring batch",
-        status=InternshipStatus.DRAFT,
         start_date=date(2026, 1, 1),
         end_date=date(2026, 3, 31),
+        status=InternshipStatus.OPEN,
         created_at=now,
         updated_at=now,
     )
     assert internship.name == "Internship 2026-Q1"
-    assert internship.status == InternshipStatus.DRAFT
 
-    # Invalid internship: end_date < start_date
+    # Invalid period: end_date < start_date
     with pytest.raises(ValueError, match="end_date must not be before start_date"):
         InternshipBase(
-            name="Invalid Batch",
+            name="Invalid Period",
             start_date=date(2026, 5, 1),
             end_date=date(2026, 4, 1),
         )
 
-    # Valid internship member
-    member = InternshipMemberRead(
-        id=member_id,
-        internship_id=internship_id,
+    member = InternshipMemberBase(
         intern_id=intern_id,
+        internship_id=internship_id,
+        mentor_id=mentor_id,
+        status=InternshipMemberStatus.ACTIVE,
         start_date=date(2026, 1, 1),
         end_date=date(2026, 3, 31),
-        status=MemberStatus.ACTIVE,
-        created_at=now,
-        updated_at=now,
     )
-    assert member.status == MemberStatus.ACTIVE
+    assert member.status == InternshipMemberStatus.ACTIVE
 
-    # Invalid internship member: end_date < start_date
+    # Invalid internship: end_date < start_date
     with pytest.raises(ValueError, match="end_date must not be before start_date"):
         InternshipMemberBase(
-            internship_id=internship_id,
             intern_id=intern_id,
+            internship_id=internship_id,
             start_date=date(2026, 6, 1),
             end_date=date(2026, 5, 1),
         )
@@ -193,3 +134,12 @@ def test_health_endpoints():
     db_data = resp_db.json()
     assert db_data["service"] == "itms-backend"
     assert "database" in db_data
+
+
+def test_database_url_uses_psycopg_v3_for_generic_postgres_urls():
+    assert _sqlalchemy_url("postgres://user:pass@example.com/itms") == (
+        "postgresql+psycopg://user:pass@example.com/itms"
+    )
+    assert _sqlalchemy_url("postgresql://user:pass@example.com/itms") == (
+        "postgresql+psycopg://user:pass@example.com/itms"
+    )

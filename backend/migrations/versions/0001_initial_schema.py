@@ -1,18 +1,14 @@
-"""Initial database schema for ITMS S0-04
+"""Initial 20-table schema for ITMS.
 
 Revision ID: 0001_initial_schema
 Revises:
-Create Date: 2026-09-17 22:00:00.000000
-
+Create Date: 2026-09-19
 """
 
 from collections.abc import Sequence
 
-import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
-# revision identifiers, used by Alembic.
 revision: str = "0001_initial_schema"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
@@ -20,823 +16,265 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # 1. Users table
-    op.create_table(
-        "users",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("email", sa.String(255), nullable=False),
-        sa.Column("password_hash", sa.String(255), nullable=False),
-        sa.Column("full_name", sa.String(255), nullable=False),
-        sa.Column(
-            "role",
-            sa.Enum("INTERN", "MENTOR", "MANAGER", "ADMIN", name="user_role"),
-            nullable=False,
-        ),
-        sa.Column(
-            "status",
-            sa.Enum("ACTIVE", "INACTIVE", "LOCKED", name="user_status"),
-            nullable=False,
-            server_default="ACTIVE",
-        ),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-        sa.Column(
-            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-        sa.UniqueConstraint("email", name="uq_users_email"),
-    )
-    op.create_index("ix_users_email", "users", ["email"])
-
-    # 2. InternshipPeriods table
-    op.create_table(
-        "internship_periods",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("name", sa.String(255), nullable=False),
-        sa.Column("start_date", sa.Date(), nullable=False),
-        sa.Column("end_date", sa.Date(), nullable=False),
-        sa.Column(
-            "status",
-            sa.Enum("PLANNED", "ACTIVE", "CLOSED", "CANCELLED", name="internship_period_status"),
-            nullable=False,
-            server_default="PLANNED",
-        ),
-        sa.Column(
-            "created_by",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-        sa.CheckConstraint("end_date >= start_date", name="ck_internship_periods_dates"),
-        sa.UniqueConstraint("name", name="uq_internship_periods_name"),
-    )
-    op.create_index("ix_internship_periods_name", "internship_periods", ["name"])
-
-    # 3. Internships table
-    op.create_table(
-        "internships",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "intern_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="RESTRICT"),
-            nullable=False,
-        ),
-        sa.Column(
-            "period_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("internship_periods.id", ondelete="RESTRICT"),
-            nullable=False,
-        ),
-        sa.Column(
-            "status",
-            sa.Enum(
-                "PLANNED", "ACTIVE", "EXTENDED", "COMPLETED", "TERMINATED", name="internship_status"
-            ),
-            nullable=False,
-            server_default="PLANNED",
-        ),
-        sa.Column("start_date", sa.Date(), nullable=False),
-        sa.Column("end_date", sa.Date(), nullable=False),
-        sa.Column("note", sa.Text(), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-        sa.Column(
-            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-        sa.CheckConstraint("end_date >= start_date", name="ck_internships_dates"),
-    )
-    op.create_index("ix_internships_period_id", "internships", ["period_id"])
-    op.create_index("ix_internships_intern_id", "internships", ["intern_id"])
-    op.create_index("ix_internships_status", "internships", ["status"])
-    op.create_index(
-        "uq_internships_active_intern",
-        "internships",
-        ["intern_id"],
-        unique=True,
-        postgresql_where=sa.text("status = 'ACTIVE'"),
-    )
-
-    # 4. MentorAssignments table
-    op.create_table(
-        "mentor_assignments",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "internship_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("internships.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "mentor_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="RESTRICT"),
-            nullable=False,
-        ),
-        sa.Column(
-            "assigned_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-        sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("is_primary", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column(
-            "assigned_by",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-        sa.CheckConstraint(
-            "ended_at IS NULL OR assigned_at <= ended_at", name="ck_mentor_assignments_dates"
-        ),
-    )
-    op.create_index("ix_mentor_assignments_internship_id", "mentor_assignments", ["internship_id"])
-    op.create_index("ix_mentor_assignments_mentor_id", "mentor_assignments", ["mentor_id"])
-    op.create_index(
-        "uq_mentor_assignments_active_primary",
-        "mentor_assignments",
-        ["internship_id"],
-        unique=True,
-        postgresql_where=sa.text("is_primary = true AND ended_at IS NULL"),
-    )
-
-    # 5. Roadmaps table
-    op.create_table(
-        "roadmaps",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "period_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("internship_periods.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("title", sa.String(255), nullable=False),
-        sa.Column("description", sa.Text(), nullable=True),
-        sa.Column(
-            "status",
-            sa.Enum("DRAFT", "PUBLISHED", "ARCHIVED", name="roadmap_status"),
-            nullable=False,
-            server_default="DRAFT",
-        ),
-        sa.Column(
-            "created_by",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-    )
-    op.create_index("ix_roadmaps_period_id", "roadmaps", ["period_id"])
-
-    # 6. RoadmapPhases table
-    op.create_table(
-        "roadmap_phases",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "roadmap_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("roadmaps.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("title", sa.String(255), nullable=False),
-        sa.Column("sequence_no", sa.Integer(), nullable=False),
-        sa.Column("duration_days", sa.Integer(), nullable=True),
-        sa.Column("completion_rule", sa.Text(), nullable=True),
-        sa.UniqueConstraint("roadmap_id", "sequence_no", name="uq_roadmap_phases_sequence"),
-        sa.CheckConstraint(
-            "duration_days IS NULL OR duration_days > 0", name="ck_roadmap_phases_duration"
-        ),
-    )
-    op.create_index("ix_roadmap_phases_roadmap_id", "roadmap_phases", ["roadmap_id"])
-
-    # 7. Contents table
-    op.create_table(
-        "contents",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "phase_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("roadmap_phases.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("title", sa.String(255), nullable=False),
-        sa.Column(
-            "content_type",
-            sa.Enum("TEXT", "LINK", "FILE", "VIDEO", name="content_type"),
-            nullable=False,
-        ),
-        sa.Column("content_body", sa.Text(), nullable=True),
-        sa.Column("resource_url", sa.String(500), nullable=True),
-        sa.Column("sequence_no", sa.Integer(), nullable=False),
-        sa.Column("is_required", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.UniqueConstraint("phase_id", "sequence_no", name="uq_contents_sequence"),
-        sa.CheckConstraint(
-            "content_type != 'TEXT' OR (content_body IS NOT NULL AND content_body != '')",
-            name="ck_contents_text_body",
-        ),
-    )
-    op.create_index("ix_contents_phase_id", "contents", ["phase_id"])
-
-    # 8. LearningProgress table
-    op.create_table(
-        "learning_progress",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "intern_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "content_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("contents.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "status",
-            sa.Enum("NOT_STARTED", "IN_PROGRESS", "COMPLETED", name="learning_progress_status"),
-            nullable=False,
-            server_default="NOT_STARTED",
-        ),
-        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.UniqueConstraint("intern_id", "content_id", name="uq_learning_progress_intern_content"),
-    )
-    op.create_index("ix_learning_progress_intern_id", "learning_progress", ["intern_id"])
-    op.create_index("ix_learning_progress_content_id", "learning_progress", ["content_id"])
-
-    # 9. Exams table
-    op.create_table(
-        "exams",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "phase_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("roadmap_phases.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("title", sa.String(255), nullable=False),
-        sa.Column("duration_minutes", sa.Integer(), nullable=False),
-        sa.Column("max_attempts", sa.Integer(), nullable=False),
-        sa.Column("passing_score", sa.Numeric(5, 2), nullable=False),
-        sa.Column("open_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("close_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint("duration_minutes > 0", name="ck_exams_duration"),
-        sa.CheckConstraint("max_attempts > 0", name="ck_exams_attempts"),
-        sa.CheckConstraint(
-            "passing_score >= 0 AND passing_score <= 100", name="ck_exams_passing_score"
-        ),
-        sa.CheckConstraint("close_at > open_at", name="ck_exams_dates"),
-    )
-    op.create_index("ix_exams_phase_id", "exams", ["phase_id"])
-
-    # 10. Questions table
-    op.create_table(
-        "questions",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("content", sa.Text(), nullable=False),
-        sa.Column(
-            "question_type",
-            sa.Enum("SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE", name="question_type"),
-            nullable=False,
-        ),
-        sa.Column(
-            "difficulty",
-            sa.Enum("EASY", "MEDIUM", "HARD", name="question_difficulty"),
-            nullable=False,
-            server_default="MEDIUM",
-        ),
-        sa.Column("correct_answer", sa.Text(), nullable=False),
-    )
-
-    # 11. ExamQuestions table
-    op.create_table(
-        "exam_questions",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "exam_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("exams.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "question_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("questions.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("order_no", sa.Integer(), nullable=False),
-        sa.Column("points", sa.Numeric(5, 2), nullable=False, server_default="1.0"),
-        sa.UniqueConstraint("exam_id", "question_id", name="uq_exam_questions_exam_question"),
-        sa.UniqueConstraint("exam_id", "order_no", name="uq_exam_questions_order"),
-    )
-    op.create_index("ix_exam_questions_exam_id", "exam_questions", ["exam_id"])
-    op.create_index("ix_exam_questions_question_id", "exam_questions", ["question_id"])
-
-    # 12. ExamAttempts table
-    op.create_table(
-        "exam_attempts",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "exam_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("exams.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "intern_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("attempt_no", sa.Integer(), nullable=False),
-        sa.Column("score", sa.Numeric(5, 2), nullable=True),
-        sa.Column(
-            "started_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-        sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "status",
-            sa.Enum("IN_PROGRESS", "SUBMITTED", "GRADED", "EXPIRED", name="exam_attempt_status"),
-            nullable=False,
-            server_default="IN_PROGRESS",
-        ),
-        sa.UniqueConstraint("exam_id", "intern_id", "attempt_no", name="uq_exam_attempts_no"),
-        sa.CheckConstraint(
-            "score IS NULL OR (score >= 0 AND score <= 100)", name="ck_exam_attempts_score"
-        ),
-    )
-    op.create_index("ix_exam_attempts_exam_id", "exam_attempts", ["exam_id"])
-    op.create_index("ix_exam_attempts_intern_id", "exam_attempts", ["intern_id"])
-
-    # 13. AttemptAnswers table
-    op.create_table(
-        "attempt_answers",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "attempt_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("exam_attempts.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "question_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("questions.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("answer", sa.Text(), nullable=True),
-        sa.Column("is_correct", sa.Boolean(), nullable=True),
-        sa.Column("score", sa.Numeric(5, 2), nullable=True),
-        sa.UniqueConstraint("attempt_id", "question_id", name="uq_attempt_answers_question"),
-    )
-    op.create_index("ix_attempt_answers_attempt_id", "attempt_answers", ["attempt_id"])
-    op.create_index("ix_attempt_answers_question_id", "attempt_answers", ["question_id"])
-
-    # 14. Tasks table
-    op.create_table(
-        "tasks",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "internship_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("internships.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "mentor_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="RESTRICT"),
-            nullable=False,
-        ),
-        sa.Column("title", sa.String(255), nullable=False),
-        sa.Column("description", sa.Text(), nullable=False),
-        sa.Column(
-            "priority",
-            sa.Enum("LOW", "MEDIUM", "HIGH", "URGENT", name="task_priority"),
-            nullable=False,
-            server_default="MEDIUM",
-        ),
-        sa.Column("deadline", sa.DateTime(timezone=True), nullable=False),
-        sa.Column(
-            "status",
-            sa.Enum(
-                "ASSIGNED",
-                "PENDING_REVIEW",
-                "REVISION_REQUIRED",
-                "COMPLETED",
-                "CANCELLED",
-                name="task_status",
-            ),
-            nullable=False,
-            server_default="ASSIGNED",
-        ),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-        sa.Column(
-            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-    )
-    op.create_index("ix_tasks_internship_id", "tasks", ["internship_id"])
-    op.create_index("ix_tasks_mentor_id", "tasks", ["mentor_id"])
-    op.create_index("ix_tasks_status", "tasks", ["status"])
-    op.create_index("ix_tasks_deadline", "tasks", ["deadline"])
-
-    # 15. TaskSubmissions table
-    op.create_table(
-        "task_submissions",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "task_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("tasks.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("content", sa.Text(), nullable=True),
-        sa.Column("link", sa.String(500), nullable=True),
-        sa.Column("attachment_url", sa.String(500), nullable=True),
-        sa.Column("version_no", sa.Integer(), nullable=False),
-        sa.Column(
-            "submitted_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-        sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("review_comment", sa.Text(), nullable=True),
-        sa.UniqueConstraint("task_id", "version_no", name="uq_task_submissions_version"),
-        sa.CheckConstraint(
-            "content IS NOT NULL OR link IS NOT NULL OR attachment_url IS NOT NULL",
-            name="ck_task_submissions_content",
-        ),
-    )
-    op.create_index("ix_task_submissions_task_id", "task_submissions", ["task_id"])
-
-    # 16. TaskComments table
-    op.create_table(
-        "task_comments",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "task_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("tasks.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "author_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("content", sa.Text(), nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-    )
-    op.create_index("ix_task_comments_task_id", "task_comments", ["task_id"])
-    op.create_index("ix_task_comments_author_id", "task_comments", ["author_id"])
-
-    # 17. TaskStatusHistory table
-    op.create_table(
-        "task_status_history",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "task_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("tasks.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "old_status",
-            postgresql.ENUM(name="task_status", create_type=False),
-            nullable=True,
-        ),
-        sa.Column(
-            "new_status",
-            postgresql.ENUM(name="task_status", create_type=False),
-            nullable=False,
-        ),
-        sa.Column(
-            "changed_by",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="RESTRICT"),
-            nullable=False,
-        ),
-        sa.Column(
-            "changed_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-    )
-    op.create_index("ix_task_status_history_task_id", "task_status_history", ["task_id"])
-
-    # 18. Evaluations table
-    op.create_table(
-        "evaluations",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "internship_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("internships.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "evaluator_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="RESTRICT"),
-            nullable=False,
-        ),
-        sa.Column(
-            "evaluation_type",
-            sa.Enum("PERIODIC", "FINAL", name="evaluation_type"),
-            nullable=False,
-        ),
-        sa.Column("score", sa.Numeric(5, 2), nullable=False),
-        sa.Column("comment", sa.Text(), nullable=True),
-        sa.Column(
-            "status",
-            sa.Enum("DRAFT", "PUBLISHED", name="evaluation_status"),
-            nullable=False,
-            server_default="DRAFT",
-        ),
-        sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
-        sa.CheckConstraint("score >= 0 AND score <= 100", name="ck_evaluations_score"),
-        sa.CheckConstraint(
-            "status != 'PUBLISHED' OR published_at IS NOT NULL", name="ck_evaluations_published_at"
-        ),
-    )
-    op.create_index("ix_evaluations_internship_id", "evaluations", ["internship_id"])
-    op.create_index("ix_evaluations_evaluator_id", "evaluations", ["evaluator_id"])
-
-    # 19. Notifications table
-    op.create_table(
-        "notifications",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "recipient_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("type", sa.String(100), nullable=False),
-        sa.Column("title", sa.String(255), nullable=False),
-        sa.Column("content", sa.Text(), nullable=False),
-        sa.Column("reference_type", sa.String(100), nullable=True),
-        sa.Column("reference_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("is_read", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("read_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-    )
-    op.create_index("ix_notifications_recipient_id", "notifications", ["recipient_id"])
-    op.create_index("ix_notifications_is_read", "notifications", ["is_read"])
-    op.create_index(
-        "ix_notifications_recipient_created", "notifications", ["recipient_id", "created_at"]
-    )
-
-    # 20. LifecycleRequests table
-    op.create_table(
-        "lifecycle_requests",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "internship_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("internships.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "request_type",
-            sa.Enum("EXTEND", "TERMINATE", "COMPLETE", name="lifecycle_request_type"),
-            nullable=False,
-        ),
-        sa.Column("reason", sa.Text(), nullable=False),
-        sa.Column(
-            "status",
-            sa.Enum("PENDING", "APPROVED", "REJECTED", name="lifecycle_request_status"),
-            nullable=False,
-            server_default="PENDING",
-        ),
-    )
-    op.create_index("ix_lifecycle_requests_internship_id", "lifecycle_requests", ["internship_id"])
-    op.create_index("ix_lifecycle_requests_status", "lifecycle_requests", ["status"])
-    op.create_index(
-        "uq_lifecycle_requests_pending",
-        "lifecycle_requests",
-        ["internship_id"],
-        unique=True,
-        postgresql_where=sa.text("status = 'PENDING'"),
-    )
-
-    # 21. LifecycleApprovals table
-    op.create_table(
-        "lifecycle_approvals",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "request_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("lifecycle_requests.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "approver_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="RESTRICT"),
-            nullable=False,
-        ),
-        sa.Column(
-            "decision",
-            sa.Enum("APPROVED", "REJECTED", name="lifecycle_approval_decision"),
-            nullable=False,
-        ),
-        sa.Column(
-            "decided_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-    )
-    op.create_index("ix_lifecycle_approvals_request_id", "lifecycle_approvals", ["request_id"])
-    op.create_index("ix_lifecycle_approvals_approver_id", "lifecycle_approvals", ["approver_id"])
-
-    # 22. Feedback table
-    op.create_table(
-        "feedback",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "sender_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("content", sa.Text(), nullable=False),
-        sa.Column(
-            "status",
-            sa.Enum("PENDING", "PROCESSING", "RESOLVED", "REJECTED", name="feedback_status"),
-            nullable=False,
-            server_default="PENDING",
-        ),
-        sa.Column("response", sa.Text(), nullable=True),
-    )
-    op.create_index("ix_feedback_sender_id", "feedback", ["sender_id"])
-    op.create_index("ix_feedback_status", "feedback", ["status"])
-
-    # 23. AuditLogs table
-    op.create_table(
-        "audit_logs",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "actor_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-        sa.Column("action", sa.String(100), nullable=False),
-        sa.Column("entity_type", sa.String(100), nullable=False),
-        sa.Column("entity_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    )
-    op.create_index("ix_audit_logs_actor_id", "audit_logs", ["actor_id"])
-    op.create_index("ix_audit_logs_entity", "audit_logs", ["entity_type", "entity_id"])
-    op.create_index("ix_audit_logs_created_at", "audit_logs", ["created_at"])
-
-    # 24. Documents table
-    op.create_table(
-        "documents",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "uploaded_by",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="RESTRICT"),
-            nullable=False,
-        ),
-        sa.Column("title", sa.String(255), nullable=False),
-        sa.Column("source_url", sa.String(500), nullable=False),
-        sa.Column("file_type", sa.String(50), nullable=False),
-        sa.Column("access_scope", sa.String(100), nullable=False),
-        sa.Column("version", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column(
-            "status",
-            sa.Enum("PENDING", "INDEXED", "FAILED", "ARCHIVED", name="document_status"),
-            nullable=False,
-            server_default="PENDING",
-        ),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-        sa.Column("activated_at", sa.DateTime(timezone=True), nullable=True),
-    )
-    op.create_index("ix_documents_uploaded_by", "documents", ["uploaded_by"])
-    op.create_index("ix_documents_status", "documents", ["status"])
-
-    # 25. DocumentChunks table
-    op.create_table(
-        "document_chunks",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "document_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("documents.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("chunk_no", sa.Integer(), nullable=False),
-        sa.Column("text", sa.Text(), nullable=False),
-        sa.Column("vector", sa.Text(), nullable=True),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("access_scope", sa.String(100), nullable=False),
-        sa.UniqueConstraint("document_id", "chunk_no", name="uq_document_chunks_no"),
-    )
-    op.create_index("ix_document_chunks_document_id", "document_chunks", ["document_id"])
-
-    # 26. Conversations table
-    op.create_table(
-        "conversations",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "user_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("title", sa.String(255), nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-    )
-    op.create_index("ix_conversations_user_id", "conversations", ["user_id"])
-
-    # 27. ChatMessages table
-    op.create_table(
-        "chat_messages",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "conversation_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("conversations.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "sender_type",
-            sa.Enum("USER", "ASSISTANT", "SYSTEM", name="chat_message_sender_type"),
-            nullable=False,
-        ),
-        sa.Column("content", sa.Text(), nullable=False),
-        sa.Column("citations", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
-        ),
-    )
-    op.create_index("ix_chat_messages_conversation_id", "chat_messages", ["conversation_id"])
+    statements = [
+        """
+        CREATE TABLE users (
+            id UUID PRIMARY KEY, email VARCHAR(255) NOT NULL UNIQUE,
+            password_hash VARCHAR(255) NOT NULL, full_name VARCHAR(150) NOT NULL,
+            phone VARCHAR(20), avatar_url TEXT, role VARCHAR(20) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE', token_version INTEGER NOT NULL DEFAULT 0,
+            password_reset_token_hash VARCHAR(255), password_reset_expires_at TIMESTAMPTZ,
+            password_changed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_users_role CHECK (role IN ('ADMIN','MENTOR','INTERN')),
+            CONSTRAINT ck_users_status CHECK (status IN ('ACTIVE','LOCKED','INACTIVE'))
+        )
+        """,
+        """
+        CREATE TABLE internships (
+            id UUID PRIMARY KEY, name VARCHAR(200) NOT NULL UNIQUE, description TEXT,
+            start_date DATE NOT NULL, end_date DATE NOT NULL, status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+            created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_internships_dates CHECK (end_date >= start_date),
+            CONSTRAINT ck_internships_status CHECK (status IN ('DRAFT','OPEN','ONGOING','COMPLETED','CANCELLED'))
+        )
+        """,
+        """
+        CREATE TABLE roadmaps (
+            id UUID PRIMARY KEY, name VARCHAR(200) NOT NULL UNIQUE, description TEXT,
+            status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+            created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_roadmaps_status CHECK (status IN ('DRAFT','ACTIVE','ARCHIVED'))
+        )
+        """,
+        """
+        CREATE TABLE phases (
+            id UUID PRIMARY KEY, roadmap_id UUID NOT NULL REFERENCES roadmaps(id) ON DELETE CASCADE,
+            name VARCHAR(200) NOT NULL, description TEXT, order_no INTEGER NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_phases_roadmap_order UNIQUE (roadmap_id, order_no)
+        )
+        """,
+        """
+        CREATE TABLE learning_contents (
+            id UUID PRIMARY KEY, phase_id UUID NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+            title VARCHAR(255) NOT NULL, description TEXT, type VARCHAR(20) NOT NULL,
+            content TEXT, resource_url TEXT, order_no INTEGER NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_learning_contents_phase_order UNIQUE (phase_id, order_no),
+            CONSTRAINT ck_learning_contents_type CHECK (type IN ('LESSON','DOCUMENT','VIDEO','LINK'))
+        )
+        """,
+        """
+        CREATE TABLE internship_members (
+            id UUID PRIMARY KEY, internship_id UUID NOT NULL REFERENCES internships(id) ON DELETE CASCADE,
+            intern_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+            mentor_id UUID REFERENCES users(id) ON DELETE SET NULL,
+            roadmap_id UUID REFERENCES roadmaps(id) ON DELETE SET NULL,
+            start_date DATE, end_date DATE, status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_internship_members_intern UNIQUE (internship_id, intern_id),
+            CONSTRAINT ck_internship_members_dates CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date),
+            CONSTRAINT ck_internship_members_status CHECK (status IN ('ACTIVE','EXTENDED','STOPPED','COMPLETED'))
+        )
+        """,
+        """
+        CREATE TABLE internship_requests (
+            id UUID PRIMARY KEY, internship_member_id UUID NOT NULL REFERENCES internship_members(id) ON DELETE CASCADE,
+            requested_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+            type VARCHAR(20) NOT NULL, reason TEXT NOT NULL, requested_end_date DATE,
+            status VARCHAR(20) NOT NULL DEFAULT 'PENDING', reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+            review_note TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_at TIMESTAMPTZ,
+            CONSTRAINT ck_internship_requests_type CHECK (type IN ('EXTEND','STOP','COMPLETE')),
+            CONSTRAINT ck_internship_requests_status CHECK (status IN ('PENDING','APPROVED','REJECTED'))
+        )
+        """,
+        """
+        CREATE TABLE learning_progress (
+            id UUID PRIMARY KEY, internship_member_id UUID NOT NULL REFERENCES internship_members(id) ON DELETE CASCADE,
+            content_id UUID NOT NULL REFERENCES learning_contents(id) ON DELETE CASCADE,
+            status VARCHAR(20) NOT NULL DEFAULT 'NOT_STARTED', progress_percent NUMERIC(5,2) NOT NULL DEFAULT 0,
+            completed_at TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_learning_progress_member_content UNIQUE (internship_member_id, content_id),
+            CONSTRAINT ck_learning_progress_status CHECK (status IN ('NOT_STARTED','IN_PROGRESS','COMPLETED')),
+            CONSTRAINT ck_learning_progress_percent CHECK (progress_percent >= 0 AND progress_percent <= 100)
+        )
+        """,
+        """
+        CREATE TABLE quizzes (
+            id UUID PRIMARY KEY, phase_id UUID NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+            title VARCHAR(255) NOT NULL, description TEXT, duration_minutes INTEGER NOT NULL,
+            pass_score NUMERIC(5,2) NOT NULL, max_attempts INTEGER NOT NULL DEFAULT 1,
+            status VARCHAR(20) NOT NULL DEFAULT 'DRAFT', created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_quizzes_duration CHECK (duration_minutes > 0),
+            CONSTRAINT ck_quizzes_pass_score CHECK (pass_score >= 0 AND pass_score <= 100),
+            CONSTRAINT ck_quizzes_max_attempts CHECK (max_attempts > 0),
+            CONSTRAINT ck_quizzes_status CHECK (status IN ('DRAFT','PUBLISHED','CLOSED'))
+        )
+        """,
+        """
+        CREATE TABLE questions (
+            id UUID PRIMARY KEY, quiz_id UUID NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+            content TEXT NOT NULL, type VARCHAR(30) NOT NULL, options JSONB,
+            correct_answer JSONB NOT NULL, score NUMERIC(5,2) NOT NULL, order_no INTEGER,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_questions_type CHECK (type IN ('SINGLE_CHOICE','MULTIPLE_CHOICE','TRUE_FALSE','TEXT'))
+        )
+        """,
+        """
+        CREATE TABLE quiz_attempts (
+            id UUID PRIMARY KEY, quiz_id UUID NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+            internship_member_id UUID NOT NULL REFERENCES internship_members(id) ON DELETE CASCADE,
+            attempt_no INTEGER NOT NULL, answers JSONB, score NUMERIC(5,2), passed BOOLEAN,
+            started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, submitted_at TIMESTAMPTZ,
+            CONSTRAINT uq_quiz_attempts_number UNIQUE (quiz_id, internship_member_id, attempt_no),
+            CONSTRAINT ck_quiz_attempts_number CHECK (attempt_no > 0)
+        )
+        """,
+        """
+        CREATE TABLE tasks (
+            id UUID PRIMARY KEY, internship_member_id UUID NOT NULL REFERENCES internship_members(id) ON DELETE CASCADE,
+            created_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+            title VARCHAR(255) NOT NULL, description TEXT, deadline TIMESTAMPTZ, priority VARCHAR(10),
+            status VARCHAR(30) NOT NULL DEFAULT 'TODO', created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_tasks_priority CHECK (priority IS NULL OR priority IN ('LOW','MEDIUM','HIGH')),
+            CONSTRAINT ck_tasks_status CHECK (status IN ('TODO','IN_PROGRESS','SUBMITTED','REVISION_REQUIRED','COMPLETED','CANCELLED'))
+        )
+        """,
+        """
+        CREATE TABLE task_submissions (
+            id UUID PRIMARY KEY, task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL, content TEXT, file_url TEXT, status VARCHAR(30) NOT NULL DEFAULT 'SUBMITTED',
+            review_comment TEXT, reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+            submitted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_at TIMESTAMPTZ,
+            CONSTRAINT uq_task_submissions_version UNIQUE (task_id, version),
+            CONSTRAINT ck_task_submissions_status CHECK (status IN ('SUBMITTED','REVISION_REQUIRED','ACCEPTED'))
+        )
+        """,
+        """
+        CREATE TABLE task_comments (
+            id UUID PRIMARY KEY, task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, content TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE evaluation_criteria (
+            id UUID PRIMARY KEY, name VARCHAR(200) NOT NULL UNIQUE, description TEXT,
+            max_score NUMERIC(5,2) NOT NULL, weight NUMERIC(5,2) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE', created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_evaluation_criteria_max_score CHECK (max_score > 0),
+            CONSTRAINT ck_evaluation_criteria_weight CHECK (weight >= 0 AND weight <= 100),
+            CONSTRAINT ck_evaluation_criteria_status CHECK (status IN ('ACTIVE','INACTIVE'))
+        )
+        """,
+        """
+        CREATE TABLE evaluations (
+            id UUID PRIMARY KEY, internship_member_id UUID NOT NULL REFERENCES internship_members(id) ON DELETE CASCADE,
+            mentor_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+            evaluation_type VARCHAR(20) NOT NULL, criteria_scores JSONB NOT NULL, total_score NUMERIC(5,2),
+            comment TEXT, status VARCHAR(20) NOT NULL DEFAULT 'DRAFT', published_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_evaluations_type CHECK (evaluation_type IN ('PERIODIC','FINAL')),
+            CONSTRAINT ck_evaluations_status CHECK (status IN ('DRAFT','PUBLISHED'))
+        )
+        """,
+        """
+        CREATE TABLE notifications (
+            id UUID PRIMARY KEY, title VARCHAR(255) NOT NULL, content TEXT NOT NULL,
+            target_type VARCHAR(20) NOT NULL, target_data JSONB,
+            created_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_notifications_target_type CHECK (target_type IN ('ALL','ROLE','USER'))
+        )
+        """,
+        """
+        CREATE TABLE notification_reads (
+            notification_id UUID NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            read_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (notification_id, user_id)
+        )
+        """,
+        """
+        CREATE TABLE ai_conversations (
+            id UUID PRIMARY KEY, user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            title VARCHAR(255), created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE ai_messages (
+            id UUID PRIMARY KEY, conversation_id UUID NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+            role VARCHAR(20) NOT NULL, content TEXT NOT NULL, citations JSONB,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_ai_messages_role CHECK (role IN ('USER','ASSISTANT'))
+        )
+        """,
+        "CREATE INDEX ix_internship_members_internship_id ON internship_members (internship_id)",
+        "CREATE INDEX ix_internship_members_intern_id ON internship_members (intern_id)",
+        "CREATE INDEX ix_internship_members_mentor_id ON internship_members (mentor_id)",
+        "CREATE INDEX ix_internship_members_roadmap_id ON internship_members (roadmap_id)",
+        "CREATE INDEX ix_internship_requests_internship_member_id ON internship_requests (internship_member_id)",
+        "CREATE INDEX ix_internship_requests_status ON internship_requests (status)",
+        "CREATE INDEX ix_phases_roadmap_id ON phases (roadmap_id)",
+        "CREATE INDEX ix_learning_contents_phase_id ON learning_contents (phase_id)",
+        "CREATE INDEX ix_learning_progress_internship_member_id ON learning_progress (internship_member_id)",
+        "CREATE INDEX ix_learning_progress_content_id ON learning_progress (content_id)",
+        "CREATE INDEX ix_quizzes_phase_id ON quizzes (phase_id)",
+        "CREATE INDEX ix_questions_quiz_id ON questions (quiz_id)",
+        "CREATE INDEX ix_quiz_attempts_quiz_id ON quiz_attempts (quiz_id)",
+        "CREATE INDEX ix_quiz_attempts_internship_member_id ON quiz_attempts (internship_member_id)",
+        "CREATE INDEX ix_tasks_internship_member_id ON tasks (internship_member_id)",
+        "CREATE INDEX ix_tasks_created_by ON tasks (created_by)",
+        "CREATE INDEX ix_tasks_deadline ON tasks (deadline)",
+        "CREATE INDEX ix_tasks_status ON tasks (status)",
+        "CREATE INDEX ix_tasks_member_deadline ON tasks (internship_member_id, deadline)",
+        "CREATE INDEX ix_task_submissions_task_id ON task_submissions (task_id)",
+        "CREATE INDEX ix_task_comments_task_id ON task_comments (task_id)",
+        "CREATE INDEX ix_task_comments_user_id ON task_comments (user_id)",
+        "CREATE INDEX ix_evaluations_member_id ON evaluations (internship_member_id)",
+        "CREATE INDEX ix_evaluations_mentor_id ON evaluations (mentor_id)",
+        "CREATE INDEX ix_notifications_created_by ON notifications (created_by)",
+        "CREATE INDEX ix_notification_reads_user_id ON notification_reads (user_id)",
+        "CREATE INDEX ix_ai_conversations_user_id ON ai_conversations (user_id)",
+        "CREATE INDEX ix_ai_messages_conversation_id ON ai_messages (conversation_id)",
+    ]
+    for statement in statements:
+        op.execute(statement)
 
 
 def downgrade() -> None:
-    # Drop tables in reverse dependency order
-    op.drop_table("chat_messages")
-    op.drop_table("conversations")
-    op.drop_table("document_chunks")
-    op.drop_table("documents")
-    op.drop_table("audit_logs")
-    op.drop_table("feedback")
-    op.drop_table("lifecycle_approvals")
-    op.drop_table("lifecycle_requests")
-    op.drop_table("notifications")
-    op.drop_table("evaluations")
-    op.drop_table("task_status_history")
-    op.drop_table("task_comments")
-    op.drop_table("task_submissions")
-    op.drop_table("tasks")
-    op.drop_table("attempt_answers")
-    op.drop_table("exam_attempts")
-    op.drop_table("exam_questions")
-    op.drop_table("questions")
-    op.drop_table("exams")
-    op.drop_table("learning_progress")
-    op.drop_table("contents")
-    op.drop_table("roadmap_phases")
-    op.drop_table("roadmaps")
-    op.drop_table("mentor_assignments")
-    op.drop_table("internships")
-    op.drop_table("internship_periods")
-    op.drop_table("users")
-
-    # Drop custom enum types created in PostgreSQL
-    op.execute("DROP TYPE IF EXISTS chat_message_sender_type CASCADE;")
-    op.execute("DROP TYPE IF EXISTS document_status CASCADE;")
-    op.execute("DROP TYPE IF EXISTS feedback_status CASCADE;")
-    op.execute("DROP TYPE IF EXISTS lifecycle_approval_decision CASCADE;")
-    op.execute("DROP TYPE IF EXISTS lifecycle_request_status CASCADE;")
-    op.execute("DROP TYPE IF EXISTS lifecycle_request_type CASCADE;")
-    op.execute("DROP TYPE IF EXISTS evaluation_status CASCADE;")
-    op.execute("DROP TYPE IF EXISTS evaluation_type CASCADE;")
-    op.execute("DROP TYPE IF EXISTS task_status CASCADE;")
-    op.execute("DROP TYPE IF EXISTS task_priority CASCADE;")
-    op.execute("DROP TYPE IF EXISTS exam_attempt_status CASCADE;")
-    op.execute("DROP TYPE IF EXISTS question_difficulty CASCADE;")
-    op.execute("DROP TYPE IF EXISTS question_type CASCADE;")
-    op.execute("DROP TYPE IF EXISTS learning_progress_status CASCADE;")
-    op.execute("DROP TYPE IF EXISTS content_type CASCADE;")
-    op.execute("DROP TYPE IF EXISTS roadmap_status CASCADE;")
-    op.execute("DROP TYPE IF EXISTS internship_status CASCADE;")
-    op.execute("DROP TYPE IF EXISTS internship_period_status CASCADE;")
-    op.execute("DROP TYPE IF EXISTS user_status CASCADE;")
-    op.execute("DROP TYPE IF EXISTS user_role CASCADE;")
+    for table in (
+        "ai_messages",
+        "ai_conversations",
+        "notification_reads",
+        "notifications",
+        "evaluations",
+        "evaluation_criteria",
+        "task_comments",
+        "task_submissions",
+        "tasks",
+        "quiz_attempts",
+        "questions",
+        "quizzes",
+        "learning_progress",
+        "internship_requests",
+        "internship_members",
+        "learning_contents",
+        "phases",
+        "roadmaps",
+        "internships",
+        "users",
+    ):
+        op.execute(f"DROP TABLE {table}")

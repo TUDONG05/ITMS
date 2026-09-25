@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 from pydantic import Field, model_validator
 
-from app.models.enums import InternshipStatus, MemberStatus, UserRole
+from app.models.enums import InternshipStatus, InternshipMemberStatus, UserRole
 from app.schemas.base import BaseSchema
 
 
@@ -70,7 +70,7 @@ class InternshipMemberBase(BaseSchema):
     roadmap_id: uuid.UUID | None = None
     start_date: date | None = None
     end_date: date | None = None
-    status: MemberStatus = MemberStatus.ACTIVE
+    status: InternshipMemberStatus = InternshipMemberStatus.ACTIVE
 
     @model_validator(mode="after")
     def check_dates(self) -> "InternshipMemberBase":
@@ -89,7 +89,7 @@ class InternshipMemberCreate(BaseSchema):
     roadmap_id: uuid.UUID | None = None
     start_date: date | None = None
     end_date: date | None = None
-    status: MemberStatus = MemberStatus.ACTIVE
+    status: InternshipMemberStatus = InternshipMemberStatus.ACTIVE
 
     @model_validator(mode="after")
     def check_dates(self) -> "InternshipMemberCreate":

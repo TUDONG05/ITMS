@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.db.session import get_session_factory
 from app.main import app
-from app.models.enums import InternshipStatus, MemberStatus, UserRole, UserStatus
+from app.models.enums import InternshipStatus, InternshipMemberStatus, UserRole, UserStatus
 from app.models.internship import Internship
 from app.models.user import User
 
@@ -199,7 +199,7 @@ def test_add_intern_to_internship(client: TestClient, test_data: dict[str, User]
     member = enroll_resp.json()
     assert member["intern_id"] == str(intern.id)
     assert member["mentor_id"] == str(mentor.id)
-    assert member["status"] == MemberStatus.ACTIVE
+    assert member["status"] == InternshipMemberStatus.ACTIVE
     assert member["intern"]["full_name"] == intern.full_name
     assert member["mentor"]["full_name"] == mentor.full_name
 

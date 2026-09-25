@@ -3,9 +3,7 @@
   "version": 1,
   "cli": {
     "packageManager": "npm",
-    "schematicCollections": [
-      "angular-eslint"
-    ],
+    "schematicCollections": ["angular-eslint"],
     "analytics": false
   },
   "newProjectRoot": "projects",
@@ -64,8 +62,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "2MB",
-                  "maximumError": "2.5MB"
+                  "maximumWarning": "1.2MB",
+                  "maximumError": "1.3MB"
                 },
                 {
                   "type": "anyComponentStyle",

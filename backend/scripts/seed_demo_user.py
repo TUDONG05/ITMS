@@ -18,12 +18,9 @@ from app.models.enums import UserRole, UserStatus
 from app.models.user import User
 
 DEMO_USERS = (
-    ("intern@itms.local", "Intern@12345", "Nguyễn Văn An", UserRole.INTERN),
-    ("intern2@itms.local", "Intern2@12345", "Trần Thị Bình", UserRole.INTERN),
-    ("intern3@itms.local", "Intern3@12345", "Lê Minh Cường", UserRole.INTERN),
-    ("mentor@itms.local", "Mentor@12345", "Lê Minh Hoàng", UserRole.MENTOR),
-    ("mentor2@itms.local", "Mentor2@12345", "Trần Minh Bình", UserRole.MENTOR),
-    ("admin@itms.local", "Admin@12345", "Quản trị viên ITMS", UserRole.ADMIN),
+    ("intern@itms.local", "Intern@12345", "Thực tập sinh Demo", UserRole.INTERN),
+    ("mentor@itms.local", "Mentor@12345", "Mentor Demo", UserRole.MENTOR),
+    ("admin@itms.local", "Admin@12345", "Quản trị viên Demo", UserRole.ADMIN),
 )
 
 

@@ -1,7 +1,6 @@
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
-from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -17,8 +16,8 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
-        allow_credentials=True,
-        allow_methods=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
 
@@ -31,7 +30,6 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(ApiError)
     async def handle_api_error(request: Request, error: ApiError) -> JSONResponse:
-        request_id = getattr(request.state, "request_id", None)
         return JSONResponse(
             status_code=error.status_code,
             content={
@@ -39,7 +37,7 @@ def create_app() -> FastAPI:
                     "code": error.code,
                     "message": error.message,
                     "details": error.details,
-                    "request_id": request_id,
+                    "request_id": request.state.request_id,
                 }
             },
         )
@@ -48,15 +46,14 @@ def create_app() -> FastAPI:
     async def handle_validation_error(
         request: Request, error: RequestValidationError
     ) -> JSONResponse:
-        request_id = getattr(request.state, "request_id", None)
         return JSONResponse(
             status_code=422,
             content={
                 "error": {
                     "code": "INVALID_REQUEST",
                     "message": "Dữ liệu gửi lên không hợp lệ.",
-                    "details": {"validation_errors": jsonable_encoder(error.errors())},
-                    "request_id": request_id,
+                    "details": {"validation_errors": error.errors()},
+                    "request_id": request.state.request_id,
                 }
             },
         )

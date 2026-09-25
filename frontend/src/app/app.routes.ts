@@ -11,7 +11,11 @@ export const routes: Routes = [
   { path: 'forgot-password', component: ForgotPasswordComponent },
   { path: 'reset-password', component: ResetPasswordComponent },
   { path: 'change-password', component: ChangePasswordComponent },
-  { path: 'dashboard/:role', component: DashboardShellComponent, canActivate: [dashboardRoleGuard] },
+  {
+    path: 'dashboard/:role',
+    component: DashboardShellComponent,
+    canActivate: [dashboardRoleGuard],
+  },
   { path: '', pathMatch: 'full', redirectTo: 'login' },
   { path: '**', redirectTo: 'login' },
 ];

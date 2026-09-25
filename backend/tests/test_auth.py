@@ -105,7 +105,7 @@ def _request_json(
                 return response.status, json.loads(response.read())
         except HTTPError as error:
             return error.code, json.loads(error.read())
-        except (URLError, TimeoutError):
+        except URLError:
             time.sleep(0.1)
     raise AssertionError("Uvicorn did not expose the authentication endpoint within five seconds.")
 
