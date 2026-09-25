@@ -1,6 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
-import { Router } from '@angular/router';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { NzAvatarModule } from 'ng-zorro-antd/avatar';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -12,6 +18,7 @@ import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { AuthService } from '../../core/api/auth.service';
+import { ProfileComponent } from '../profile/profile.component';
 
 enum Role {
   Intern = 'INTERN',
@@ -89,6 +96,7 @@ const dashboards: Record<Role, Dashboard> = {
     greeting: 'Xin chào, Lê Minh Hoàng!',
     description: 'Đồng hành và phát triển các thực tập sinh phụ trách.',
     nav: [
+      { id: 'profile', label: 'Hồ sơ cá nhân', icon: 'user' },
       { id: 'interns', label: 'Quản lý Intern', icon: 'team' },
       { id: 'tasks', label: 'Quản lý Task', icon: 'check-square' },
       { id: 'learning', label: 'Theo dõi đào tạo', icon: 'book' },
@@ -134,6 +142,7 @@ const dashboards: Record<Role, Dashboard> = {
     greeting: 'Xin chào, Administrator!',
     description: 'Tổng quan vận hành hệ thống quản lý thực tập sinh.',
     nav: [
+      { id: 'profile', label: 'Hồ sơ cá nhân', icon: 'user' },
       { id: 'users', label: 'Quản lý người dùng', icon: 'team' },
       { id: 'internships', label: 'Quản lý thực tập', icon: 'solution' },
       { id: 'training', label: 'Quản lý đào tạo (LMS)', icon: 'book' },
@@ -190,6 +199,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzMenuModule,
     NzProgressModule,
     NzTagModule,
+    ProfileComponent,
   ],
   template: `
     <div class="dashboard-shell">
@@ -243,10 +253,27 @@ const dashboards: Record<Role, Dashboard> = {
             <div class="topbar__right">
               <nz-badge [nzCount]="3"
                 ><button nz-button nzType="text" class="notification">
-                  <span nz-icon nzType="bell"></span></button></nz-badge
-              ><nz-avatar class="avatar" [nzText]="dashboard().initials"></nz-avatar>
-              <div class="user-summary">
-                <strong>{{ dashboard().name }}</strong
+                  <span nz-icon nzType="bell"></span></button
+              ></nz-badge>
+              <nz-avatar
+                class="avatar avatar--clickable"
+                [nzSrc]="userAvatar() ?? undefined"
+                [nzText]="userInitials()"
+                (click)="choose('profile')"
+                role="button"
+                tabindex="0"
+                (keydown.enter)="choose('profile')"
+                title="Xem hồ sơ cá nhân"
+              ></nz-avatar>
+              <div
+                class="user-summary user-summary--clickable"
+                (click)="choose('profile')"
+                role="button"
+                tabindex="0"
+                (keydown.enter)="choose('profile')"
+                title="Xem hồ sơ cá nhân"
+              >
+                <strong>{{ userName() }}</strong
                 ><small>{{ dashboard().roleLabel }}</small>
               </div>
             </div></nz-header
@@ -255,6 +282,7 @@ const dashboards: Record<Role, Dashboard> = {
             <div class="breadcrumb">
               <span nz-icon nzType="home"></span> <span>/</span> {{ activeLabel() }}
             </div>
+
             @if (section() === 'overview') {
               <section class="metric-grid">
                 @for (metric of dashboard().metrics; track metric.label) {
@@ -357,6 +385,9 @@ const dashboards: Record<Role, Dashboard> = {
                   </div></nz-card
                 >
               </section>
+            } @else if (section() === 'profile') {
+              <!-- UC-5: Hồ sơ cá nhân -->
+              <app-profile />
             } @else {
               <section class="feature-placeholder">
                 <span nz-icon [nzType]="activeIcon()"></span>
@@ -404,7 +435,7 @@ const dashboards: Record<Role, Dashboard> = {
     </div>
   `,
 })
-export class DashboardShellComponent {
+export class DashboardShellComponent implements OnInit {
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
@@ -413,6 +444,34 @@ export class DashboardShellComponent {
   protected readonly isMenuOpen = signal(false);
   protected readonly isAiChatOpen = signal(false);
   protected readonly dashboard = computed(() => dashboards[this.role()]);
+
+  protected readonly currentUser = this.authService.currentUser;
+
+  protected readonly userName = computed(() => {
+    return this.currentUser()?.full_name || this.dashboard().name;
+  });
+
+  protected readonly userAvatar = computed(() => {
+    return this.currentUser()?.avatar_url || null;
+  });
+
+  protected readonly userInitials = computed(() => {
+    const name = this.userName();
+    return (
+      name
+        .split(' ')
+        .filter(Boolean)
+        .map((w) => w[0])
+        .slice(-2)
+        .join('')
+        .toUpperCase() || this.dashboard().initials
+    );
+  });
+
+  ngOnInit(): void {
+    // Fetch latest user profile to ensure avatar and details are up to date
+    this.authService.getProfile().subscribe({ error: () => {} });
+  }
   protected readonly rows = [
     {
       name: 'Viết báo cáo phân tích yêu cầu',
@@ -440,6 +499,7 @@ export class DashboardShellComponent {
   protected readonly activeIcon = computed(
     () => this.dashboard().nav.find((item) => item.id === this.section())?.icon ?? 'setting',
   );
+
   constructor() {
     this.activatedRoute.paramMap.subscribe((params) => {
       const requestedRole = params.get('role')?.toUpperCase();
@@ -447,11 +507,19 @@ export class DashboardShellComponent {
         this.role.set(requestedRole as Role);
       }
     });
+    this.activatedRoute.queryParamMap.subscribe((queryParams) => {
+      const sec = queryParams.get('section') || queryParams.get('tab');
+      if (sec) {
+        this.section.set(sec);
+      }
+    });
   }
+
   protected choose(section: string): void {
     this.section.set(section);
     this.isMenuOpen.set(false);
   }
+
   protected openSection(section: string): void {
     if (section === 'change-password') {
       void this.router.navigate(['/change-password']);
@@ -459,25 +527,31 @@ export class DashboardShellComponent {
     }
     this.choose(section);
   }
+
   protected toggleMenu(): void {
     this.isMenuOpen.update((open) => !open);
   }
+
   protected logout(): void {
     this.authService.logout().subscribe({
       next: () => this.finishLogout(),
       error: () => this.finishLogout(),
     });
   }
+
   protected openAiChat(): void {
     this.isAiChatOpen.set(true);
   }
+
   protected closeAiChat(): void {
     this.isAiChatOpen.set(false);
   }
+
   private finishLogout(): void {
     this.authService.clearSession();
     void this.router.navigate(['/login']);
   }
+
   protected detailsTarget(): string {
     return this.role() === Role.Intern
       ? 'roadmap'
@@ -485,9 +559,11 @@ export class DashboardShellComponent {
         ? 'learning'
         : 'training';
   }
+
   protected analyticsTarget(): string {
     return this.role() === Role.Admin ? 'reports' : 'evaluations';
   }
+
   protected statusColor(status: string): string {
     return status === 'Hoàn thành' ? 'success' : status === 'Chờ review' ? 'warning' : 'processing';
   }

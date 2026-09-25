@@ -111,10 +111,19 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     return MessageResponse(message="Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.")
 
 
+def _normalize_avatar_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    if url.startswith("/uploads/"):
+        return f"/api/v1{url}"
+    return url
+
+
 def _serialize_account(account: Account) -> AuthenticatedUser:
     return AuthenticatedUser(
         id=str(account.id),
         email=account.email,
         full_name=account.full_name,
         role=account.role,
+        avatar_url=_normalize_avatar_url(account.avatar_url),
     )

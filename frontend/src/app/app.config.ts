@@ -1,8 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
-import { provideNzIcons } from 'ng-zorro-antd/icon';
-import { provideNzI18n, vi_VN } from 'ng-zorro-antd/i18n';
 import {
   AppstoreOutline,
   AuditOutline,
@@ -10,14 +9,23 @@ import {
   BellOutline,
   BookOutline,
   CalendarOutline,
+  CameraOutline,
   CheckSquareOutline,
+  DeleteOutline,
+  EditOutline,
   FileTextOutline,
   FormOutline,
   HomeOutline,
+  InfoCircleOutline,
   KeyOutline,
+  LockOutline,
+  LoginOutline,
   LogoutOutline,
+  MailOutline,
   MenuOutline,
+  PlusOutline,
   ReadOutline,
+  ReloadOutline,
   RobotOutline,
   SettingOutline,
   SolutionOutline,
@@ -25,12 +33,16 @@ import {
   TeamOutline,
   TrophyOutline,
   UserOutline,
+  WarningOutline,
 } from '@ant-design/icons-angular/icons';
+import { provideNzI18n, vi_VN } from 'ng-zorro-antd/i18n';
+import { provideNzIcons } from 'ng-zorro-antd/icon';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    provideAnimationsAsync(),
     provideRouter(routes),
     provideHttpClient(),
     provideNzI18n(vi_VN),
@@ -41,14 +53,23 @@ export const appConfig: ApplicationConfig = {
       BellOutline,
       BookOutline,
       CalendarOutline,
+      CameraOutline,
       CheckSquareOutline,
+      DeleteOutline,
+      EditOutline,
       FileTextOutline,
       FormOutline,
       HomeOutline,
+      InfoCircleOutline,
       KeyOutline,
+      LockOutline,
+      LoginOutline,
       LogoutOutline,
+      MailOutline,
       MenuOutline,
+      PlusOutline,
       ReadOutline,
+      ReloadOutline,
       RobotOutline,
       SettingOutline,
       SolutionOutline,
@@ -56,6 +77,7 @@ export const appConfig: ApplicationConfig = {
       TeamOutline,
       TrophyOutline,
       UserOutline,
+      WarningOutline,
     ]),
   ],
 };

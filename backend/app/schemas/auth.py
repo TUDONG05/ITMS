@@ -56,6 +56,7 @@ class AuthenticatedUser(BaseModel):
     email: str
     full_name: str
     role: str
+    avatar_url: str | None = None
 
 
 class LoginResponse(BaseModel):

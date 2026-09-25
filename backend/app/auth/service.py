@@ -31,6 +31,7 @@ class Account:
     role: str
     status: str
     token_version: int
+    avatar_url: str | None = None
 
 
 class AuthService:
@@ -222,6 +223,7 @@ def _to_account(user: User) -> Account:
         role=user.role,
         status=user.status,
         token_version=user.token_version,
+        avatar_url=user.avatar_url,
     )
 
 

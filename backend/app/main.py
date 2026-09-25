@@ -4,10 +4,11 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
 from app.core.errors import ApiError
-from app.core.settings import API_PREFIX, get_settings
+from app.core.settings import API_PREFIX, UPLOAD_DIR, get_settings
 
 
 def create_app() -> FastAPI:
@@ -17,9 +18,14 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
+
+    # Static file serving for uploads (avatars, attachments, etc.)
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+    app.mount("/api/v1/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="api_uploads")
 
     @app.middleware("http")
     async def attach_request_id(request: Request, call_next):  # type: ignore[no-untyped-def]
