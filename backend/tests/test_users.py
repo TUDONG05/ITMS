@@ -84,17 +84,13 @@ def test_list_users(client: TestClient, seeded_users):
     assert len(data) == 3
 
     # Filter by role
-    resp_interns = client.get(
-        "/api/v1/users?role=INTERN", headers={"X-User-Id": str(admin.id)}
-    )
+    resp_interns = client.get("/api/v1/users?role=INTERN", headers={"X-User-Id": str(admin.id)})
     assert resp_interns.status_code == 200
     assert len(resp_interns.json()) == 1
     assert resp_interns.json()[0]["email"] == "intern@itms.local"
 
     # Search by keyword
-    resp_search = client.get(
-        "/api/v1/users?search=Nguyễn", headers={"X-User-Id": str(admin.id)}
-    )
+    resp_search = client.get("/api/v1/users?search=Nguyễn", headers={"X-User-Id": str(admin.id)})
     assert resp_search.status_code == 200
     assert len(resp_search.json()) == 1
     assert resp_search.json()[0]["full_name"] == "Nguyễn Văn An"
@@ -236,4 +232,3 @@ def test_unlock_user_and_can_login(client: TestClient, seeded_users):
     )
     assert login_resp.status_code == 200
     assert "access_token" in login_resp.json()
-
