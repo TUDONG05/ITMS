@@ -28,7 +28,6 @@ def get_internship_member(
     return InternshipMemberDetailRead.model_validate(member)
 
 
-
 @router.patch("/{member_id}", response_model=InternshipMemberDetailRead)
 def update_internship_member(
     member_id: uuid.UUID,
@@ -37,9 +36,7 @@ def update_internship_member(
     db: Session = Depends(get_db),
 ) -> InternshipMemberDetailRead:
     """Admin updates internship member status, dates, and/or mentor."""
-    member = InternshipService.update_member(
-        db, member_id=member_id, payload=payload
-    )
+    member = InternshipService.update_member(db, member_id=member_id, payload=payload)
     return InternshipMemberDetailRead.model_validate(member)
 
 

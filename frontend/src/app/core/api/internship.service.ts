@@ -163,13 +163,9 @@ export class InternshipService {
   }
 
   updateMember(memberId: string, payload: UpdateMemberPayload): Observable<InternshipMember> {
-    return this.http.patch<InternshipMember>(
-      `/api/v1/internship-members/${memberId}`,
-      payload,
-      {
-        headers: this.getHeaders(),
-      },
-    );
+    return this.http.patch<InternshipMember>(`/api/v1/internship-members/${memberId}`, payload, {
+      headers: this.getHeaders(),
+    });
   }
 
   getUsers(role?: string): Observable<UserSummary[]> {

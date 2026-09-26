@@ -89,9 +89,7 @@ def list_internship_members(
     db: Session = Depends(get_db),
 ) -> list[InternshipMemberDetailRead]:
     """Retrieve all enrolled interns in the specified internship."""
-    members = InternshipService.get_members_by_internship(
-        db, internship_id=id, search=search
-    )
+    members = InternshipService.get_members_by_internship(db, internship_id=id, search=search)
     return [InternshipMemberDetailRead.model_validate(member) for member in members]
 
 

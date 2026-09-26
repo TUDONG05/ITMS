@@ -269,7 +269,11 @@ import {
                 <tr>
                   <td colspan="6" class="empty-members">
                     <p>
-                      {{ memberSearchQuery() ? 'Không tìm thấy thực tập sinh phù hợp.' : 'Đợt thực tập này chưa có Intern nào tham gia.' }}
+                      {{
+                        memberSearchQuery()
+                          ? 'Không tìm thấy thực tập sinh phù hợp.'
+                          : 'Đợt thực tập này chưa có Intern nào tham gia.'
+                      }}
                     </p>
                     @if (!memberSearchQuery()) {
                       <button nz-button nzType="dashed" (click)="openAddMemberModal()">
@@ -667,7 +671,7 @@ import {
           font-size: 13px;
         }
       }
-    `
+    `,
   ],
 })
 export class InternshipManagementComponent implements OnInit {

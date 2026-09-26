@@ -527,7 +527,9 @@ def test_internship_member_search(client: TestClient, test_data: dict[str, User]
     assert data[0]["intern"]["full_name"] == intern_2.full_name
 
 
-def test_update_internship_member_all_fields(client: TestClient, test_data: dict[str, User]) -> None:
+def test_update_internship_member_all_fields(
+    client: TestClient, test_data: dict[str, User]
+) -> None:
     admin = test_data["admin"]
     intern = test_data["intern"]
     mentor = test_data["mentor"]
