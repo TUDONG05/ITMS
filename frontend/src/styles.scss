@@ -419,6 +419,8 @@ button {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
   padding: 20px 15px 16px;
   background: #fff;
   border-right: 1px solid #e8edf5;
@@ -520,6 +522,24 @@ button {
   align-items: center;
   gap: 12px;
 }
+.avatar--clickable {
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &:hover {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 2px #1890ff;
+  }
+}
+.user-summary--clickable {
+  cursor: pointer;
+
+  &:hover strong {
+    color: #1890ff;
+  }
+}
 .user-summary {
   display: flex;
   min-width: 0;
@@ -542,6 +562,14 @@ button {
   background: linear-gradient(135deg, #1478ee, #7655d9);
   font-size: 13px;
   font-weight: 700;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
 }
 .content {
   max-width: 1540px;
@@ -957,7 +985,7 @@ button {
     height: 56px;
     padding: 0 14px;
   }
-  .topbar__right > div {
+  .topbar__right .user-summary {
     display: none;
   }
   .metric-grid,
