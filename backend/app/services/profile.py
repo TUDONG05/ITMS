@@ -3,7 +3,8 @@
 Business rules
 --------------
 * Intern / Mentor / Admin đều có thể xem và cập nhật các trường được phép
-  (full_name, phone, avatar_url) của *chính mình*.
+  (phone, avatar_url) của *chính mình*.
+* Admin thêm có thể cập nhật full_name của chính mình.
 * Email KHÔNG được phép tự thay đổi qua endpoint này.
 * Intern thêm xem được thông tin Mentor đang phụ trách (qua InternshipMember).
 """
@@ -67,13 +68,15 @@ def update_profile(
     db: Session,
     user_id: UUID,
     *,
-    phone: str | None,
-    avatar_url: str | None,
+    full_name: str | None = None,
+    phone: str | None = None,
+    avatar_url: str | None = None,
 ) -> ProfileRead:
     """Cập nhật các trường được phép cho *user_id*.
 
-    Chỉ cập nhật trường nào được cung cấp (không phải None).
-    Họ tên, email và role KHÔNG được thay đổi tại đây.
+    Admin có thể cập nhật full_name, phone, avatar_url.
+    Các role khác (INTERN, MENTOR) chỉ có thể cập nhật phone, avatar_url.
+    Email và role KHÔNG được thay đổi tại đây.
     """
     user = db.get(User, user_id)
     if user is None:
@@ -86,6 +89,16 @@ def update_profile(
         )
 
     changed = False
+
+    if full_name is not None:
+        if user.role != "ADMIN":
+            raise ApiError(403, "FORBIDDEN", "Chỉ quản trị viên mới có quyền thay đổi họ và tên.")
+        stripped = full_name.strip()
+        if not stripped:
+            raise ApiError(422, "INVALID_FULL_NAME", "Họ và tên không được để trống.")
+        user.full_name = stripped
+        changed = True
+
     if phone is not None:
         user.phone = phone.strip() or None
         changed = True

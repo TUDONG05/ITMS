@@ -68,6 +68,7 @@ export interface InternProfileRead {
 }
 
 export interface UpdateProfileRequest {
+  full_name?: string | null;
   phone: string | null;
   avatar_url: string | null;
 }

@@ -145,13 +145,15 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
                 <span class="field-label">Họ và tên</span>
                 <p class="field-value">
                   {{ profile()!.full_name }}
-                  <span
-                    nz-icon
-                    nzType="lock"
-                    nz-tooltip
-                    nzTooltipTitle="Họ và tên không thể tự thay đổi"
-                    class="lock-icon"
-                  ></span>
+                  @if (profile()!.role !== 'ADMIN') {
+                    <span
+                      nz-icon
+                      nzType="lock"
+                      nz-tooltip
+                      nzTooltipTitle="Họ và tên không thể tự thay đổi"
+                      class="lock-icon"
+                    ></span>
+                  }
                 </p>
               </div>
               <div nz-col [nzSpan]="12">
@@ -191,22 +193,37 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
           } @else {
             <!-- Edit form -->
             <form nz-form nzLayout="vertical">
-              <!-- Họ và tên: Khóa, không cho sửa -->
-              <nz-form-item>
-                <nz-form-label>
-                  Họ và tên
-                  <span
-                    nz-icon
-                    nzType="lock"
-                    nz-tooltip
-                    nzTooltipTitle="Họ và tên không thể tự thay đổi"
-                    class="lock-icon"
-                  ></span>
-                </nz-form-label>
-                <nz-form-control>
-                  <input nz-input [value]="profile()!.full_name" disabled />
-                </nz-form-control>
-              </nz-form-item>
+              <!-- Họ và tên: Admin được sửa, các role khác bị khóa -->
+              @if (profile()!.role === 'ADMIN') {
+                <nz-form-item>
+                  <nz-form-label nzRequired>Họ và tên</nz-form-label>
+                  <nz-form-control [nzErrorTip]="'Vui lòng nhập họ và tên.'">
+                    <input
+                      nz-input
+                      [(ngModel)]="editName"
+                      name="full_name"
+                      maxlength="150"
+                      placeholder="Nhập họ và tên"
+                    />
+                  </nz-form-control>
+                </nz-form-item>
+              } @else {
+                <nz-form-item>
+                  <nz-form-label>
+                    Họ và tên
+                    <span
+                      nz-icon
+                      nzType="lock"
+                      nz-tooltip
+                      nzTooltipTitle="Họ và tên không thể tự thay đổi"
+                      class="lock-icon"
+                    ></span>
+                  </nz-form-label>
+                  <nz-form-control>
+                    <input nz-input [value]="profile()!.full_name" disabled />
+                  </nz-form-control>
+                </nz-form-item>
+              }
 
               <!-- Email: Khóa, không cho sửa -->
               <nz-form-item>
@@ -630,6 +647,7 @@ export class ProfileComponent implements OnInit {
   /** File thực sự để upload khi Save */
   private pendingFile: File | null = null;
 
+  protected editName = '';
   protected editPhone = '';
 
   /** Quản lý Modal Đổi Mật Khẩu */
@@ -704,6 +722,7 @@ export class ProfileComponent implements OnInit {
 
   protected startEdit(): void {
     const p = this.profile()!;
+    this.editName = p.full_name;
     this.editPhone = p.phone ?? '';
     this.avatarPreview.set(null);
     this.pendingFile = null;
@@ -775,14 +794,17 @@ export class ProfileComponent implements OnInit {
   }
 
   private saveProfileFields(current: InternProfileRead): void {
+    const isAdmin = current.role === 'ADMIN';
     const payload: UpdateProfileRequest = {
+      full_name: isAdmin ? this.editName.trim() || null : null,
       phone: this.editPhone.trim() || null,
       avatar_url: null, // avatar xử lý qua uploadAvatar riêng
     };
 
+    const nameChanged = isAdmin && payload.full_name !== current.full_name;
     const phoneChanged = payload.phone !== (current.phone ?? null);
 
-    if (!phoneChanged) {
+    if (!nameChanged && !phoneChanged) {
       this.editing.set(false);
       this.saving.set(false);
       this.message.success('Cập nhật hồ sơ thành công!');
@@ -796,9 +818,14 @@ export class ProfileComponent implements OnInit {
         this.saving.set(false);
         this.message.success('Cập nhật hồ sơ thành công!');
       },
-      error: () => {
+      error: (err: { error?: { error?: { code?: string; message?: string } } }) => {
         this.saving.set(false);
-        this.message.error('Cập nhật thất bại. Vui lòng thử lại.');
+        const code = err.error?.error?.code;
+        if (code === 'INVALID_FULL_NAME') {
+          this.message.error('Họ và tên không được để trống.');
+        } else {
+          this.message.error('Cập nhật thất bại. Vui lòng thử lại.');
+        }
       },
     });
   }

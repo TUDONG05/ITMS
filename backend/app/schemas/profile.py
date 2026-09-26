@@ -31,7 +31,11 @@ class InternProfileRead(BaseSchema):
 
 
 class UpdateProfileRequest(BaseModel):
-    """Chỉ cho phép cập nhật phone và avatar_url; full_name và email không được sửa."""
+    """Admin có thể sửa full_name, phone, avatar_url.
 
+    Các role khác chỉ được cập nhật phone, avatar_url.
+    """
+
+    full_name: str | None = Field(default=None, max_length=150)
     phone: str | None = Field(default=None, max_length=20)
     avatar_url: str | None = Field(default=None, max_length=2048)
