@@ -98,48 +98,176 @@ import {
         </div>
       </nz-card>
 
-      <!-- Users Table -->
+      <!-- Users Content (Desktop Table + Mobile Cards) -->
       <nz-card [nzBordered]="false" class="table-card">
         <nz-spin [nzSpinning]="loading()">
-          <nz-table
-            #userTable
-            [nzData]="users()"
-            [nzPageSize]="10"
-            [nzShowSizeChanger]="true"
-            [nzPageSizeOptions]="[10, 20, 50]"
-            [nzScroll]="{ x: '800px' }"
-          >
-            <thead>
-              <tr>
-                <th nzWidth="200px">Họ tên</th>
-                <th nzWidth="220px">Email</th>
-                <th nzWidth="130px">Số điện thoại</th>
-                <th nzWidth="110px">Vai trò</th>
-                <th nzWidth="130px">Trạng thái</th>
-                <th nzWidth="100px" nzAlign="center">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (user of userTable.data; track user.id) {
-                <tr [class.row-locked]="user.status === 'LOCKED'">
-                  <td>
-                    <div class="user-cell">
-                      <div class="user-avatar" [class]="'avatar-' + user.role.toLowerCase()">
-                        {{ initials(user.full_name) }}
+          <!-- 1. BẢNG DỮ LIỆU HIỂN THỊ TRÊN DESKTOP (Màn hình > 768px) -->
+          <div class="desktop-view">
+            <nz-table
+              #userTable
+              [nzData]="users()"
+              [nzPageSize]="10"
+              [nzShowSizeChanger]="true"
+              [nzPageSizeOptions]="[10, 20, 50]"
+              [nzScroll]="{ x: '800px' }"
+            >
+              <thead>
+                <tr>
+                  <th nzWidth="200px">Họ tên</th>
+                  <th nzWidth="220px">Email</th>
+                  <th nzWidth="130px">Số điện thoại</th>
+                  <th nzWidth="110px">Vai trò</th>
+                  <th nzWidth="130px">Trạng thái</th>
+                  <th nzWidth="100px" nzAlign="center">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (user of userTable.data; track user.id) {
+                  <tr [class.row-locked]="user.status === 'LOCKED'">
+                    <td>
+                      <div class="user-cell">
+                        <div class="user-avatar" [class]="'avatar-' + user.role.toLowerCase()">
+                          {{ initials(user.full_name) }}
+                        </div>
+                        <span class="user-fullname" [title]="user.full_name">{{
+                          user.full_name
+                        }}</span>
                       </div>
-                      <span class="user-fullname" [title]="user.full_name">{{
-                        user.full_name
-                      }}</span>
+                    </td>
+                    <td>
+                      <span class="email-text" [title]="user.email">{{ user.email }}</span>
+                    </td>
+                    <td>{{ user.phone || '—' }}</td>
+                    <td>
+                      <nz-tag [nzColor]="roleColor(user.role)">{{ roleLabel(user.role) }}</nz-tag>
+                    </td>
+                    <td>
+                      <nz-tag [nzColor]="statusColor(user.status)">
+                        <span
+                          nz-icon
+                          [nzType]="user.status === 'ACTIVE' ? 'check-circle' : 'lock'"
+                        ></span>
+                        {{ statusLabel(user.status) }}
+                      </nz-tag>
+                    </td>
+                    <td nzAlign="center">
+                      <div class="action-buttons">
+                        <button
+                          nz-button
+                          nzType="text"
+                          nzSize="small"
+                          nz-tooltip
+                          nzTooltipTitle="Chỉnh sửa"
+                          (click)="openEditModal(user)"
+                        >
+                          <span nz-icon nzType="edit"></span>
+                        </button>
+
+                        @if (user.status === 'ACTIVE') {
+                          <button
+                            nz-button
+                            nzType="text"
+                            nzSize="small"
+                            nzDanger
+                            nz-tooltip
+                            nzTooltipTitle="Khóa tài khoản"
+                            nz-popconfirm
+                            nzPopconfirmTitle="Khóa tài khoản {{ user.full_name }}?"
+                            nzPopconfirmPlacement="left"
+                            (nzOnConfirm)="lockUser(user)"
+                          >
+                            <span nz-icon nzType="lock"></span>
+                          </button>
+                        } @else {
+                          <button
+                            nz-button
+                            nzType="text"
+                            nzSize="small"
+                            nz-tooltip
+                            nzTooltipTitle="Mở khóa tài khoản"
+                            nz-popconfirm
+                            nzPopconfirmTitle="Mở khóa tài khoản {{ user.full_name }}?"
+                            nzPopconfirmPlacement="left"
+                            (nzOnConfirm)="unlockUser(user)"
+                          >
+                            <span nz-icon nzType="unlock"></span>
+                          </button>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="6" style="text-align:center; padding: 32px; color: #999;">
+                      <span
+                        nz-icon
+                        nzType="inbox"
+                        style="font-size:32px; display:block; margin-bottom:8px;"
+                      ></span>
+                      Không tìm thấy người dùng nào.
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </nz-table>
+          </div>
+
+          <!-- 2. DẠNG THẺ (CARD VIEW) HIỂN THỊ TRÊN ĐIỆN THOẠI (Màn hình <= 768px) -->
+          <div class="mobile-view">
+            @for (user of users(); track user.id) {
+              <div class="user-card" [class.card-locked]="user.status === 'LOCKED'">
+                <!-- Header của Card: Avatar + Tên + Nút thao tác -->
+                <div class="card-header">
+                  <div class="user-info">
+                    <div class="user-avatar" [class]="'avatar-' + user.role.toLowerCase()">
+                      {{ initials(user.full_name) }}
                     </div>
-                  </td>
-                  <td>
-                    <span class="email-text" [title]="user.email">{{ user.email }}</span>
-                  </td>
-                  <td>{{ user.phone || '—' }}</td>
-                  <td>
+                    <div class="user-details">
+                      <span class="user-fullname">{{ user.full_name }}</span>
+                      <span class="user-email">{{ user.email }}</span>
+                    </div>
+                  </div>
+                  <div class="card-actions">
+                    <button nz-button nzType="text" (click)="openEditModal(user)">
+                      <span nz-icon nzType="edit"></span>
+                    </button>
+                    @if (user.status === 'ACTIVE') {
+                      <button
+                        nz-button
+                        nzType="text"
+                        nzDanger
+                        nz-popconfirm
+                        nzPopconfirmTitle="Khóa tài khoản {{ user.full_name }}?"
+                        (nzOnConfirm)="lockUser(user)"
+                      >
+                        <span nz-icon nzType="lock"></span>
+                      </button>
+                    } @else {
+                      <button
+                        nz-button
+                        nzType="text"
+                        nz-popconfirm
+                        nzPopconfirmTitle="Mở khóa tài khoản {{ user.full_name }}?"
+                        (nzOnConfirm)="unlockUser(user)"
+                      >
+                        <span nz-icon nzType="unlock"></span>
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                <!-- Body của Card: SĐT, Vai trò & Trạng thái -->
+                <div class="card-body">
+                  <div class="card-row">
+                    <span class="row-label">SĐT:</span>
+                    <span class="row-value">{{ user.phone || '—' }}</span>
+                  </div>
+                  <div class="card-row">
+                    <span class="row-label">Vai trò:</span>
                     <nz-tag [nzColor]="roleColor(user.role)">{{ roleLabel(user.role) }}</nz-tag>
-                  </td>
-                  <td>
+                  </div>
+                  <div class="card-row">
+                    <span class="row-label">Trạng thái:</span>
                     <nz-tag [nzColor]="statusColor(user.status)">
                       <span
                         nz-icon
@@ -147,67 +275,16 @@ import {
                       ></span>
                       {{ statusLabel(user.status) }}
                     </nz-tag>
-                  </td>
-                  <td nzAlign="center">
-                    <div class="action-buttons">
-                      <button
-                        nz-button
-                        nzType="text"
-                        nzSize="small"
-                        nz-tooltip
-                        nzTooltipTitle="Chỉnh sửa"
-                        (click)="openEditModal(user)"
-                      >
-                        <span nz-icon nzType="edit"></span>
-                      </button>
-
-                      @if (user.status === 'ACTIVE') {
-                        <button
-                          nz-button
-                          nzType="text"
-                          nzSize="small"
-                          nzDanger
-                          nz-tooltip
-                          nzTooltipTitle="Khóa tài khoản"
-                          nz-popconfirm
-                          nzPopconfirmTitle="Khóa tài khoản {{ user.full_name }}?"
-                          nzPopconfirmPlacement="left"
-                          (nzOnConfirm)="lockUser(user)"
-                        >
-                          <span nz-icon nzType="lock"></span>
-                        </button>
-                      } @else {
-                        <button
-                          nz-button
-                          nzType="text"
-                          nzSize="small"
-                          nz-tooltip
-                          nzTooltipTitle="Mở khóa tài khoản"
-                          nz-popconfirm
-                          nzPopconfirmTitle="Mở khóa tài khoản {{ user.full_name }}?"
-                          nzPopconfirmPlacement="left"
-                          (nzOnConfirm)="unlockUser(user)"
-                        >
-                          <span nz-icon nzType="unlock"></span>
-                        </button>
-                      }
-                    </div>
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="6" style="text-align:center; padding: 32px; color: #999;">
-                    <span
-                      nz-icon
-                      nzType="inbox"
-                      style="font-size:32px; display:block; margin-bottom:8px;"
-                    ></span>
-                    Không tìm thấy người dùng nào.
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </nz-table>
+                  </div>
+                </div>
+              </div>
+            } @empty {
+              <div class="mobile-empty">
+                <span nz-icon nzType="inbox"></span>
+                <p>Không tìm thấy người dùng nào.</p>
+              </div>
+            }
+          </div>
         </nz-spin>
       </nz-card>
 
@@ -310,12 +387,21 @@ import {
     </div>
 
     <style>
+      :host {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
       .user-mgmt-page {
         display: flex;
         flex-direction: column;
-        gap: 16px;
-        padding: 12px;
+        gap: 12px;
+        padding: 16px;
+        width: 100%;
+        box-sizing: border-box;
       }
+
       .page-header {
         display: flex;
         align-items: flex-start;
@@ -333,12 +419,14 @@ import {
         color: #666;
         font-size: 13px;
       }
+
+      /* Filters Card */
       .filter-card :ng-deep .ant-card-body {
-        padding: 12px 16px;
+        padding: 12px;
       }
       .filter-row {
         display: flex;
-        gap: 12px;
+        gap: 10px;
         flex-wrap: wrap;
         align-items: center;
       }
@@ -350,14 +438,56 @@ import {
         width: 170px;
       }
 
-      @media (max-width: 576px) {
-        .add-btn {
-          width: 100%;
+      /* Views Switcher */
+      .desktop-view {
+        display: block;
+      }
+      .mobile-view {
+        display: none;
+      }
+
+      /* MOBILE LAYOUT CHUNG (<= 768px) */
+      @media (max-width: 768px) {
+        :host-context(.ant-layout-content),
+        :host-context(.main-content),
+        :host-context(main),
+        :ng-deep .ant-layout-content {
+          padding: 8px !important;
+          margin: 0 !important;
+          width: 100% !important;
+          max-width: 100vw !important;
+          overflow-x: hidden !important;
         }
+
+        .user-mgmt-page {
+          padding: 0 !important;
+          width: 100% !important;
+        }
+
+        .desktop-view {
+          display: none !important;
+        }
+
+        .mobile-view {
+          display: flex !important;
+          flex-direction: column;
+          gap: 10px;
+          padding: 0;
+          width: 100% !important;
+        }
+
+        .add-btn {
+          width: 100% !important;
+          height: 38px;
+          font-weight: 500;
+        }
+
         .filter-row {
           flex-direction: column;
           align-items: stretch;
+          gap: 8px;
         }
+
         .search-input,
         .filter-select {
           width: 100% !important;
@@ -365,9 +495,131 @@ import {
         }
       }
 
-      .table-card :ng-deep .ant-card-body {
-        padding: 0;
+      /* TỐI ƯU ĐẶC BIỆT CHO MÀN HÌNH SIÊU NHỎ (<= 390px) */
+      @media (max-width: 390px) {
+        .page-header h2 {
+          font-size: 18px;
+        }
+        .page-header p {
+          font-size: 12px;
+        }
+
+        .add-btn {
+          height: 34px !important;
+          font-size: 13px !important;
+        }
+
+        .filter-card :ng-deep .ant-card-body {
+          padding: 8px 10px !important;
+        }
+
+        .search-input :ng-deep .ant-input,
+        .filter-select :ng-deep .ant-select-selector {
+          height: 34px !important;
+          font-size: 12.5px !important;
+        }
+
+        .user-card {
+          padding: 10px 12px !important;
+          border-radius: 10px !important;
+        }
+
+        .user-details .user-fullname {
+          font-size: 13.5px !important;
+        }
+
+        .user-details .user-email {
+          font-size: 11px !important;
+        }
+
+        .card-row {
+          font-size: 11.5px !important;
+        }
       }
+
+      /* Mobile Card Styles */
+      .table-card {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+      .table-card :ng-deep .ant-card-body {
+        padding: 0 !important;
+      }
+
+      .user-card {
+        background: #ffffff;
+        border: 1px solid #eaedf1;
+        border-radius: 12px;
+        padding: 12px 14px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .card-locked {
+        opacity: 0.65;
+        background: #fafafa;
+      }
+      .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #f0f0f0;
+      }
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        min-width: 0;
+      }
+      .user-details {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .user-details .user-fullname {
+        font-weight: 600;
+        font-size: 14px;
+        color: #1f2937;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .user-details .user-email {
+        font-size: 12px;
+        color: #6b7280;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .card-actions {
+        display: flex;
+        gap: 2px;
+        flex-shrink: 0;
+      }
+      .card-body {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding-top: 8px;
+      }
+      .card-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12.5px;
+      }
+      .row-label {
+        color: #6b7280;
+      }
+      .row-value {
+        color: #111827;
+        font-weight: 500;
+      }
+
+      /* Desktop Table Avatar & Buttons */
       .user-cell {
         display: flex;
         align-items: center;
@@ -375,8 +627,8 @@ import {
         overflow: hidden;
       }
       .user-avatar {
-        width: 34px;
-        height: 34px;
+        width: 36px;
+        height: 36px;
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -394,24 +646,6 @@ import {
       }
       .avatar-intern {
         background: #52c41a;
-      }
-
-      .user-fullname {
-        font-weight: 500;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .email-text {
-        color: #555;
-        font-size: 13px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: block;
-        max-width: 200px;
-        word-break: break-all;
       }
 
       .action-buttons {
