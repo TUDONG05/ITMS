@@ -9,6 +9,7 @@ from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.internship import (
     InternshipMemberDetailRead,
+    InternshipMemberUpdate,
     MentorAssignRequest,
 )
 from app.services.internship import InternshipService
@@ -24,6 +25,18 @@ def get_internship_member(
 ) -> InternshipMemberDetailRead:
     """Retrieve details of a single internship member."""
     member = InternshipService.get_member_by_id(db, member_id=member_id)
+    return InternshipMemberDetailRead.model_validate(member)
+
+
+@router.patch("/{member_id}", response_model=InternshipMemberDetailRead)
+def update_internship_member(
+    member_id: uuid.UUID,
+    payload: InternshipMemberUpdate,
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> InternshipMemberDetailRead:
+    """Admin updates internship member status, dates, and/or mentor."""
+    member = InternshipService.update_member(db, member_id=member_id, payload=payload)
     return InternshipMemberDetailRead.model_validate(member)
 
 

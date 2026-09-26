@@ -48,10 +48,11 @@ class InternshipRead(InternshipBase):
     created_by: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
+    members_count: int = 0
 
 
 class InternshipDetailRead(InternshipRead):
-    members_count: int = 0
+    pass
 
 
 class UserSummary(BaseSchema):
@@ -115,3 +116,21 @@ class InternshipMemberDetailRead(InternshipMemberRead):
 
 class MentorAssignRequest(BaseSchema):
     mentor_id: uuid.UUID | None = None
+
+
+class InternshipMemberUpdate(BaseSchema):
+    mentor_id: uuid.UUID | None = None
+    roadmap_id: uuid.UUID | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    status: InternshipMemberStatus | None = None
+
+    @model_validator(mode="after")
+    def check_dates(self) -> "InternshipMemberUpdate":
+        if (
+            self.start_date is not None
+            and self.end_date is not None
+            and self.end_date < self.start_date
+        ):
+            raise ValueError("end_date must not be before start_date")
+        return self
