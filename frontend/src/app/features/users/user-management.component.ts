@@ -55,7 +55,7 @@ import {
           <h2>Quản lý người dùng</h2>
           <p>Tạo mới, cập nhật thông tin, phân vai trò và khóa/mở tài khoản người dùng.</p>
         </div>
-        <button nz-button nzType="primary" (click)="openCreateModal()">
+        <button nz-button nzType="primary" class="add-btn" (click)="openCreateModal()">
           <span nz-icon nzType="user-add"></span> Thêm người dùng
         </button>
       </div>
@@ -107,16 +107,16 @@ import {
             [nzPageSize]="10"
             [nzShowSizeChanger]="true"
             [nzPageSizeOptions]="[10, 20, 50]"
-            nzTableLayout="fixed"
+            [nzScroll]="{ x: '800px' }"
           >
             <thead>
               <tr>
-                <th nzWidth="220px">Họ tên</th>
-                <th>Email</th>
-                <th nzWidth="120px">Số điện thoại</th>
+                <th nzWidth="200px">Họ tên</th>
+                <th nzWidth="220px">Email</th>
+                <th nzWidth="130px">Số điện thoại</th>
                 <th nzWidth="110px">Vai trò</th>
                 <th nzWidth="130px">Trạng thái</th>
-                <th nzWidth="130px" nzAlign="center">Thao tác</th>
+                <th nzWidth="100px" nzAlign="center">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -127,11 +127,13 @@ import {
                       <div class="user-avatar" [class]="'avatar-' + user.role.toLowerCase()">
                         {{ initials(user.full_name) }}
                       </div>
-                      <span class="user-fullname">{{ user.full_name }}</span>
+                      <span class="user-fullname" [title]="user.full_name">{{
+                        user.full_name
+                      }}</span>
                     </div>
                   </td>
                   <td>
-                    <span class="email-text">{{ user.email }}</span>
+                    <span class="email-text" [title]="user.email">{{ user.email }}</span>
                   </td>
                   <td>{{ user.phone || '—' }}</td>
                   <td>
@@ -244,7 +246,7 @@ import {
                 <input nz-input formControlName="password" placeholder="Mật khẩu" type="password" />
               </nz-form-control>
             </nz-form-item>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="modal-grid">
               <nz-form-item>
                 <nz-form-label nzRequired>Vai trò</nz-form-label>
                 <nz-form-control nzErrorTip="Chọn vai trò">
@@ -284,7 +286,7 @@ import {
                 <input nz-input formControlName="full_name" placeholder="Nguyễn Văn A" />
               </nz-form-control>
             </nz-form-item>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="modal-grid">
               <nz-form-item>
                 <nz-form-label nzRequired>Vai trò</nz-form-label>
                 <nz-form-control nzErrorTip="Chọn vai trò">
@@ -312,6 +314,7 @@ import {
         display: flex;
         flex-direction: column;
         gap: 16px;
+        padding: 12px;
       }
       .page-header {
         display: flex;
@@ -341,12 +344,27 @@ import {
       }
       .search-input {
         flex: 1;
-        min-width: 220px;
-        max-width: 360px;
+        min-width: 200px;
       }
       .filter-select {
         width: 170px;
       }
+
+      @media (max-width: 576px) {
+        .add-btn {
+          width: 100%;
+        }
+        .filter-row {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .search-input,
+        .filter-select {
+          width: 100% !important;
+          max-width: 100%;
+        }
+      }
+
       .table-card :ng-deep .ant-card-body {
         padding: 0;
       }
@@ -354,6 +372,7 @@ import {
         display: flex;
         align-items: center;
         gap: 10px;
+        overflow: hidden;
       }
       .user-avatar {
         width: 34px;
@@ -376,13 +395,25 @@ import {
       .avatar-intern {
         background: #52c41a;
       }
+
       .user-fullname {
         font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
+
       .email-text {
         color: #555;
         font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+        max-width: 200px;
+        word-break: break-all;
       }
+
       .action-buttons {
         display: flex;
         gap: 4px;
@@ -390,6 +421,17 @@ import {
       }
       .row-locked td {
         opacity: 0.65;
+      }
+
+      .modal-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 576px) {
+        .modal-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   `,
