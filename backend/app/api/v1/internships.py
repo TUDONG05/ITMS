@@ -84,11 +84,12 @@ def update_internship(
 @router.get("/{id}/members", response_model=list[InternshipMemberDetailRead])
 def list_internship_members(
     id: uuid.UUID,
+    search: str | None = Query(None, description="Search by intern name"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[InternshipMemberDetailRead]:
     """Retrieve all enrolled interns in the specified internship."""
-    members = InternshipService.get_members_by_internship(db, internship_id=id)
+    members = InternshipService.get_members_by_internship(db, internship_id=id, search=search)
     return [InternshipMemberDetailRead.model_validate(member) for member in members]
 
 

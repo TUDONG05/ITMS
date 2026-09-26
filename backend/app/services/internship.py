@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.internship import (
     InternshipCreate,
     InternshipMemberCreate,
+    InternshipMemberUpdate,
     InternshipUpdate,
 )
 
@@ -55,7 +56,11 @@ class InternshipService:
         skip: int = 0,
         limit: int = 100,
     ) -> list[Internship]:
-        query = select(Internship).order_by(Internship.created_at.desc())
+        query = (
+            select(Internship)
+            .options(selectinload(Internship.members))
+            .order_by(Internship.created_at.desc())
+        )
         if status_filter is not None:
             query = query.where(Internship.status == status_filter)
         if search:
@@ -191,6 +196,7 @@ class InternshipService:
     def get_members_by_internship(
         db: Session,
         internship_id: uuid.UUID,
+        search: str | None = None,
     ) -> list[InternshipMember]:
         InternshipService.get_internship_by_id(db, internship_id)
 
@@ -203,6 +209,10 @@ class InternshipService:
             )
             .order_by(InternshipMember.created_at.asc())
         )
+        if search:
+            stmt = stmt.join(InternshipMember.intern).where(
+                User.full_name.ilike(f"%{search.strip()}%")
+            )
         return list(db.scalars(stmt).all())
 
     @staticmethod
@@ -248,3 +258,50 @@ class InternshipService:
         db.commit()
         db.refresh(member)
         return member
+
+    @staticmethod
+    def update_member(
+        db: Session,
+        member_id: uuid.UUID,
+        payload: InternshipMemberUpdate,
+    ) -> InternshipMember:
+        member = InternshipService.get_member_by_id(db, member_id)
+
+        update_data = payload.model_dump(exclude_unset=True)
+
+        if "mentor_id" in update_data:
+            mentor_id = update_data["mentor_id"]
+            if mentor_id is not None:
+                mentor = db.get(User, mentor_id)
+                if not mentor:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Mentor user not found",
+                    )
+                if mentor.role != UserRole.MENTOR:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"User '{mentor_id}' does not have role MENTOR",
+                    )
+            member.mentor_id = mentor_id
+
+        new_start = update_data.get("start_date", member.start_date)
+        new_end = update_data.get("end_date", member.end_date)
+        if new_start and new_end and new_end < new_start:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="end_date must not be before start_date",
+            )
+
+        if "start_date" in update_data:
+            member.start_date = update_data["start_date"]
+        if "end_date" in update_data:
+            member.end_date = update_data["end_date"]
+        if "status" in update_data and update_data["status"] is not None:
+            member.status = update_data["status"]
+        if "roadmap_id" in update_data:
+            member.roadmap_id = update_data["roadmap_id"]
+
+        db.commit()
+        db.refresh(member)
+        return InternshipService.get_member_by_id(db, member_id)
