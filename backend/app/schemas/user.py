@@ -9,9 +9,11 @@ from app.schemas.base import BaseSchema
 
 class UserBase(BaseSchema):
     email: str = Field(..., max_length=255)
-    full_name: str = Field(..., max_length=255)
-    role: UserRole
+    full_name: str = Field(..., max_length=150)
+    role: UserRole = UserRole.INTERN
     status: UserStatus = UserStatus.ACTIVE
+    phone: str | None = Field(default=None, max_length=20)
+    avatar_url: str | None = None
 
 
 class UserCreate(UserBase):

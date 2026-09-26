@@ -7,6 +7,7 @@ Business rules
 * Email KHÔNG được phép tự thay đổi qua endpoint này.
 * Intern thêm xem được thông tin Mentor đang phụ trách (qua InternshipMember).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ from app.models.user import User
 # ---------------------------------------------------------------------------
 # Value objects returned by service functions
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class MentorSummary:
@@ -39,13 +41,14 @@ class ProfileRead:
     avatar_url: str | None
     role: str
     status: str
-    created_at: object          # datetime
+    created_at: object  # datetime
     mentor: MentorSummary | None
 
 
 # ---------------------------------------------------------------------------
 # Service functions
 # ---------------------------------------------------------------------------
+
 
 def get_profile(db: Session, user_id: UUID) -> ProfileRead:
     """Return the full profile for *user_id*, including Mentor info for interns."""
@@ -105,6 +108,7 @@ def update_profile(
 # Private helpers
 # ---------------------------------------------------------------------------
 
+
 def _find_mentor(db: Session, intern_id: UUID) -> MentorSummary | None:
     """Tìm Mentor đang phụ trách intern trong đợt thực tập ACTIVE."""
     stmt = (
@@ -143,4 +147,3 @@ def _to_profile_read(user: User, mentor: MentorSummary | None) -> ProfileRead:
         created_at=user.created_at,
         mentor=mentor,
     )
-

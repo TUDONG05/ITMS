@@ -4,6 +4,7 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import { provideRouter } from '@angular/router';
 import {
   AppstoreOutline,
+  ArrowRightOutline,
   AuditOutline,
   BarChartOutline,
   BellOutline,
@@ -30,8 +31,10 @@ import {
   SettingOutline,
   SolutionOutline,
   StarOutline,
+  SwapOutline,
   TeamOutline,
   TrophyOutline,
+  UserAddOutline,
   UserOutline,
   WarningOutline,
 } from '@ant-design/icons-angular/icons';
@@ -48,6 +51,7 @@ export const appConfig: ApplicationConfig = {
     provideNzI18n(vi_VN),
     provideNzIcons([
       AppstoreOutline,
+      ArrowRightOutline,
       AuditOutline,
       BarChartOutline,
       BellOutline,
@@ -74,8 +78,10 @@ export const appConfig: ApplicationConfig = {
       SettingOutline,
       SolutionOutline,
       StarOutline,
+      SwapOutline,
       TeamOutline,
       TrophyOutline,
+      UserAddOutline,
       UserOutline,
       WarningOutline,
     ]),

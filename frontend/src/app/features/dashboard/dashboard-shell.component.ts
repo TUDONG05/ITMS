@@ -18,6 +18,7 @@ import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { AuthService } from '../../core/api/auth.service';
+import { InternshipManagementComponent } from '../internships/internship-management.component';
 import { ProfileComponent } from '../profile/profile.component';
 
 enum Role {
@@ -199,6 +200,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzMenuModule,
     NzProgressModule,
     NzTagModule,
+    InternshipManagementComponent,
     ProfileComponent,
   ],
   template: `
@@ -388,6 +390,8 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'profile') {
               <!-- UC-5: Hồ sơ cá nhân -->
               <app-profile />
+            } @else if (section() === 'internships' && role() === 'ADMIN') {
+              <app-internship-management />
             } @else {
               <section class="feature-placeholder">
                 <span nz-icon [nzType]="activeIcon()"></span>
@@ -470,7 +474,7 @@ export class DashboardShellComponent implements OnInit {
 
   ngOnInit(): void {
     // Fetch latest user profile to ensure avatar and details are up to date
-    this.authService.getProfile().subscribe({ error: () => {} });
+    this.authService.getProfile().subscribe({ error: () => undefined });
   }
   protected readonly rows = [
     {

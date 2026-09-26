@@ -1,5 +1,8 @@
 # Local configuration
 environment.local
+.vercel/
+.vercel_python_packages/
+.python-version
 
 # Node and Angular
 frontend/node_?odules/
@@ -17,3 +20,5 @@ backend/**/*.py[cod]
 .DS_Store
 .idea/
 .vscode/settings.json
+.vercel
+.env*

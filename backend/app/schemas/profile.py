@@ -1,4 +1,5 @@
 """Pydantic schemas for UC-5 – Quản lý hồ sơ cá nhân."""
+
 from __future__ import annotations
 
 import uuid
@@ -34,4 +35,3 @@ class UpdateProfileRequest(BaseModel):
 
     phone: str | None = Field(default=None, max_length=20)
     avatar_url: str | None = Field(default=None, max_length=2048)
-

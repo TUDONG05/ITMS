@@ -122,6 +122,7 @@ def test_get_profile_returns_mentor_info_when_assigned(
     # Tạo đợt thực tập và gán mentor cho intern
     internship_id = uuid.uuid4()
     from datetime import date
+
     internship = Internship(
         id=internship_id,
         name="Đợt 1 - 2026",

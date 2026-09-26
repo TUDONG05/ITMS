@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db.base import Base
+from app.db.session import _sqlalchemy_url
 from app.main import app
 from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole, UserStatus
 from app.schemas.internship import InternshipBase, InternshipMemberBase, InternshipRead
@@ -133,3 +134,12 @@ def test_health_endpoints():
     db_data = resp_db.json()
     assert db_data["service"] == "itms-backend"
     assert "database" in db_data
+
+
+def test_database_url_uses_psycopg_v3_for_generic_postgres_urls():
+    assert _sqlalchemy_url("postgres://user:pass@example.com/itms") == (
+        "postgresql+psycopg://user:pass@example.com/itms"
+    )
+    assert _sqlalchemy_url("postgresql://user:pass@example.com/itms") == (
+        "postgresql+psycopg://user:pass@example.com/itms"
+    )

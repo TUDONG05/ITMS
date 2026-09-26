@@ -138,7 +138,6 @@ export class AuthService {
   }
 
   syncWithProfile(profile: InternProfileRead): void {
-    const current = this.currentUser();
     const updated: AuthenticatedUser = {
       id: profile.id,
       email: profile.email,

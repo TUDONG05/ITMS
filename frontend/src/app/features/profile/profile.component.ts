@@ -142,7 +142,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
             <!-- Read-only view -->
             <div nz-row [nzGutter]="[24, 16]">
               <div nz-col [nzSpan]="12">
-                <label class="field-label">Họ và tên</label>
+                <span class="field-label">Họ và tên</span>
                 <p class="field-value">
                   {{ profile()!.full_name }}
                   <span
@@ -155,7 +155,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
                 </p>
               </div>
               <div nz-col [nzSpan]="12">
-                <label class="field-label">Email</label>
+                <span class="field-label">Email</span>
                 <p class="field-value">
                   {{ profile()!.email }}
                   <span
@@ -168,11 +168,11 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
                 </p>
               </div>
               <div nz-col [nzSpan]="12">
-                <label class="field-label">Số điện thoại</label>
+                <span class="field-label">Số điện thoại</span>
                 <p class="field-value">{{ profile()!.phone ?? '—' }}</p>
               </div>
               <div nz-col [nzSpan]="12">
-                <label class="field-label">Ảnh đại diện</label>
+                <span class="field-label">Ảnh đại diện</span>
                 @if (profile()!.avatar_url) {
                   <img
                     [src]="profile()!.avatar_url!"
@@ -184,7 +184,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
                 }
               </div>
               <div nz-col [nzSpan]="12">
-                <label class="field-label">Ngày tạo tài khoản</label>
+                <span class="field-label">Ngày tạo tài khoản</span>
                 <p class="field-value">{{ profile()!.created_at | slice: 0 : 10 }}</p>
               </div>
             </div>

@@ -1,4 +1,5 @@
 """UC-5 – API endpoints: GET /profile, PATCH /profile, POST /profile/avatar."""
+
 from __future__ import annotations
 
 import uuid
@@ -24,6 +25,7 @@ _MAX_BYTES = 2 * 1024 * 1024  # 2 MB
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _normalize_avatar_url(url: str | None) -> str | None:
     if not url:
@@ -56,6 +58,7 @@ def _serialize_profile(data: profile_service.ProfileRead) -> InternProfileRead:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("", response_model=InternProfileRead, summary="Xem hồ sơ cá nhân")
 def get_profile(

@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -58,7 +59,7 @@ def create_app() -> FastAPI:
                 "error": {
                     "code": "INVALID_REQUEST",
                     "message": "Dữ liệu gửi lên không hợp lệ.",
-                    "details": {"validation_errors": error.errors()},
+                    "details": {"validation_errors": jsonable_encoder(error.errors())},
                     "request_id": request.state.request_id,
                 }
             },
