@@ -92,9 +92,7 @@ def update_profile(
 
     if full_name is not None:
         if user.role != "ADMIN":
-            raise ApiError(
-                403, "FORBIDDEN", "Chỉ quản trị viên mới có quyền thay đổi họ và tên."
-            )
+            raise ApiError(403, "FORBIDDEN", "Chỉ quản trị viên mới có quyền thay đổi họ và tên.")
         stripped = full_name.strip()
         if not stripped:
             raise ApiError(422, "INVALID_FULL_NAME", "Họ và tên không được để trống.")

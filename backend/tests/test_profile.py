@@ -171,9 +171,7 @@ def test_update_profile_phone(client: TestClient, seeded_users: dict[str, User])
     assert data["full_name"] == "Trần Intern"  # Tên không đổi
 
 
-def test_non_admin_cannot_change_name(
-    client: TestClient, seeded_users: dict[str, User]
-):
+def test_non_admin_cannot_change_name(client: TestClient, seeded_users: dict[str, User]):
     """Intern cố đổi tên -> bị chặn 403."""
     token = _login(client, "intern@itms.local", "Intern@12345")
     headers = {"Authorization": f"Bearer {token}"}
@@ -187,9 +185,7 @@ def test_non_admin_cannot_change_name(
     assert update_res.json()["error"]["code"] == "FORBIDDEN"
 
 
-def test_cannot_change_email_or_role(
-    client: TestClient, seeded_users: dict[str, User]
-):
+def test_cannot_change_email_or_role(client: TestClient, seeded_users: dict[str, User]):
     """Gửi email và role trong payload -> bị bỏ qua, không thể đổi."""
     token = _login(client, "intern@itms.local", "Intern@12345")
     headers = {"Authorization": f"Bearer {token}"}
@@ -210,9 +206,7 @@ def test_cannot_change_email_or_role(
     assert data["phone"] == "0912345678"
 
 
-def test_admin_can_update_own_name(
-    client: TestClient, seeded_users: dict[str, User]
-):
+def test_admin_can_update_own_name(client: TestClient, seeded_users: dict[str, User]):
     """Admin được phép đổi tên."""
     token = _login(client, "admin@itms.local", "Admin@12345")
     headers = {"Authorization": f"Bearer {token}"}
