@@ -20,6 +20,7 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { AuthService } from '../../core/api/auth.service';
 import { InternshipManagementComponent } from '../internships/internship-management.component';
 import { ProfileComponent } from '../profile/profile.component';
+import { UserManagementComponent } from '../users/user-management.component';
 
 enum Role {
   Intern = 'INTERN',
@@ -202,6 +203,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzTagModule,
     InternshipManagementComponent,
     ProfileComponent,
+    UserManagementComponent,
   ],
   template: `
     <div class="dashboard-shell">
@@ -392,6 +394,9 @@ const dashboards: Record<Role, Dashboard> = {
               <app-profile />
             } @else if (section() === 'internships' && role() === 'ADMIN') {
               <app-internship-management />
+            } @else if (section() === 'users' && role() === 'ADMIN') {
+              <!-- UC-14: Quản lý người dùng -->
+              <app-user-management />
             } @else {
               <section class="feature-placeholder">
                 <span nz-icon [nzType]="activeIcon()"></span>

@@ -50,7 +50,11 @@ class AuthService:
         if user is None or not verify_password(password, user.password_hash):
             raise _invalid_credentials()
         if user.status != "ACTIVE":
-            raise _invalid_credentials()
+            raise ApiError(
+                403,
+                "ACCOUNT_LOCKED",
+                "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.",
+            )
 
         account = _to_account(user)
 
