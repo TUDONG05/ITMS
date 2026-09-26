@@ -1,17 +1,6 @@
 import { CommonModule } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  OnInit,
-  inject,
-  signal,
-} from '@angular/core';
-import {
-  FormBuilder,
-  FormsModule,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
 import { NzDividerModule } from 'ng-zorro-antd/divider';
@@ -138,7 +127,9 @@ import {
                       <div class="user-avatar" [class]="'avatar-' + user.role.toLowerCase()">
                         {{ initials(user.full_name) }}
                       </div>
-                      <span class="user-fullname" [title]="user.full_name">{{ user.full_name }}</span>
+                      <span class="user-fullname" [title]="user.full_name">{{
+                        user.full_name
+                      }}</span>
                     </div>
                   </td>
                   <td>
@@ -150,7 +141,10 @@ import {
                   </td>
                   <td>
                     <nz-tag [nzColor]="statusColor(user.status)">
-                      <span nz-icon [nzType]="user.status === 'ACTIVE' ? 'check-circle' : 'lock'"></span>
+                      <span
+                        nz-icon
+                        [nzType]="user.status === 'ACTIVE' ? 'check-circle' : 'lock'"
+                      ></span>
                       {{ statusLabel(user.status) }}
                     </nz-tag>
                   </td>
@@ -200,11 +194,14 @@ import {
                     </div>
                   </td>
                 </tr>
-              }
-              @empty {
+              } @empty {
                 <tr>
                   <td colspan="6" style="text-align:center; padding: 32px; color: #999;">
-                    <span nz-icon nzType="inbox" style="font-size:32px; display:block; margin-bottom:8px;"></span>
+                    <span
+                      nz-icon
+                      nzType="inbox"
+                      style="font-size:32px; display:block; margin-bottom:8px;"
+                    ></span>
                     Không tìm thấy người dùng nào.
                   </td>
                 </tr>
@@ -229,7 +226,12 @@ import {
             <nz-form-item>
               <nz-form-label nzRequired>Email</nz-form-label>
               <nz-form-control nzErrorTip="Email hợp lệ là bắt buộc">
-                <input nz-input formControlName="email" placeholder="example@itms.local" type="email" />
+                <input
+                  nz-input
+                  formControlName="email"
+                  placeholder="example@itms.local"
+                  type="email"
+                />
               </nz-form-control>
             </nz-form-item>
             <nz-form-item>
@@ -308,42 +310,99 @@ import {
     </div>
 
     <style>
-      .user-mgmt-page { display: flex; flex-direction: column; gap: 16px; padding: 12px; }
-      .page-header {
-        display: flex; align-items: flex-start;
-        justify-content: space-between; flex-wrap: wrap; gap: 12px;
+      .user-mgmt-page {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 12px;
       }
-      .page-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
-      .page-header p { margin: 4px 0 0; color: #666; font-size: 13px; }
-      .filter-card :ng-deep .ant-card-body { padding: 12px 16px; }
-      .filter-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-      .search-input { flex: 1; min-width: 200px; }
-      .filter-select { width: 170px; }
-      
-      @media (max-width: 576px) {
-        .add-btn { width: 100%; }
-        .filter-row { flex-direction: column; align-items: stretch; }
-        .search-input, .filter-select { width: 100% !important; max-width: 100%; }
+      .page-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .page-header h2 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .page-header p {
+        margin: 4px 0 0;
+        color: #666;
+        font-size: 13px;
+      }
+      .filter-card :ng-deep .ant-card-body {
+        padding: 12px 16px;
+      }
+      .filter-row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .search-input {
+        flex: 1;
+        min-width: 200px;
+      }
+      .filter-select {
+        width: 170px;
       }
 
-      .table-card :ng-deep .ant-card-body { padding: 0; }
-      .user-cell { display: flex; align-items: center; gap: 10px; overflow: hidden; }
-      .user-avatar {
-        width: 34px; height: 34px; border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 13px; font-weight: 600; color: #fff; flex-shrink: 0;
+      @media (max-width: 576px) {
+        .add-btn {
+          width: 100%;
+        }
+        .filter-row {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .search-input,
+        .filter-select {
+          width: 100% !important;
+          max-width: 100%;
+        }
       }
-      .avatar-admin  { background: #1890ff; }
-      .avatar-mentor { background: #fa8c16; }
-      .avatar-intern { background: #52c41a; }
-      
+
+      .table-card :ng-deep .ant-card-body {
+        padding: 0;
+      }
+      .user-cell {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        overflow: hidden;
+      }
+      .user-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 600;
+        color: #fff;
+        flex-shrink: 0;
+      }
+      .avatar-admin {
+        background: #1890ff;
+      }
+      .avatar-mentor {
+        background: #fa8c16;
+      }
+      .avatar-intern {
+        background: #52c41a;
+      }
+
       .user-fullname {
         font-weight: 500;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      
+
       .email-text {
         color: #555;
         font-size: 13px;
@@ -354,13 +413,25 @@ import {
         max-width: 200px;
         word-break: break-all;
       }
-      
-      .action-buttons { display: flex; gap: 4px; justify-content: center; }
-      .row-locked td { opacity: 0.65; }
 
-      .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .action-buttons {
+        display: flex;
+        gap: 4px;
+        justify-content: center;
+      }
+      .row-locked td {
+        opacity: 0.65;
+      }
+
+      .modal-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
       @media (max-width: 576px) {
-        .modal-grid { grid-template-columns: 1fr; }
+        .modal-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   `,
@@ -552,9 +623,7 @@ export class UserManagementComponent implements OnInit {
   }
 
   statusLabel(status: UserStatus): string {
-    return (
-      { ACTIVE: 'Hoạt động', LOCKED: 'Đã khóa', INACTIVE: 'Ngừng HĐ' }[status] ?? status
-    );
+    return { ACTIVE: 'Hoạt động', LOCKED: 'Đã khóa', INACTIVE: 'Ngừng HĐ' }[status] ?? status;
   }
 
   statusColor(status: UserStatus): string {
