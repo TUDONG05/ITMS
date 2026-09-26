@@ -80,14 +80,15 @@ def update_profile(
     account: Annotated[Account, Depends(get_current_account)],
     db: Annotated[Session, Depends(get_db)],
 ) -> InternProfileRead:
-    """Cập nhật các trường được phép: ``phone``, ``avatar_url``.
+    """Cập nhật các trường được phép: ``phone``, ``avatar_url`` (và ``full_name`` nếu là ADMIN).
 
-    Họ tên, email và role **không được phép** thay đổi qua endpoint này.
+    Email và role **không được phép** thay đổi qua endpoint này.
     Chỉ cập nhật trường có giá trị khác ``null``.
     """
     data = profile_service.update_profile(
         db,
         account.id,
+        full_name=payload.full_name,
         phone=payload.phone,
         avatar_url=payload.avatar_url,
     )
@@ -140,7 +141,6 @@ async def upload_avatar(
     data = profile_service.update_profile(
         db,
         account.id,
-        phone=None,
         avatar_url=avatar_url,
     )
     return _serialize_profile(data)

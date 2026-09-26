@@ -156,11 +156,10 @@ def test_get_profile_returns_mentor_info_when_assigned(
     assert data["mentor"]["email"] == "mentor@itms.local"
 
 
-def test_update_profile_phone_and_avatar(client: TestClient, seeded_users: dict[str, User]):
+def test_update_profile_phone(client: TestClient, seeded_users: dict[str, User]):
     token = _login(client, "intern@itms.local", "Intern@12345")
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Cập nhật số điện thoại
     update_res = client.patch(
         "/api/v1/profile",
         headers=headers,
@@ -172,18 +171,33 @@ def test_update_profile_phone_and_avatar(client: TestClient, seeded_users: dict[
     assert data["full_name"] == "Trần Intern"  # Tên không đổi
 
 
-def test_update_profile_cannot_change_name_or_email(
+def test_non_admin_cannot_change_name(
     client: TestClient, seeded_users: dict[str, User]
 ):
+    """Intern cố đổi tên -> bị chặn 403."""
     token = _login(client, "intern@itms.local", "Intern@12345")
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Cố tình gửi full_name và email trong payload
+    update_res = client.patch(
+        "/api/v1/profile",
+        headers=headers,
+        json={"full_name": "Tên Bị Hacker Sửa"},
+    )
+    assert update_res.status_code == 403
+    assert update_res.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_cannot_change_email_or_role(
+    client: TestClient, seeded_users: dict[str, User]
+):
+    """Gửi email và role trong payload -> bị bỏ qua, không thể đổi."""
+    token = _login(client, "intern@itms.local", "Intern@12345")
+    headers = {"Authorization": f"Bearer {token}"}
+
     update_res = client.patch(
         "/api/v1/profile",
         headers=headers,
         json={
-            "full_name": "Tên Bị Hacker Sửa",
             "email": "hacked@itms.local",
             "role": "ADMIN",
             "phone": "0912345678",
@@ -191,10 +205,36 @@ def test_update_profile_cannot_change_name_or_email(
     )
     assert update_res.status_code == 200
     data = update_res.json()
-    assert data["full_name"] == "Trần Intern"
     assert data["email"] == "intern@itms.local"
     assert data["role"] == "INTERN"
     assert data["phone"] == "0912345678"
+
+
+def test_admin_can_update_own_name(
+    client: TestClient, seeded_users: dict[str, User]
+):
+    """Admin được phép đổi tên."""
+    token = _login(client, "admin@itms.local", "Admin@12345")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    update_res = client.patch(
+        "/api/v1/profile",
+        headers=headers,
+        json={"full_name": "Vũ Tổng Quản Trị", "phone": "0999888777"},
+    )
+    assert update_res.status_code == 200
+    data = update_res.json()
+    assert data["full_name"] == "Vũ Tổng Quản Trị"
+    assert data["phone"] == "0999888777"
+
+    # Admin gửi tên rỗng -> 422
+    empty_res = client.patch(
+        "/api/v1/profile",
+        headers=headers,
+        json={"full_name": "   "},
+    )
+    assert empty_res.status_code == 422
+    assert empty_res.json()["error"]["code"] == "INVALID_FULL_NAME"
 
 
 def test_upload_avatar_success(client: TestClient, seeded_users: dict[str, User], tmp_path: Path):
