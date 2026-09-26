@@ -101,11 +101,11 @@ def _request_json(
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
         try:
-            with urlopen(request, timeout=0.5) as response:  # noqa: S310
+            with urlopen(request, timeout=2.0) as response:  # noqa: S310
                 return response.status, json.loads(response.read())
         except HTTPError as error:
             return error.code, json.loads(error.read())
-        except URLError:
+        except (URLError, TimeoutError):
             time.sleep(0.1)
     raise AssertionError("Uvicorn did not expose the authentication endpoint within five seconds.")
 
@@ -126,6 +126,7 @@ def test_login_issues_access_token_and_allows_me_request() -> None:
             "email": "intern@itms.local",
             "full_name": "Thực tập sinh Demo",
             "role": "INTERN",
+            "avatar_url": None,
         }
 
         me_status, me_body = _request_json(

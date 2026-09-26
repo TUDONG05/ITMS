@@ -1,5 +1,6 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
+import { tap } from 'rxjs';
 
 export interface LoginRequest {
   email: string;
@@ -11,6 +12,7 @@ export interface AuthenticatedUser {
   email: string;
   full_name: string;
   role: string;
+  avatar_url?: string | null;
 }
 
 export interface LoginResponse {
@@ -46,12 +48,41 @@ export interface MessageResponse {
   message: string;
 }
 
+// UC-5 – Profile types
+export interface MentorSummary {
+  id: string;
+  full_name: string;
+  email: string;
+}
+
+export interface InternProfileRead {
+  id: string;
+  email: string;
+  full_name: string;
+  phone: string | null;
+  avatar_url: string | null;
+  role: string;
+  status: string;
+  created_at: string;
+  mentor: MentorSummary | null;
+}
+
+export interface UpdateProfileRequest {
+  full_name?: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
 
+  readonly currentUser = signal<AuthenticatedUser | null>(this.readStoredUser());
+
   login(payload: LoginRequest) {
-    return this.http.post<LoginResponse>('/api/v1/auth/login', payload);
+    return this.http
+      .post<LoginResponse>('/api/v1/auth/login', payload)
+      .pipe(tap((res) => this.storeSession(res)));
   }
 
   changePassword(payload: ChangePasswordRequest) {
@@ -74,14 +105,58 @@ export class AuthService {
     return this.http.post<MessageResponse>('/api/v1/auth/logout', {}, this.authorizedOptions());
   }
 
+  // UC-5 – Profile
+  getProfile() {
+    return this.http
+      .get<InternProfileRead>('/api/v1/profile', this.authorizedOptions())
+      .pipe(tap((profile) => this.syncWithProfile(profile)));
+  }
+
+  updateProfile(payload: UpdateProfileRequest) {
+    return this.http
+      .patch<InternProfileRead>('/api/v1/profile', payload, this.authorizedOptions())
+      .pipe(tap((profile) => this.syncWithProfile(profile)));
+  }
+
+  uploadAvatar(file: File) {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.http
+      .post<InternProfileRead>('/api/v1/profile/avatar', form, this.authorizedOptions())
+      .pipe(tap((profile) => this.syncWithProfile(profile)));
+  }
+
   storeSession(response: LoginResponse): void {
     sessionStorage.setItem('itms_access_token', response.access_token);
     sessionStorage.setItem('itms_authenticated_user', JSON.stringify(response.user));
+    this.currentUser.set(response.user);
   }
 
   clearSession(): void {
     sessionStorage.removeItem('itms_access_token');
     sessionStorage.removeItem('itms_authenticated_user');
+    this.currentUser.set(null);
+  }
+
+  syncWithProfile(profile: InternProfileRead): void {
+    const updated: AuthenticatedUser = {
+      id: profile.id,
+      email: profile.email,
+      full_name: profile.full_name,
+      role: profile.role,
+      avatar_url: profile.avatar_url,
+    };
+    this.currentUser.set(updated);
+    sessionStorage.setItem('itms_authenticated_user', JSON.stringify(updated));
+  }
+
+  private readStoredUser(): AuthenticatedUser | null {
+    try {
+      const raw = sessionStorage.getItem('itms_authenticated_user');
+      return raw ? (JSON.parse(raw) as AuthenticatedUser) : null;
+    } catch {
+      return null;
+    }
   }
 
   private authorizedOptions(): { headers: HttpHeaders } {

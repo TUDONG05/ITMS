@@ -31,6 +31,7 @@ class Account:
     role: str
     status: str
     token_version: int
+    avatar_url: str | None = None
 
 
 class AuthService:
@@ -49,7 +50,11 @@ class AuthService:
         if user is None or not verify_password(password, user.password_hash):
             raise _invalid_credentials()
         if user.status != "ACTIVE":
-            raise _invalid_credentials()
+            raise ApiError(
+                403,
+                "ACCOUNT_LOCKED",
+                "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.",
+            )
 
         account = _to_account(user)
 
@@ -222,6 +227,7 @@ def _to_account(user: User) -> Account:
         role=user.role,
         status=user.status,
         token_version=user.token_version,
+        avatar_url=user.avatar_url,
     )
 
 

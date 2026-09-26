@@ -6,6 +6,15 @@ from functools import lru_cache
 from pathlib import Path
 
 API_PREFIX = "/api/v1"
+# Vercel deploys functions from a read-only filesystem. Its only writable
+# location is /tmp, which is ephemeral and must not be used for durable files.
+UPLOAD_DIR = (
+    Path("/tmp/itms-uploads")
+    if os.getenv("VERCEL")
+    else Path(__file__).resolve().parents[2] / "uploads"
+)
+AVATAR_UPLOAD_DIR = UPLOAD_DIR / "avatars"
+AVATAR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _load_env_file() -> None:

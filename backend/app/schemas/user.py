@@ -24,3 +24,13 @@ class UserRead(UserBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+
+
+class UserUpdate(BaseSchema):
+    full_name: str | None = Field(default=None, max_length=150)
+    phone: str | None = Field(default=None, max_length=20)
+    role: UserRole | None = None
+
+
+class UserStatusUpdate(BaseSchema):
+    status: UserStatus
