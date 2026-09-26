@@ -1,9 +1,18 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
+import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
 import { NzDividerModule } from 'ng-zorro-antd/divider';
 import { NzFormModule } from 'ng-zorro-antd/form';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -23,6 +32,7 @@ import {
   InternshipStatus,
   MemberStatus,
   UpdateInternshipPayload,
+  UpdateMemberPayload,
   UserSummary,
 } from '../../core/api/internship.service';
 
@@ -31,10 +41,12 @@ import {
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     ReactiveFormsModule,
     NzBadgeModule,
     NzButtonModule,
     NzCardModule,
+    NzDatePickerModule,
     NzDividerModule,
     NzFormModule,
     NzIconModule,
@@ -64,10 +76,40 @@ import {
 
       <!-- Main Content Cards -->
       <nz-card [nzBordered]="false" class="main-card">
+        <!-- Toolbar: Tìm kiếm và Lọc trạng thái -->
+        <div class="table-toolbar">
+          <div class="search-box">
+            <input
+              type="text"
+              nz-input
+              placeholder="🔎 Tìm kiếm tên đợt thực tập..."
+              [ngModel]="searchQuery()"
+              (ngModelChange)="onSearchChange($event)"
+            />
+          </div>
+
+          <div class="filter-box">
+            <span class="filter-label">Trạng thái:</span>
+            <nz-select
+              [ngModel]="statusFilter()"
+              (ngModelChange)="onStatusChange($event)"
+              nzPlaceHolder="Trạng thái"
+              class="status-filter-select"
+            >
+              <nz-option nzValue="" nzLabel="Tất cả trạng thái"></nz-option>
+              <nz-option nzValue="DRAFT" nzLabel="Bản nháp"></nz-option>
+              <nz-option nzValue="OPEN" nzLabel="Đang mở"></nz-option>
+              <nz-option nzValue="ONGOING" nzLabel="Đang diễn ra"></nz-option>
+              <nz-option nzValue="COMPLETED" nzLabel="Đã hoàn thành"></nz-option>
+              <nz-option nzValue="CANCELLED" nzLabel="Đã hủy"></nz-option>
+            </nz-select>
+          </div>
+        </div>
+
         <!-- Internships Table -->
         <nz-table
           #internshipTable
-          [nzData]="internships()"
+          [nzData]="filteredInternships()"
           [nzLoading]="isLoading()"
           [nzShowPagination]="true"
           [nzPageSize]="10"
@@ -75,10 +117,11 @@ import {
           <thead>
             <tr>
               <th>Tên đợt thực tập</th>
-              <th>Thời gian</th>
+              <th>Thời gian bắt đầu</th>
+              <th>Thời gian kết thúc</th>
               <th>Trạng thái</th>
-              <th>Mô tả</th>
-              <th nzAlign="center">Hành động</th>
+              <th nzAlign="center">Số lượng thực tập sinh</th>
+              <th nzAlign="center">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -87,18 +130,18 @@ import {
                 <td>
                   <strong>{{ item.name }}</strong>
                 </td>
-                <td>
-                  <span>{{ item.start_date }}</span>
-                  <span nz-icon nzType="arrow-right" class="date-arrow"></span>
-                  <span>{{ item.end_date }}</span>
-                </td>
+                <td>{{ item.start_date }}</td>
+                <td>{{ item.end_date }}</td>
                 <td>
                   <nz-tag [nzColor]="getStatusColor(item.status)">
                     {{ getStatusLabel(item.status) }}
                   </nz-tag>
                 </td>
-                <td>
-                  <span class="desc-text">{{ item.description || '—' }}</span>
+                <td nzAlign="center">
+                  <div class="member-count">
+                    <span class="count-number">{{ item.members_count ?? 0 }}</span>
+                    <span class="count-label"></span>
+                  </div>
                 </td>
                 <td nzAlign="center">
                   <div class="table-actions">
@@ -114,7 +157,7 @@ import {
                     </button>
                     <button nz-button nzType="text" nzSize="small" (click)="openEditModal(item)">
                       <span nz-icon nzType="edit"></span>
-                      Sửa
+                      Chỉnh sửa
                     </button>
                   </div>
                 </td>
@@ -151,10 +194,23 @@ import {
             </button>
           </ng-template>
 
+          <!-- Member Toolbar with Search Intern -->
+          <div class="table-toolbar member-toolbar">
+            <div class="search-box">
+              <input
+                type="text"
+                nz-input
+                placeholder="🔎 Tìm kiếm tên thực tập sinh..."
+                [ngModel]="memberSearchQuery()"
+                (ngModelChange)="onMemberSearchChange($event)"
+              />
+            </div>
+          </div>
+
           <!-- Members Table -->
           <nz-table
             #memberTable
-            [nzData]="members()"
+            [nzData]="filteredMembers()"
             [nzLoading]="isMembersLoading()"
             [nzShowPagination]="true"
             [nzPageSize]="10"
@@ -166,7 +222,7 @@ import {
                 <th>Mentor phụ trách</th>
                 <th>Thời gian thực tập</th>
                 <th>Trạng thái</th>
-                <th nzAlign="center">Phân công Mentor</th>
+                <th nzAlign="center">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -199,23 +255,27 @@ import {
                   <td nzAlign="center">
                     <button
                       nz-button
-                      nzType="link"
+                      nzType="text"
                       nzSize="small"
-                      (click)="openAssignMentorModal(member)"
+                      (click)="openEditMemberModal(member)"
                     >
-                      <span nz-icon nzType="swap"></span>
-                      {{ member.mentor ? 'Đổi Mentor' : 'Gán Mentor' }}
+                      <span nz-icon nzType="edit"></span>
+                      Chỉnh sửa
                     </button>
                   </td>
                 </tr>
               }
-              @if (members().length === 0 && !isMembersLoading()) {
+              @if (filteredMembers().length === 0 && !isMembersLoading()) {
                 <tr>
                   <td colspan="6" class="empty-members">
-                    <p>Đợt thực tập này chưa có Intern nào tham gia.</p>
-                    <button nz-button nzType="dashed" (click)="openAddMemberModal()">
-                      + Thêm Intern đầu tiên
-                    </button>
+                    <p>
+                      {{ memberSearchQuery() ? 'Không tìm thấy thực tập sinh phù hợp.' : 'Đợt thực tập này chưa có Intern nào tham gia.' }}
+                    </p>
+                    @if (!memberSearchQuery()) {
+                      <button nz-button nzType="dashed" (click)="openAddMemberModal()">
+                        + Thêm Intern đầu tiên
+                      </button>
+                    }
                   </td>
                 </tr>
               }
@@ -263,9 +323,9 @@ import {
               <nz-form-control>
                 <nz-select formControlName="status">
                   <nz-option nzValue="DRAFT" nzLabel="Bản nháp (DRAFT)"></nz-option>
-                  <nz-option nzValue="OPEN" nzLabel="Đang mở tuyển (OPEN)"></nz-option>
+                  <nz-option nzValue="OPEN" nzLabel="Đang mở (OPEN)"></nz-option>
                   <nz-option nzValue="ONGOING" nzLabel="Đang diễn ra (ONGOING)"></nz-option>
-                  <nz-option nzValue="COMPLETED" nzLabel="Đã kết thúc (COMPLETED)"></nz-option>
+                  <nz-option nzValue="COMPLETED" nzLabel="Đã hoàn thành (COMPLETED)"></nz-option>
                   <nz-option nzValue="CANCELLED" nzLabel="Đã hủy (CANCELLED)"></nz-option>
                 </nz-select>
               </nz-form-control>
@@ -338,7 +398,7 @@ import {
               <nz-form-label>Trạng thái tham gia</nz-form-label>
               <nz-form-control>
                 <nz-select formControlName="status">
-                  <nz-option nzValue="ACTIVE" nzLabel="Đang hoạt động (ACTIVE)"></nz-option>
+                  <nz-option nzValue="ACTIVE" nzLabel="Đang thực tập (ACTIVE)"></nz-option>
                   <nz-option nzValue="EXTENDED" nzLabel="Gia hạn (EXTENDED)"></nz-option>
                   <nz-option nzValue="STOPPED" nzLabel="Tạm dừng (STOPPED)"></nz-option>
                   <nz-option nzValue="COMPLETED" nzLabel="Hoàn thành (COMPLETED)"></nz-option>
@@ -349,35 +409,55 @@ import {
         </ng-container>
       </nz-modal>
 
-      <!-- Modal: Gán / Thay đổi Mentor cho Intern -->
+      <!-- Modal: Chỉnh sửa thông tin thực tập sinh -->
       <nz-modal
-        [(nzVisible)]="isAssignMentorModalVisible"
-        nzTitle="Phân công Mentor phụ trách"
-        (nzOnCancel)="closeAssignMentorModal()"
-        (nzOnOk)="saveAssignMentor()"
-        [nzOkLoading]="isSavingMentorAssignment()"
-        nzWidth="460px"
+        [(nzVisible)]="isEditMemberModalVisible"
+        nzTitle="Chỉnh sửa thông tin thực tập sinh"
+        (nzOnCancel)="closeEditMemberModal()"
+        (nzOnOk)="saveEditMember()"
+        [nzOkLoading]="isSavingEditMember()"
+        nzOkText="Lưu thay đổi"
+        nzCancelText="Hủy"
+        nzWidth="540px"
       >
         <ng-container *nzModalContent>
-          <div class="assign-info-box">
-            <p>
-              Thực tập sinh: <strong>{{ selectedMemberForMentor()?.intern?.full_name }}</strong>
-            </p>
-            <p>
-              Mentor hiện tại:
-              <strong>{{ selectedMemberForMentor()?.mentor?.full_name || 'Chưa có' }}</strong>
-            </p>
-          </div>
+          <form [formGroup]="editMemberForm" nz-form nzLayout="vertical">
+            <div class="form-row">
+              <nz-form-item class="form-col">
+                <nz-form-label>Tên thực tập sinh</nz-form-label>
+                <nz-form-control>
+                  <input nz-input formControlName="intern_name" />
+                </nz-form-control>
+              </nz-form-item>
 
-          <form [formGroup]="assignMentorForm" nz-form nzLayout="vertical">
+              <nz-form-item class="form-col">
+                <nz-form-label>Email</nz-form-label>
+                <nz-form-control>
+                  <input nz-input formControlName="intern_email" />
+                </nz-form-control>
+              </nz-form-item>
+            </div>
+
             <nz-form-item>
-              <nz-form-label nzRequired>Chọn Mentor mới</nz-form-label>
-              <nz-form-control nzErrorTip="Vui lòng chọn Mentor">
+              <nz-form-label nzRequired>Trạng thái thực tập sinh</nz-form-label>
+              <nz-form-control nzErrorTip="Vui lòng chọn trạng thái">
+                <nz-select formControlName="status">
+                  <nz-option nzValue="ACTIVE" nzLabel="Đang thực tập"></nz-option>
+                  <nz-option nzValue="EXTENDED" nzLabel="Gia hạn"></nz-option>
+                  <nz-option nzValue="STOPPED" nzLabel="Tạm dừng"></nz-option>
+                  <nz-option nzValue="COMPLETED" nzLabel="Hoàn thành"></nz-option>
+                </nz-select>
+              </nz-form-control>
+            </nz-form-item>
+
+            <nz-form-item>
+              <nz-form-label>Mentor phụ trách</nz-form-label>
+              <nz-form-control>
                 <nz-select
                   formControlName="mentor_id"
-                  nzPlaceHolder="Chọn Mentor từ danh sách"
-                  nzShowSearch
+                  nzPlaceHolder="Chưa phân công (chọn Mentor)"
                   nzAllowClear
+                  nzShowSearch
                 >
                   @for (mentor of availableMentors(); track mentor.id) {
                     <nz-option
@@ -388,6 +468,22 @@ import {
                 </nz-select>
               </nz-form-control>
             </nz-form-item>
+
+            <div class="form-row">
+              <nz-form-item class="form-col">
+                <nz-form-label nzRequired>Ngày bắt đầu</nz-form-label>
+                <nz-form-control nzErrorTip="Chọn ngày bắt đầu">
+                  <input nz-input type="date" formControlName="start_date" />
+                </nz-form-control>
+              </nz-form-item>
+
+              <nz-form-item class="form-col">
+                <nz-form-label nzRequired>Ngày kết thúc</nz-form-label>
+                <nz-form-control nzErrorTip="Chọn ngày kết thúc">
+                  <input nz-input type="date" formControlName="end_date" />
+                </nz-form-control>
+              </nz-form-item>
+            </div>
           </form>
         </ng-container>
       </nz-modal>
@@ -431,6 +527,42 @@ import {
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
       }
 
+      .table-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+
+        .search-box {
+          flex: 1;
+          min-width: 260px;
+          max-width: 380px;
+        }
+
+        .filter-box {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          .filter-label {
+            font-size: 14px;
+            color: #555;
+            white-space: nowrap;
+          }
+
+          .status-filter-select {
+            width: 180px;
+          }
+        }
+      }
+
+      .member-toolbar {
+        margin-top: 4px;
+        margin-bottom: 16px;
+      }
+
       .selected-row {
         background-color: #f0f7ff !important;
       }
@@ -472,6 +604,22 @@ import {
           margin-right: 8px;
           color: #1890ff;
         }
+      }
+      .member-count {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+      }
+
+      .count-number {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1890ff;
+      }
+
+      .count-label {
+        font-size: 13px;
+        color: #666;
       }
 
       .mentor-badge {
@@ -519,23 +667,55 @@ import {
           font-size: 13px;
         }
       }
-    `,
+    `
   ],
 })
 export class InternshipManagementComponent implements OnInit {
   private readonly internshipService = inject(InternshipService);
   private readonly fb = inject(FormBuilder);
   private readonly message = inject(NzMessageService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   protected readonly internships = signal<Internship[]>([]);
   protected readonly isLoading = signal<boolean>(false);
   protected readonly selectedInternship = signal<Internship | null>(null);
 
+  protected readonly searchQuery = signal<string>('');
+  protected readonly statusFilter = signal<InternshipStatus | ''>('');
+
   protected readonly members = signal<InternshipMember[]>([]);
   protected readonly isMembersLoading = signal<boolean>(false);
+  protected readonly memberSearchQuery = signal<string>('');
 
   protected readonly availableInterns = signal<UserSummary[]>([]);
   protected readonly availableMentors = signal<UserSummary[]>([]);
+
+  private searchDebounceTimer?: ReturnType<typeof setTimeout>;
+
+  // Computed filtered lists for instant client-side responsiveness
+  protected readonly filteredInternships = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    const status = this.statusFilter();
+    let list = this.internships();
+    if (status) {
+      list = list.filter((i) => i.status === status);
+    }
+    if (q) {
+      list = list.filter((i) => i.name.toLowerCase().includes(q));
+    }
+    return list;
+  });
+
+  protected readonly filteredMembers = computed(() => {
+    const q = this.memberSearchQuery().trim().toLowerCase();
+    const list = this.members();
+    if (!q) return list;
+    return list.filter(
+      (m) =>
+        m.intern?.full_name?.toLowerCase().includes(q) ||
+        m.intern?.email?.toLowerCase().includes(q),
+    );
+  });
 
   // Modals state
   protected isInternshipModalVisible = false;
@@ -545,9 +725,9 @@ export class InternshipManagementComponent implements OnInit {
   protected isAddMemberModalVisible = false;
   protected isSavingMember = signal<boolean>(false);
 
-  protected isAssignMentorModalVisible = false;
-  protected isSavingMentorAssignment = signal<boolean>(false);
-  protected readonly selectedMemberForMentor = signal<InternshipMember | null>(null);
+  protected isEditMemberModalVisible = false;
+  protected isSavingEditMember = signal<boolean>(false);
+  protected readonly selectedMemberForEdit = signal<InternshipMember | null>(null);
 
   // Forms
   protected readonly internshipForm = this.fb.group({
@@ -564,8 +744,13 @@ export class InternshipManagementComponent implements OnInit {
     status: ['ACTIVE' as MemberStatus, [Validators.required]],
   });
 
-  protected readonly assignMentorForm = this.fb.group({
-    mentor_id: ['', [Validators.required]],
+  protected readonly editMemberForm = this.fb.group({
+    intern_name: [{ value: '', disabled: true }],
+    intern_email: [{ value: '', disabled: true }],
+    status: ['ACTIVE' as MemberStatus, [Validators.required]],
+    mentor_id: [null as string | null],
+    start_date: ['', [Validators.required]],
+    end_date: ['', [Validators.required]],
   });
 
   ngOnInit(): void {
@@ -575,38 +760,63 @@ export class InternshipManagementComponent implements OnInit {
 
   loadInternships(): void {
     this.isLoading.set(true);
-    this.internshipService.getInternships().subscribe({
-      next: (data) => {
-        this.internships.set(data);
-        this.isLoading.set(false);
-        // If an internship was previously selected, refresh its reference
-        const current = this.selectedInternship();
-        if (current) {
-          const updated = data.find((i) => i.id === current.id);
-          if (updated) {
-            this.selectedInternship.set(updated);
-            this.loadMembers(updated.id);
+    this.internshipService
+      .getInternships(0, 100, this.searchQuery(), this.statusFilter())
+      .subscribe({
+        next: (data) => {
+          this.internships.set(data);
+          this.isLoading.set(false);
+          // If an internship was previously selected, refresh its reference
+          const current = this.selectedInternship();
+          if (current) {
+            const updated = data.find((i) => i.id === current.id);
+            if (updated) {
+              this.selectedInternship.set(updated);
+              this.loadMembers(updated.id);
+            }
           }
-        }
-      },
-      error: () => {
-        this.message.error('Không thể tải danh sách đợt thực tập.');
-        this.isLoading.set(false);
-      },
-    });
+        },
+        error: () => {
+          this.message.error('Không thể tải danh sách đợt thực tập.');
+          this.isLoading.set(false);
+        },
+      });
+  }
+
+  onSearchChange(value: string): void {
+    this.searchQuery.set(value);
+    if (this.searchDebounceTimer) {
+      clearTimeout(this.searchDebounceTimer);
+    }
+    this.searchDebounceTimer = setTimeout(() => {
+      this.loadInternships();
+    }, 300);
+  }
+
+  onStatusChange(value: InternshipStatus | ''): void {
+    this.statusFilter.set(value);
+    this.loadInternships();
+  }
+
+  onMemberSearchChange(value: string): void {
+    this.memberSearchQuery.set(value);
   }
 
   loadUsers(): void {
     this.internshipService.getUsers('INTERN').subscribe({
       next: (users) => this.availableInterns.set(users),
+      error: (err) => console.error('Không thể tải danh sách Intern:', err),
     });
+
     this.internshipService.getUsers('MENTOR').subscribe({
       next: (users) => this.availableMentors.set(users),
+      error: (err) => console.error('Không thể tải danh sách Mentor:', err),
     });
   }
 
   selectInternship(internship: Internship): void {
     this.selectedInternship.set(internship);
+    this.memberSearchQuery.set('');
     this.loadMembers(internship.id);
   }
 
@@ -750,6 +960,7 @@ export class InternshipManagementComponent implements OnInit {
           this.isSavingMember.set(false);
           this.closeAddMemberModal();
           this.loadMembers(current.id);
+          this.loadInternships(); // Refresh members_count in table
         },
         error: (err) => {
           this.message.error(
@@ -760,44 +971,82 @@ export class InternshipManagementComponent implements OnInit {
       });
   }
 
-  // --- Modal Gán / Đổi Mentor ---
-  openAssignMentorModal(member: InternshipMember): void {
-    this.selectedMemberForMentor.set(member);
-    this.assignMentorForm.reset({
-      mentor_id: member.mentor_id || '',
+  // --- Modal Chỉnh sửa Thực tập sinh ---
+  openEditMemberModal(member: InternshipMember): void {
+    const current = this.selectedInternship();
+    this.selectedMemberForEdit.set(member);
+
+    if (this.availableMentors().length === 0) {
+      this.loadUsers();
+    }
+
+    if (member.mentor) {
+      const exists = this.availableMentors().some((m) => m.id === member.mentor!.id);
+      if (!exists) {
+        this.availableMentors.update((list) => [...list, member.mentor!]);
+      }
+    }
+
+    const effectiveStart = member.start_date || current?.start_date || '';
+    const effectiveEnd = member.end_date || current?.end_date || '';
+    const effectiveMentorId = member.mentor_id || member.mentor?.id || null;
+
+    this.editMemberForm.patchValue({
+      intern_name: member.intern?.full_name || 'Thực tập sinh',
+      intern_email: member.intern?.email || '—',
+      status: member.status || 'ACTIVE',
+      mentor_id: effectiveMentorId,
+      start_date: effectiveStart,
+      end_date: effectiveEnd,
     });
-    this.isAssignMentorModalVisible = true;
+    this.isEditMemberModalVisible = true;
+    this.cdr.markForCheck();
   }
 
-  closeAssignMentorModal(): void {
-    this.isAssignMentorModalVisible = false;
+  closeEditMemberModal(): void {
+    this.isEditMemberModalVisible = false;
+    this.selectedMemberForEdit.set(null);
+    this.cdr.markForCheck();
   }
 
-  saveAssignMentor(): void {
-    const member = this.selectedMemberForMentor();
-    if (!member) return;
+  saveEditMember(): void {
+    const member = this.selectedMemberForEdit();
+    const current = this.selectedInternship();
+    if (!member || !current) return;
 
-    if (this.assignMentorForm.invalid) {
-      this.assignMentorForm.markAllAsTouched();
+    if (this.editMemberForm.invalid) {
+      this.editMemberForm.markAllAsTouched();
       return;
     }
 
-    const mentorId = this.assignMentorForm.getRawValue().mentor_id;
-    this.isSavingMentorAssignment.set(true);
+    const formVal = this.editMemberForm.getRawValue();
+    if (formVal.start_date && formVal.end_date && formVal.end_date < formVal.start_date) {
+      this.message.error('Ngày kết thúc không được nhỏ hơn ngày bắt đầu.');
+      return;
+    }
 
-    this.internshipService.assignMentor(member.id, mentorId).subscribe({
+    const payload: UpdateMemberPayload = {
+      status: formVal.status ?? undefined,
+      start_date: formVal.start_date || undefined,
+      end_date: formVal.end_date || undefined,
+      mentor_id: formVal.mentor_id || null,
+    };
+
+    this.isSavingEditMember.set(true);
+
+    this.internshipService.updateMember(member.id, payload).subscribe({
       next: () => {
-        this.message.success('Đã phân công Mentor thành công!');
-        this.isSavingMentorAssignment.set(false);
-        this.closeAssignMentorModal();
-        const current = this.selectedInternship();
-        if (current) {
-          this.loadMembers(current.id);
-        }
+        this.message.success('Cập nhật thông tin thực tập sinh thành công!');
+        this.isSavingEditMember.set(false);
+        this.closeEditMemberModal();
+        this.loadMembers(current.id);
+        this.loadInternships();
+        this.cdr.markForCheck();
       },
       error: (err) => {
-        this.message.error(err?.error?.detail || 'Lỗi khi phân công Mentor.');
-        this.isSavingMentorAssignment.set(false);
+        this.message.error(err?.error?.detail || 'Lỗi khi cập nhật thực tập sinh.');
+        this.isSavingEditMember.set(false);
+        this.cdr.markForCheck();
       },
     });
   }
@@ -825,11 +1074,11 @@ export class InternshipManagementComponent implements OnInit {
       case 'DRAFT':
         return 'Bản nháp';
       case 'OPEN':
-        return 'Mở tuyển';
+        return 'Đang mở';
       case 'ONGOING':
         return 'Đang diễn ra';
       case 'COMPLETED':
-        return 'Hoàn thành';
+        return 'Đã hoàn thành';
       case 'CANCELLED':
         return 'Đã hủy';
       default:
@@ -859,7 +1108,7 @@ export class InternshipManagementComponent implements OnInit {
       case 'EXTENDED':
         return 'Gia hạn';
       case 'STOPPED':
-        return 'Đã dừng';
+        return 'Tạm dừng';
       case 'COMPLETED':
         return 'Hoàn thành';
       default:

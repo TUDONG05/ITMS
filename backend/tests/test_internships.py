@@ -416,3 +416,157 @@ def test_internship_member_not_found(client: TestClient, test_data: dict[str, Us
     )
     assert patch_resp.status_code == 404
     assert patch_resp.json()["detail"] == "Internship member not found"
+
+
+def test_internships_search_and_filter_and_members_count(
+    client: TestClient, test_data: dict[str, User]
+) -> None:
+    admin = test_data["admin"]
+    intern = test_data["intern"]
+
+    unique_tag = uuid.uuid4().hex[:6]
+    name_alpha = f"Alpha Batch {unique_tag}"
+    name_beta = f"Beta Batch {unique_tag}"
+
+    # Create Alpha (OPEN) and Beta (DRAFT)
+    resp_alpha = client.post(
+        "/api/v1/internships",
+        headers={"X-User-Id": str(admin.id)},
+        json={
+            "name": name_alpha,
+            "start_date": "2026-06-01",
+            "end_date": "2026-08-31",
+            "status": "OPEN",
+        },
+    )
+    assert resp_alpha.status_code == 201
+    alpha_id = resp_alpha.json()["id"]
+
+    resp_beta = client.post(
+        "/api/v1/internships",
+        headers={"X-User-Id": str(admin.id)},
+        json={
+            "name": name_beta,
+            "start_date": "2026-06-01",
+            "end_date": "2026-08-31",
+            "status": "DRAFT",
+        },
+    )
+    assert resp_beta.status_code == 201
+
+    # Enroll intern in Alpha
+    client.post(
+        f"/api/v1/internships/{alpha_id}/members",
+        headers={"X-User-Id": str(admin.id)},
+        json={"intern_id": str(intern.id)},
+    )
+
+    # List all: check members_count
+    list_all = client.get("/api/v1/internships", headers={"X-User-Id": str(admin.id)})
+    assert list_all.status_code == 200
+    alpha_item = next(it for it in list_all.json() if it["id"] == alpha_id)
+    assert alpha_item["members_count"] == 1
+
+    # Search by name (case-insensitive)
+    search_resp = client.get(
+        f"/api/v1/internships?search=alpha batch {unique_tag}",
+        headers={"X-User-Id": str(admin.id)},
+    )
+    assert search_resp.status_code == 200
+    names = [it["name"] for it in search_resp.json()]
+    assert name_alpha in names
+    assert name_beta not in names
+
+    # Filter by status
+    filter_resp = client.get(
+        "/api/v1/internships?status=DRAFT",
+        headers={"X-User-Id": str(admin.id)},
+    )
+    assert filter_resp.status_code == 200
+    draft_names = [it["name"] for it in filter_resp.json()]
+    assert name_beta in draft_names
+
+
+def test_internship_member_search(client: TestClient, test_data: dict[str, User]) -> None:
+    admin = test_data["admin"]
+    intern = test_data["intern"]
+    intern_2 = test_data["intern_2"]
+
+    # Create internship
+    create_resp = client.post(
+        "/api/v1/internships",
+        headers={"X-User-Id": str(admin.id)},
+        json={
+            "name": f"Member Search Test {uuid.uuid4().hex[:6]}",
+            "start_date": "2026-06-01",
+            "end_date": "2026-08-31",
+        },
+    )
+    internship_id = create_resp.json()["id"]
+
+    # Enroll both interns
+    client.post(
+        f"/api/v1/internships/{internship_id}/members",
+        headers={"X-User-Id": str(admin.id)},
+        json={"intern_id": str(intern.id)},
+    )
+    client.post(
+        f"/api/v1/internships/{internship_id}/members",
+        headers={"X-User-Id": str(admin.id)},
+        json={"intern_id": str(intern_2.id)},
+    )
+
+    # Search for intern 2 specifically by name substring
+    search_resp = client.get(
+        f"/api/v1/internships/{internship_id}/members?search=two",
+        headers={"X-User-Id": str(admin.id)},
+    )
+    assert search_resp.status_code == 200
+    data = search_resp.json()
+    assert len(data) == 1
+    assert data[0]["intern"]["full_name"] == intern_2.full_name
+
+
+def test_update_internship_member_all_fields(client: TestClient, test_data: dict[str, User]) -> None:
+    admin = test_data["admin"]
+    intern = test_data["intern"]
+    mentor = test_data["mentor"]
+
+    create_resp = client.post(
+        "/api/v1/internships",
+        headers={"X-User-Id": str(admin.id)},
+        json={
+            "name": f"Update Member Test {uuid.uuid4().hex[:6]}",
+            "start_date": "2026-03-01",
+            "end_date": "2026-06-30",
+        },
+    )
+    internship_id = create_resp.json()["id"]
+
+    enroll_resp = client.post(
+        f"/api/v1/internships/{internship_id}/members",
+        headers={"X-User-Id": str(admin.id)},
+        json={
+            "intern_id": str(intern.id),
+        },
+    )
+    assert enroll_resp.status_code == 201
+    member_id = enroll_resp.json()["id"]
+
+    patch_resp = client.patch(
+        f"/api/v1/internship-members/{member_id}",
+        headers={"X-User-Id": str(admin.id)},
+        json={
+            "status": "EXTENDED",
+            "start_date": "2026-03-15",
+            "end_date": "2026-07-31",
+            "mentor_id": str(mentor.id),
+        },
+    )
+    assert patch_resp.status_code == 200
+    updated = patch_resp.json()
+    assert updated["status"] == "EXTENDED"
+    assert updated["start_date"] == "2026-03-15"
+    assert updated["end_date"] == "2026-07-31"
+    assert updated["mentor_id"] == str(mentor.id)
+    assert updated["mentor"]["full_name"] == mentor.full_name

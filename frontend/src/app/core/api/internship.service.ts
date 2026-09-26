@@ -23,6 +23,7 @@ export interface Internship {
   created_at: string;
   updated_at: string;
   creator?: UserSummary | null;
+  members_count?: number;
 }
 
 export interface InternshipMember {
@@ -69,6 +70,15 @@ export interface AssignMentorPayload {
   mentor_id: string | null;
 }
 
+export interface UpdateMemberPayload {
+  intern_id?: string;
+  mentor_id?: string | null;
+  roadmap_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  status?: MemberStatus;
+}
+
 @Injectable({ providedIn: 'root' })
 export class InternshipService {
   private readonly http = inject(HttpClient);
@@ -78,8 +88,19 @@ export class InternshipService {
     return new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
   }
 
-  getInternships(skip = 0, limit = 50): Observable<Internship[]> {
-    const params = new HttpParams().set('skip', skip).set('limit', limit);
+  getInternships(
+    skip = 0,
+    limit = 100,
+    search?: string,
+    status?: InternshipStatus | '',
+  ): Observable<Internship[]> {
+    let params = new HttpParams().set('skip', skip).set('limit', limit);
+    if (search && search.trim()) {
+      params = params.set('search', search.trim());
+    }
+    if (status) {
+      params = params.set('status', status);
+    }
     return this.http.get<Internship[]>('/api/v1/internships', {
       headers: this.getHeaders(),
       params,
@@ -104,9 +125,14 @@ export class InternshipService {
     });
   }
 
-  getMembers(internshipId: string): Observable<InternshipMember[]> {
+  getMembers(internshipId: string, search?: string): Observable<InternshipMember[]> {
+    let params = new HttpParams();
+    if (search && search.trim()) {
+      params = params.set('search', search.trim());
+    }
     return this.http.get<InternshipMember[]>(`/api/v1/internships/${internshipId}/members`, {
       headers: this.getHeaders(),
+      params,
     });
   }
 
@@ -130,6 +156,16 @@ export class InternshipService {
     return this.http.patch<InternshipMember>(
       `/api/v1/internship-members/${memberId}/mentor`,
       { mentor_id: mentorId },
+      {
+        headers: this.getHeaders(),
+      },
+    );
+  }
+
+  updateMember(memberId: string, payload: UpdateMemberPayload): Observable<InternshipMember> {
+    return this.http.patch<InternshipMember>(
+      `/api/v1/internship-members/${memberId}`,
+      payload,
       {
         headers: this.getHeaders(),
       },

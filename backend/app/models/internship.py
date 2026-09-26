@@ -56,6 +56,13 @@ class Internship(Base):
         "InternshipMember", cascade="all, delete-orphan"
     )
 
+    @property
+    def members_count(self) -> int:
+        try:
+            return len(self.members) if self.members else 0
+        except Exception:
+            return 0
+
 
 class InternshipMember(Base):
     __tablename__ = "thanh_vien_thuc_tap"
