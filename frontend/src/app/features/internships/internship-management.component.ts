@@ -68,7 +68,7 @@ import {
             Tạo mới, theo dõi tiến độ các đợt thực tập và quản lý danh sách thực tập sinh & mentor.
           </p>
         </div>
-        <button nz-button nzType="primary" (click)="openCreateModal()">
+        <button nz-button nzType="primary" (click)="openCreateModal()" class="btn-create-batch">
           <span nz-icon nzType="plus"></span>
           Tạo đợt thực tập
         </button>
@@ -113,6 +113,7 @@ import {
           [nzLoading]="isLoading()"
           [nzShowPagination]="true"
           [nzPageSize]="10"
+          class="responsive-table internship-table"
         >
           <thead>
             <tr>
@@ -127,23 +128,29 @@ import {
           <tbody>
             @for (item of internshipTable.data; track item.id) {
               <tr [class.selected-row]="selectedInternship()?.id === item.id">
-                <td>
-                  <strong>{{ item.name }}</strong>
+                <td data-label="Tên đợt">
+                  <span class="cell-value item-name"><strong>{{ item.name }}</strong></span>
                 </td>
-                <td>{{ item.start_date }}</td>
-                <td>{{ item.end_date }}</td>
-                <td>
-                  <nz-tag [nzColor]="getStatusColor(item.status)">
-                    {{ getStatusLabel(item.status) }}
-                  </nz-tag>
+                <td data-label="Bắt đầu">
+                  <span class="cell-value">{{ item.start_date }}</span>
                 </td>
-                <td nzAlign="center">
-                  <div class="member-count">
-                    <span class="count-number">{{ item.members_count ?? 0 }}</span>
-                    <span class="count-label"></span>
+                <td data-label="Kết thúc">
+                  <span class="cell-value">{{ item.end_date }}</span>
+                </td>
+                <td data-label="Trạng thái">
+                  <div class="cell-value">
+                    <nz-tag [nzColor]="getStatusColor(item.status)">
+                      {{ getStatusLabel(item.status) }}
+                    </nz-tag>
                   </div>
                 </td>
-                <td nzAlign="center">
+                <td data-label="Số lượng Intern" nzAlign="center">
+                  <div class="cell-value member-count">
+                    <span class="count-number">{{ item.members_count ?? 0 }}</span>
+                    <span class="count-label">thực tập sinh</span>
+                  </div>
+                </td>
+                <td data-label="" class="actions-cell" nzAlign="center">
                   <div class="table-actions">
                     <button
                       nz-button
@@ -151,11 +158,18 @@ import {
                       nzSize="small"
                       (click)="selectInternship(item)"
                       [class.btn-active]="selectedInternship()?.id === item.id"
+                      class="btn-manage-intern"
                     >
                       <span nz-icon nzType="team"></span>
                       Quản lý Intern
                     </button>
-                    <button nz-button nzType="text" nzSize="small" (click)="openEditModal(item)">
+                    <button
+                      nz-button
+                      nzType="text"
+                      nzSize="small"
+                      (click)="openEditModal(item)"
+                      class="btn-edit-batch"
+                    >
                       <span nz-icon nzType="edit"></span>
                       Chỉnh sửa
                     </button>
@@ -178,17 +192,17 @@ import {
           <ng-template #memberCardTitle>
             <div class="member-panel-header">
               <span nz-icon nzType="team" class="panel-icon"></span>
-              <span
+              <span class="member-panel-title-text"
                 >Danh sách Intern trong đợt: <strong>{{ current.name }}</strong></span
               >
-              <nz-tag [nzColor]="getStatusColor(current.status)" style="margin-left: 8px;">
+              <nz-tag [nzColor]="getStatusColor(current.status)" class="member-panel-tag">
                 {{ getStatusLabel(current.status) }}
               </nz-tag>
             </div>
           </ng-template>
 
           <ng-template #memberCardExtra>
-            <button nz-button nzType="primary" nzSize="small" (click)="openAddMemberModal()">
+            <button nz-button nzType="primary" nzSize="small" (click)="openAddMemberModal()" class="btn-add-member-top">
               <span nz-icon nzType="user-add"></span>
               Thêm Intern vào đợt
             </button>
@@ -214,6 +228,7 @@ import {
             [nzLoading]="isMembersLoading()"
             [nzShowPagination]="true"
             [nzPageSize]="10"
+            class="responsive-table member-table"
           >
             <thead>
               <tr>
@@ -228,36 +243,45 @@ import {
             <tbody>
               @for (member of memberTable.data; track member.id) {
                 <tr>
-                  <td>
-                    <strong>{{ member.intern?.full_name || 'Intern' }}</strong>
+                  <td data-label="Thực tập sinh">
+                    <span class="cell-value item-name"><strong>{{ member.intern?.full_name || 'Intern' }}</strong></span>
                   </td>
-                  <td>{{ member.intern?.email || '—' }}</td>
-                  <td>
-                    @if (member.mentor) {
-                      <div class="mentor-badge">
-                        <span nz-icon nzType="solution"></span>
-                        <span>{{ member.mentor.full_name }}</span>
-                      </div>
-                    } @else {
-                      <span class="unassigned-text">Chưa phân công</span>
-                    }
+                  <td data-label="Email">
+                    <span class="cell-value email-cell">{{ member.intern?.email || '—' }}</span>
                   </td>
-                  <td>
-                    <span>{{ member.start_date || current.start_date }}</span>
-                    <span nz-icon nzType="arrow-right" class="date-arrow"></span>
-                    <span>{{ member.end_date || current.end_date }}</span>
+                  <td data-label="Mentor">
+                    <div class="cell-value">
+                      @if (member.mentor) {
+                        <div class="mentor-badge">
+                          <span nz-icon nzType="solution"></span>
+                          <span>{{ member.mentor.full_name }}</span>
+                        </div>
+                      } @else {
+                        <span class="unassigned-text">Chưa phân công</span>
+                      }
+                    </div>
                   </td>
-                  <td>
-                    <nz-tag [nzColor]="getMemberStatusColor(member.status)">
-                      {{ getMemberStatusLabel(member.status) }}
-                    </nz-tag>
+                  <td data-label="Thời gian">
+                    <div class="cell-value date-range">
+                      <span>{{ member.start_date || current.start_date }}</span>
+                      <span nz-icon nzType="arrow-right" class="date-arrow"></span>
+                      <span>{{ member.end_date || current.end_date }}</span>
+                    </div>
                   </td>
-                  <td nzAlign="center">
+                  <td data-label="Trạng thái">
+                    <div class="cell-value">
+                      <nz-tag [nzColor]="getMemberStatusColor(member.status)">
+                        {{ getMemberStatusLabel(member.status) }}
+                      </nz-tag>
+                    </div>
+                  </td>
+                  <td data-label="" class="actions-cell" nzAlign="center">
                     <button
                       nz-button
                       nzType="text"
                       nzSize="small"
                       (click)="openEditMemberModal(member)"
+                      class="btn-edit-member"
                     >
                       <span nz-icon nzType="edit"></span>
                       Chỉnh sửa
@@ -266,7 +290,7 @@ import {
                 </tr>
               }
               @if (filteredMembers().length === 0 && !isMembersLoading()) {
-                <tr>
+                <tr class="empty-row">
                   <td colspan="6" class="empty-members">
                     <p>
                       {{
@@ -495,10 +519,22 @@ import {
   `,
   styles: [
     `
+      :host {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+      }
+
       .internship-page {
         display: flex;
         flex-direction: column;
         gap: 20px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
       }
 
       .page-header {
@@ -509,6 +545,8 @@ import {
         padding: 18px 24px;
         border-radius: 8px;
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        width: 100%;
+        box-sizing: border-box;
 
         .header-titles {
           h2 {
@@ -527,6 +565,10 @@ import {
 
       .main-card,
       .member-card {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
         border-radius: 8px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
       }
@@ -538,6 +580,8 @@ import {
         gap: 16px;
         margin-bottom: 16px;
         flex-wrap: wrap;
+        width: 100%;
+        box-sizing: border-box;
 
         .search-box {
           flex: 1;
@@ -609,6 +653,7 @@ import {
           color: #1890ff;
         }
       }
+
       .member-count {
         display: inline-flex;
         align-items: baseline;
@@ -669,6 +714,548 @@ import {
         p {
           margin: 4px 0;
           font-size: 13px;
+        }
+      }
+
+      .cell-value {
+        display: inline;
+      }
+
+      .cell-value.date-range {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+      }
+
+      .cell-value.member-count {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+      }
+
+      .item-name {
+        color: #0f172a;
+      }
+
+      /* ==========================================================================
+         RESPONSIVE BREAKPOINTS: Mobile & Tablet Optimization
+         Covers: 320px, 375px, 390px, 393px, 430px, and tablet <= 768px
+         ========================================================================== */
+      @media (max-width: 768px) {
+        :host {
+          overflow-x: hidden;
+        }
+
+        .internship-page {
+          gap: 14px;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          box-sizing: border-box !important;
+        }
+
+        .page-header {
+          flex-direction: column !important;
+          align-items: stretch !important;
+          gap: 12px !important;
+          padding: 14px 16px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+
+          .header-titles {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+
+            h2 {
+              font-size: 18px !important;
+              word-break: break-word !important;
+              overflow-wrap: anywhere !important;
+            }
+            p {
+              font-size: 12px !important;
+              line-height: 1.45 !important;
+              word-break: break-word !important;
+              overflow-wrap: anywhere !important;
+            }
+          }
+
+          .btn-create-batch {
+            width: 100% !important;
+            min-height: 40px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+          }
+        }
+
+        :host ::ng-deep .main-card,
+        :host ::ng-deep .member-card {
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          box-sizing: border-box !important;
+
+          .ant-card-body {
+            padding: 12px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+          }
+        }
+
+        :host ::ng-deep .member-card {
+          .ant-card-head {
+            padding: 12px 14px !important;
+            min-height: auto !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+          }
+
+          .ant-card-head-wrapper {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 10px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+          }
+
+          .ant-card-head-title {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            padding: 0 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+          }
+
+          .ant-card-extra {
+            margin-left: 0 !important;
+            float: none !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+
+            .btn-add-member-top {
+              width: 100% !important;
+              min-height: 38px !important;
+              display: inline-flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              font-size: 13px !important;
+            }
+          }
+        }
+
+        .member-panel-header {
+          display: flex !important;
+          flex-wrap: wrap !important;
+          align-items: center !important;
+          gap: 6px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          box-sizing: border-box !important;
+          font-size: 15px !important;
+          line-height: 1.4 !important;
+
+          .panel-icon {
+            margin-right: 4px !important;
+            flex-shrink: 0 !important;
+          }
+
+          .member-panel-title-text {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+          }
+
+          .member-panel-tag {
+            flex-shrink: 0 !important;
+            margin: 0 !important;
+          }
+        }
+
+        .table-toolbar {
+          flex-direction: column !important;
+          align-items: stretch !important;
+          gap: 10px !important;
+          margin-bottom: 12px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+
+          .search-box {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+
+            input {
+              width: 100% !important;
+              max-width: 100% !important;
+              min-height: 38px !important;
+              font-size: 13px !important;
+              box-sizing: border-box !important;
+            }
+          }
+
+          .filter-box {
+            width: 100% !important;
+            max-width: 100% !important;
+            justify-content: space-between !important;
+            box-sizing: border-box !important;
+
+            .filter-label {
+              font-size: 13px !important;
+              flex-shrink: 0 !important;
+            }
+
+            .status-filter-select {
+              flex: 1 1 auto !important;
+              width: auto !important;
+              min-width: 0 !important;
+              max-width: calc(100% - 85px) !important;
+            }
+          }
+        }
+
+        .member-toolbar {
+          margin-bottom: 12px !important;
+
+          .search-box {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+
+            input {
+              width: 100% !important;
+              max-width: 100% !important;
+              min-height: 38px !important;
+              font-size: 13px !important;
+              box-sizing: border-box !important;
+            }
+          }
+        }
+
+        /* ---------------------------------------------------------
+           Card/List Layout Transformation for Tables on Mobile
+           --------------------------------------------------------- */
+        :host ::ng-deep .responsive-table {
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+
+          .ant-table-wrapper,
+          .ant-spin-nested-loading,
+          .ant-spin-container,
+          .ant-table,
+          .ant-table-container,
+          .ant-table-content,
+          table,
+          tbody {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+          }
+
+          .ant-table-thead {
+            display: none !important;
+          }
+
+          .ant-table-tbody > tr:not(.empty-row):not(.ant-table-placeholder) {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            margin-bottom: 14px !important;
+            padding: 12px 14px !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 8px !important;
+            background: #ffffff !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+            transition: border-color 0.2s, box-shadow 0.2s;
+
+            &.selected-row {
+              border-color: #1890ff !important;
+              background: #f0f7ff !important;
+              box-shadow: 0 2px 8px rgba(24, 144, 255, 0.12) !important;
+            }
+          }
+
+          .ant-table-tbody > tr.empty-row,
+          .ant-table-placeholder {
+            display: block !important;
+            width: 100% !important;
+
+            > td {
+              display: block !important;
+              width: 100% !important;
+              border: none !important;
+              padding: 24px 12px !important;
+              text-align: center !important;
+
+              &::before {
+                display: none !important;
+              }
+            }
+          }
+
+          .ant-table-tbody > tr:not(.empty-row):not(.ant-table-placeholder) > td {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: flex-start !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            padding: 8px 0 !important;
+            border: none !important;
+            border-bottom: 1px dashed #f1f5f9 !important;
+            font-size: 13px !important;
+
+            &::before {
+              content: attr(data-label);
+              font-weight: 600;
+              color: #64748b;
+              font-size: 12px;
+              text-transform: uppercase;
+              letter-spacing: 0.03em;
+              text-align: left;
+              margin-right: 12px;
+              padding-top: 1px;
+              flex-shrink: 0;
+              min-width: 80px;
+              max-width: 130px;
+            }
+
+            &:not([data-label])::before,
+            &[data-label=""]::before {
+              display: none !important;
+            }
+
+            .cell-value {
+              flex: 1 1 auto;
+              min-width: 0 !important;
+              text-align: right;
+              overflow-wrap: anywhere !important;
+              word-break: break-word !important;
+              color: #1e293b;
+
+              nz-tag {
+                margin: 0 !important;
+              }
+            }
+
+            .cell-value.date-range {
+              display: inline-flex;
+              align-items: center;
+              flex-wrap: wrap;
+              justify-content: flex-end;
+              gap: 2px;
+            }
+
+            .cell-value.member-count {
+              display: inline-flex;
+              align-items: baseline;
+              justify-content: flex-end;
+              gap: 4px;
+            }
+
+            .email-cell {
+              overflow-wrap: anywhere !important;
+              word-break: break-word !important;
+              font-size: 13px;
+              color: #334155;
+            }
+
+            .item-name {
+              color: #0f172a;
+              font-weight: 600;
+            }
+
+            &:last-child,
+            &.actions-cell {
+              border-bottom: none !important;
+              padding-top: 12px !important;
+              padding-bottom: 2px !important;
+              display: block !important;
+              width: 100% !important;
+
+              &::before {
+                display: none !important;
+              }
+            }
+          }
+        }
+
+        .table-actions {
+          display: flex !important;
+          width: 100% !important;
+          gap: 8px !important;
+          box-sizing: border-box !important;
+
+          .btn-manage-intern,
+          .btn-edit-batch {
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            width: auto !important;
+            min-height: 38px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 13px !important;
+            border-radius: 6px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+        }
+
+        .btn-edit-member {
+          width: 100% !important;
+          min-height: 38px !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          border: 1px solid #d9d9d9 !important;
+          border-radius: 6px !important;
+          background: #fafafa !important;
+          font-size: 13px !important;
+          font-weight: 500 !important;
+          color: #1890ff !important;
+          box-sizing: border-box !important;
+
+          &:hover,
+          &:active {
+            background: #e6f7ff !important;
+            border-color: #1890ff !important;
+          }
+        }
+      }
+
+      /* ---------------------------------------------------------
+         Mobile Modals, Dialogs, Form Fields (<= 576px)
+         --------------------------------------------------------- */
+      @media (max-width: 576px) {
+        :host ::ng-deep .ant-modal {
+          width: auto !important;
+          max-width: calc(100vw - 16px) !important;
+          margin: 8px auto !important;
+          top: 10px !important;
+          padding-bottom: 10px !important;
+
+          .ant-modal-content {
+            border-radius: 12px;
+          }
+
+          .ant-modal-header {
+            padding: 14px 16px;
+            border-radius: 12px 12px 0 0;
+          }
+
+          .ant-modal-title {
+            font-size: 16px;
+            font-weight: 600;
+          }
+
+          .ant-modal-body {
+            padding: 16px 14px;
+            max-height: calc(85vh - 110px);
+            overflow-y: auto;
+          }
+
+          .ant-modal-footer {
+            padding: 10px 14px;
+            display: flex;
+            gap: 8px;
+
+            button {
+              flex: 1;
+              min-height: 40px;
+              margin: 0 !important;
+              font-size: 13px;
+            }
+          }
+        }
+
+        .form-row {
+          flex-direction: column !important;
+          gap: 0 !important;
+        }
+
+        nz-form-item {
+          margin-bottom: 14px;
+        }
+
+        /* Responsive Pagination */
+        :host ::ng-deep .ant-pagination {
+          display: flex !important;
+          justify-content: center !important;
+          flex-wrap: wrap !important;
+          float: none !important;
+          gap: 4px;
+          margin: 16px 0 6px !important;
+          width: 100% !important;
+
+          .ant-pagination-prev,
+          .ant-pagination-next,
+          .ant-pagination-item {
+            min-width: 30px;
+            height: 30px;
+            line-height: 28px;
+            margin-right: 2px !important;
+          }
+        }
+      }
+
+      /* ---------------------------------------------------------
+         Extra Small Phones (<= 360px: e.g. iPhone SE 320px)
+         --------------------------------------------------------- */
+      @media (max-width: 360px) {
+        :host ::ng-deep .main-card,
+        :host ::ng-deep .member-card {
+          .ant-card-body {
+            padding: 10px 8px !important;
+          }
+        }
+
+        :host ::ng-deep .responsive-table .ant-table-tbody > tr:not(.empty-row) {
+          padding: 10px 10px !important;
+        }
+
+        .table-actions {
+          flex-direction: column !important;
+          gap: 6px !important;
+
+          .btn-manage-intern,
+          .btn-edit-batch {
+            width: 100% !important;
+            flex: none !important;
+          }
+        }
+
+        .date-range {
+          font-size: 12px;
         }
       }
     `,
