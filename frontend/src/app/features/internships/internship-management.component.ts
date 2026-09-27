@@ -129,7 +129,9 @@ import {
             @for (item of internshipTable.data; track item.id) {
               <tr [class.selected-row]="selectedInternship()?.id === item.id">
                 <td data-label="Tên đợt">
-                  <span class="cell-value item-name"><strong>{{ item.name }}</strong></span>
+                  <span class="cell-value item-name"
+                    ><strong>{{ item.name }}</strong></span
+                  >
                 </td>
                 <td data-label="Bắt đầu">
                   <span class="cell-value">{{ item.start_date }}</span>
@@ -202,7 +204,13 @@ import {
           </ng-template>
 
           <ng-template #memberCardExtra>
-            <button nz-button nzType="primary" nzSize="small" (click)="openAddMemberModal()" class="btn-add-member-top">
+            <button
+              nz-button
+              nzType="primary"
+              nzSize="small"
+              (click)="openAddMemberModal()"
+              class="btn-add-member-top"
+            >
               <span nz-icon nzType="user-add"></span>
               Thêm Intern vào đợt
             </button>
@@ -244,7 +252,9 @@ import {
               @for (member of memberTable.data; track member.id) {
                 <tr>
                   <td data-label="Thực tập sinh">
-                    <span class="cell-value item-name"><strong>{{ member.intern?.full_name || 'Intern' }}</strong></span>
+                    <span class="cell-value item-name"
+                      ><strong>{{ member.intern?.full_name || 'Intern' }}</strong></span
+                    >
                   </td>
                   <td data-label="Email">
                     <span class="cell-value email-cell">{{ member.intern?.email || '—' }}</span>
@@ -993,7 +1003,9 @@ import {
             border-radius: 8px !important;
             background: #ffffff !important;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition:
+              border-color 0.2s,
+              box-shadow 0.2s;
 
             &.selected-row {
               border-color: #1890ff !important;
@@ -1049,7 +1061,7 @@ import {
             }
 
             &:not([data-label])::before,
-            &[data-label=""]::before {
+            &[data-label='']::before {
               display: none !important;
             }
 
