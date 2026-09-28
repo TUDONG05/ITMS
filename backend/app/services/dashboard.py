@@ -183,7 +183,7 @@ class DashboardService:
             DashboardMetricRead(
                 key="latest_evaluation_score",
                 label="Điểm đánh giá gần nhất",
-                value=float(latest_score[0])
+                value=round(float(latest_score[0]), 2)
                 if latest_score and latest_score[0] is not None
                 else "—",
             ),
@@ -243,7 +243,11 @@ class DashboardService:
             return None
         completed = progress.filter(LearningProgress.status == "COMPLETED").count()
         percent = progress.with_entities(func.avg(LearningProgress.progress_percent)).scalar() or 0
-        return DashboardProgressRead(percent=float(percent), completed=completed, total=total)
+        return DashboardProgressRead(
+            percent=round(float(percent), 2),
+            completed=completed,
+            total=total,
+        )
 
     @staticmethod
     def _recent_tasks(tasks: Query[Task]) -> list[DashboardRecentItemRead]:

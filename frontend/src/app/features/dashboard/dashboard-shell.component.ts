@@ -493,7 +493,8 @@ const dashboards: Record<Role, Dashboard> = {
                       </div>
                       <div style="padding: 20px 0; text-align: center;">
                         <nz-progress
-                          [nzPercent]="dashboardData()?.progress?.percent"
+                          [nzPercent]="formatPercentNumber(dashboardData()?.progress?.percent)"
+                          [nzFormat]="formatProgress"
                           nzType="circle"
                         ></nz-progress>
                         <p style="margin-top: 10px;">
@@ -775,5 +776,14 @@ export class DashboardShellComponent implements OnInit {
     if (status === 'SUBMITTED' || status === 'REVISION_REQUIRED') return 'warning';
     if (status === 'TODO') return 'default';
     return 'processing';
+  }
+
+  protected readonly formatProgress = (percent: number): string => {
+    return `${+(percent || 0).toFixed(2)}%`;
+  };
+
+  protected formatPercentNumber(val?: number | null): number {
+    if (val == null) return 0;
+    return Math.round(val * 100) / 100;
   }
 }
