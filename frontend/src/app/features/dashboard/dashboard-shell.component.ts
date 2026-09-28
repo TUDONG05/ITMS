@@ -1,3 +1,11 @@
+import { DatePipe } from '@angular/common';
+import { NzSpinModule } from 'ng-zorro-antd/spin';
+import { NzResultModule } from 'ng-zorro-antd/result';
+import { NzEmptyModule } from 'ng-zorro-antd/empty';
+import { NzSelectModule } from 'ng-zorro-antd/select';
+import { FormsModule } from '@angular/forms';
+import { Internship, InternshipService } from '../../core/api/internship.service';
+import { DashboardService, DashboardResponse } from '../../core/api/dashboard.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -191,6 +199,12 @@ const dashboards: Record<Role, Dashboard> = {
   selector: 'app-dashboard-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    DatePipe,
+    NzSpinModule,
+    NzResultModule,
+    NzEmptyModule,
+    NzSelectModule,
+    FormsModule,
     NzAvatarModule,
     NzBadgeModule,
     NzButtonModule,
@@ -288,107 +302,151 @@ const dashboards: Record<Role, Dashboard> = {
             </div>
 
             @if (section() === 'overview') {
-              <section class="metric-grid">
-                @for (metric of dashboard().metrics; track metric.label) {
-                  <nz-card class="metric-card" [nzBordered]="false"
-                    ><i
-                      class="metric-icon metric-icon--{{ metric.tone }}"
-                      nz-icon
-                      [nzType]="metric.icon"
-                    ></i>
-                    <div>
-                      <p>{{ metric.label }}</p>
-                      <strong>{{ metric.value }}</strong
-                      ><small>{{ metric.note }}</small>
-                    </div></nz-card
+              @if (role() === 'ADMIN') {
+                <div
+                  style="margin-bottom: 20px; display: flex; align-items: center; justify-content: flex-end; gap: 10px;"
+                >
+                  <span>Lọc theo đợt thực tập:</span>
+                  <nz-select
+                    style="width: 250px"
+                    [(ngModel)]="selectedInternshipId"
+                    (ngModelChange)="onInternshipChange($event)"
+                    nzAllowClear
+                    nzPlaceHolder="Tất cả"
                   >
-                }
-              </section>
-              <section class="dashboard-grid">
-                <nz-card class="panel panel--wide" [nzBordered]="false"
-                  ><div class="panel__title">
-                    <h2>
-                      {{
-                        dashboard().roleLabel === 'Mentor'
-                          ? 'Danh sách Intern của tôi'
-                          : dashboard().roleLabel === 'Quản trị viên'
-                            ? 'Đợt thực tập gần đây'
-                            : 'Task gần đây'
-                      }}
-                    </h2>
-                    <button nz-button nzType="link" (click)="choose('tasks')">Xem tất cả</button>
+                    @for (internship of internships(); track internship.id) {
+                      <nz-option [nzValue]="internship.id" [nzLabel]="internship.name"></nz-option>
+                    }
+                  </nz-select>
+                </div>
+              }
+              @if (isLoading()) {
+                <div style="text-align: center; padding: 50px;">
+                  <nz-spin nzSimple nzSize="large"></nz-spin>
+                </div>
+              } @else if (hasError()) {
+                <nz-result
+                  nzStatus="error"
+                  nzTitle="Lỗi tải dữ liệu"
+                  nzSubTitle="Vui lòng thử lại sau."
+                >
+                  <div nz-result-extra>
+                    <button nz-button nzType="primary" (click)="loadDashboard()">Thử lại</button>
                   </div>
-                  <div class="table-head">
-                    <span>Tên / thông tin</span><span>Tiến độ</span><span>Trạng thái</span>
-                  </div>
-                  @for (row of rows; track row.name) {
-                    <div class="table-row">
-                      <span
-                        ><b>{{ row.name }}</b
-                        ><small>{{ row.sub }}</small></span
-                      ><span class="progress"
-                        ><nz-progress
-                          [nzPercent]="row.progress"
-                          nzSize="small"
-                          [nzShowInfo]="false"
-                        ></nz-progress
-                        >{{ row.progress }}%</span
-                      ><nz-tag [nzColor]="statusColor(row.status)" class="tag">{{
-                        row.status
-                      }}</nz-tag>
-                    </div>
+                </nz-result>
+              } @else {
+                <section class="metric-grid">
+                  @for (metric of dashboardData()?.metrics; track metric.label) {
+                    <nz-card class="metric-card" [nzBordered]="false">
+                      <i
+                        class="metric-icon metric-icon--{{
+                          metricStyles[metric.key]?.tone || 'blue'
+                        }}"
+                        nz-icon
+                        [nzType]="metricStyles[metric.key]?.icon || 'appstore'"
+                      ></i>
+                      <div>
+                        <p>{{ metric.label }}</p>
+                        <strong>{{ metric.value }}</strong>
+                      </div>
+                    </nz-card>
                   }
-                </nz-card>
-                <nz-card class="panel" [nzBordered]="false"
-                  ><div class="panel__title">
-                    <h2>Lộ trình & tiến độ</h2>
-                    <button nz-button nzType="link" (click)="choose(detailsTarget())">
-                      Xem chi tiết
-                    </button>
-                  </div>
-                  <ol class="timeline">
-                    <li><b>Phase 1: Kiến thức nền tảng</b><small>Hoàn thành 100%</small></li>
-                    <li><b>Phase 2: Kỹ năng chuyên môn</b><small>Đang học 60%</small></li>
-                    <li><b>Phase 3: Dự án thực hành</b><small>Chưa bắt đầu</small></li>
-                  </ol></nz-card
-                >
-                <nz-card class="panel" [nzBordered]="false"
-                  ><div class="panel__title">
-                    <h2>Thông báo mới</h2>
-                    <button nz-button nzType="link" (click)="choose('notifications')">
-                      Xem tất cả
-                    </button>
-                  </div>
-                  <ul class="notice-list">
-                    <li>
-                      ● <span><b>Cập nhật kế hoạch tuần này</b><small>2 giờ trước</small></span>
-                    </li>
-                    <li>
-                      ● <span><b>Có task cần xử lý</b><small>5 giờ trước</small></span>
-                    </li>
-                    <li>
-                      ● <span><b>Tài liệu đào tạo mới</b><small>Hôm qua</small></span>
-                    </li>
-                  </ul></nz-card
-                >
-                <nz-card class="panel panel--chart" [nzBordered]="false"
-                  ><div class="panel__title">
-                    <h2>Phân bố công việc</h2>
-                    <button nz-button nzType="link" (click)="choose(analyticsTarget())">
-                      Chi tiết
-                    </button>
-                  </div>
-                  <div class="chart">
-                    <div class="chart__donut"><b>24</b><small>Tổng task</small></div>
-                    <ul>
-                      <li><i class="dot dot--green"></i>Hoàn thành <b>10</b></li>
-                      <li><i class="dot dot--blue"></i>Đang thực hiện <b>8</b></li>
-                      <li><i class="dot dot--orange"></i>Chờ review <b>4</b></li>
-                      <li><i class="dot dot--pink"></i>Quá hạn <b>2</b></li>
-                    </ul>
-                  </div></nz-card
-                >
-              </section>
+                </section>
+                <section class="dashboard-grid">
+                  <nz-card class="panel panel--wide" [nzBordered]="false">
+                    <div class="panel__title">
+                      <h2>
+                        {{
+                          dashboard().roleLabel === 'Mentor'
+                            ? 'Danh sách Intern của tôi'
+                            : dashboard().roleLabel === 'Quản trị viên'
+                              ? 'Đợt thực tập gần đây'
+                              : 'Task gần đây'
+                        }}
+                      </h2>
+                      <button nz-button nzType="link" (click)="choose('tasks')">Xem tất cả</button>
+                    </div>
+                    @if (dashboardData()?.recent_items?.length) {
+                      <div class="table-head">
+                        <span>Tên / thông tin</span><span>Trạng thái</span><span>Hạn</span>
+                      </div>
+                      @for (row of dashboardData()?.recent_items; track row.title) {
+                        <div class="table-row">
+                          <span
+                            ><b>{{ row.title }}</b
+                            ><small>{{ row.subtitle }}</small></span
+                          >
+                          <nz-tag [nzColor]="statusColor(row.status || '')" class="tag">{{
+                            row.status
+                          }}</nz-tag>
+                          <span>{{ row.due_at ? (row.due_at | date: 'dd/MM/yyyy') : '-' }}</span>
+                        </div>
+                      }
+                    } @else {
+                      <nz-empty nzNotFoundContent="Không có dữ liệu"></nz-empty>
+                    }
+                  </nz-card>
+
+                  @if (dashboardData()?.progress) {
+                    <nz-card class="panel" [nzBordered]="false">
+                      <div class="panel__title">
+                        <h2>Lộ trình & tiến độ</h2>
+                        <button nz-button nzType="link" (click)="choose(detailsTarget())">
+                          Xem chi tiết
+                        </button>
+                      </div>
+                      <div style="padding: 20px 0; text-align: center;">
+                        <nz-progress
+                          [nzPercent]="dashboardData()?.progress?.percent"
+                          nzType="circle"
+                        ></nz-progress>
+                        <p style="margin-top: 10px;">
+                          Hoàn thành {{ dashboardData()?.progress?.completed }}/{{
+                            dashboardData()?.progress?.total
+                          }}
+                        </p>
+                      </div>
+                    </nz-card>
+                  }
+
+                  <nz-card class="panel panel--chart" [nzBordered]="false">
+                    <div class="panel__title">
+                      <h2>Phân bố công việc</h2>
+                      <button nz-button nzType="link" (click)="choose(analyticsTarget())">
+                        Chi tiết
+                      </button>
+                    </div>
+                    <div class="chart">
+                      <ul>
+                        <li>
+                          <i class="dot dot--green"></i>Hoàn thành
+                          <b>{{ dashboardData()?.task_breakdown?.completed }}</b>
+                        </li>
+                        <li>
+                          <i class="dot dot--blue"></i>Đang thực hiện
+                          <b>{{ dashboardData()?.task_breakdown?.in_progress }}</b>
+                        </li>
+                        <li>
+                          <i class="dot dot--orange"></i>Chờ review
+                          <b>{{ dashboardData()?.task_breakdown?.submitted }}</b>
+                        </li>
+                        <li>
+                          <i class="dot dot--pink"></i>Quá hạn
+                          <b>{{ dashboardData()?.task_breakdown?.overdue }}</b>
+                        </li>
+                        <li>
+                          <i class="dot dot--purple"></i>Cần sửa
+                          <b>{{ dashboardData()?.task_breakdown?.revision_required }}</b>
+                        </li>
+                        <li>
+                          <i class="dot dot--gray"></i>Chưa làm
+                          <b>{{ dashboardData()?.task_breakdown?.todo }}</b>
+                        </li>
+                      </ul>
+                    </div>
+                  </nz-card>
+                </section>
+              }
             } @else if (section() === 'profile') {
               <!-- UC-5: Hồ sơ cá nhân -->
               <app-profile />
@@ -448,6 +506,38 @@ export class DashboardShellComponent implements OnInit {
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly dashboardService = inject(DashboardService);
+
+  protected readonly dashboardData = signal<DashboardResponse | null>(null);
+  protected readonly isLoading = signal(true);
+  protected readonly hasError = signal(false);
+  private readonly internshipService = inject(InternshipService);
+  protected readonly internships = signal<Internship[]>([]);
+  protected selectedInternshipId: string | null = null;
+
+  protected onInternshipChange(id: string | null): void {
+    this.selectedInternshipId = id;
+    this.loadDashboard();
+  }
+
+  protected readonly metricStyles: Record<string, { tone: string; icon: string }> = {
+    active_interns: { tone: 'green', icon: 'user' },
+    active_mentors: { tone: 'orange', icon: 'solution' },
+    ongoing_internships: { tone: 'blue', icon: 'team' },
+    pending_requests: { tone: 'pink', icon: 'audit' },
+    total_tasks: { tone: 'blue', icon: 'check-square' },
+    published_evaluations: { tone: 'orange', icon: 'star' },
+    assigned_interns: { tone: 'blue', icon: 'team' },
+    cohort_tasks: { tone: 'green', icon: 'check-square' },
+    assigned_tasks: { tone: 'orange', icon: 'check-square' },
+    active_memberships: { tone: 'blue', icon: 'calendar' },
+    in_progress_tasks: { tone: 'green', icon: 'check-square' },
+    tasks_needing_action: { tone: 'pink', icon: 'warning' },
+    completed_quizzes: { tone: 'purple', icon: 'form' },
+    latest_evaluation_score: { tone: 'orange', icon: 'star' },
+    pending_reviews: { tone: 'pink', icon: 'file-text' },
+    draft_evaluations: { tone: 'orange', icon: 'star' },
+  };
   protected readonly role = signal<Role>(Role.Intern);
   protected readonly section = signal('overview');
   protected readonly isMenuOpen = signal(false);
@@ -480,22 +570,33 @@ export class DashboardShellComponent implements OnInit {
   ngOnInit(): void {
     // Fetch latest user profile to ensure avatar and details are up to date
     this.authService.getProfile().subscribe({ error: () => undefined });
+    this.loadDashboard();
+
+    if (this.role() === Role.Admin) {
+      this.internshipService.getInternships().subscribe({
+        next: (internships) => this.internships.set(internships),
+        error: () => undefined,
+      });
+    }
   }
-  protected readonly rows = [
-    {
-      name: 'Viết báo cáo phân tích yêu cầu',
-      sub: 'Hạn: 28/08/2026',
-      progress: 65,
-      status: 'Đang thực hiện',
-    },
-    { name: 'Thiết kế database mẫu', sub: 'Hạn: 30/08/2026', progress: 40, status: 'Chờ review' },
-    {
-      name: 'Xây dựng giao diện đăng nhập',
-      sub: 'Hạn: 05/09/2026',
-      progress: 100,
-      status: 'Hoàn thành',
-    },
-  ];
+
+  protected loadDashboard(): void {
+    this.isLoading.set(true);
+    this.hasError.set(false);
+    this.dashboardService.getDashboard(this.selectedInternshipId || undefined).subscribe({
+      next: (res) => {
+        this.dashboardData.set(res);
+        if (Object.values(Role).includes(res.role as Role)) {
+          this.role.set(res.role as Role);
+        }
+        this.isLoading.set(false);
+      },
+      error: () => {
+        this.hasError.set(true);
+        this.isLoading.set(false);
+      },
+    });
+  }
   protected readonly activeLabel = computed(() =>
     this.section() === 'overview'
       ? 'Tổng quan'
@@ -574,6 +675,9 @@ export class DashboardShellComponent implements OnInit {
   }
 
   protected statusColor(status: string): string {
-    return status === 'Hoàn thành' ? 'success' : status === 'Chờ review' ? 'warning' : 'processing';
+    if (status === 'COMPLETED') return 'success';
+    if (status === 'SUBMITTED' || status === 'REVISION_REQUIRED') return 'warning';
+    if (status === 'TODO') return 'default';
+    return 'processing';
   }
 }
