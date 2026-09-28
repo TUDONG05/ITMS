@@ -433,7 +433,10 @@ const dashboards: Record<Role, Dashboard> = {
                 <section class="metric-grid">
                   @for (metric of dashboardData()?.metrics; track metric.label) {
                     <nz-card class="metric-card" [nzBordered]="false" style="text-align: center;">
-                      <div class="metric-card__content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%;">
+                      <div
+                        class="metric-card__content"
+                        style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%;"
+                      >
                         <i
                           class="metric-icon metric-icon--{{
                             metricStyles[metric.key]?.tone || 'blue'
@@ -442,8 +445,17 @@ const dashboards: Record<Role, Dashboard> = {
                           [nzType]="metricStyles[metric.key]?.icon || 'appstore'"
                           style="margin: 0 auto 10px auto;"
                         ></i>
-                        <p class="metric-card__label" style="text-align: center; margin: 2px 0 6px 0; width: 100%;">{{ metric.label }}</p>
-                        <strong class="metric-card__value" style="display: block; text-align: center; width: 100%; font-size: 28px; line-height: 1.2;">{{ metric.value }}</strong>
+                        <p
+                          class="metric-card__label"
+                          style="text-align: center; margin: 2px 0 6px 0; width: 100%;"
+                        >
+                          {{ metric.label }}
+                        </p>
+                        <strong
+                          class="metric-card__value"
+                          style="display: block; text-align: center; width: 100%; font-size: 28px; line-height: 1.2;"
+                          >{{ metric.value }}</strong
+                        >
                       </div>
                     </nz-card>
                   }
