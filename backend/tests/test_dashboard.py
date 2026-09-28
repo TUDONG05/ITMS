@@ -182,3 +182,19 @@ def test_dashboard_scopes_tasks_to_the_authenticated_mentor_and_intern() -> None
             session.delete(user)
         session.commit()
         session.close()
+
+
+def test_intern_dashboard_progress_percent_matches_completed_item_ratio() -> None:
+    session = get_session_factory()()
+    intern = session.query(User).filter(User.email == "intern@itms.local").first()
+    assert intern is not None
+    try:
+        response = TestClient(app).get(
+            "/api/v1/dashboard", headers={"X-User-Id": str(intern.id)}
+        )
+        assert response.status_code == 200
+        progress = response.json()["progress"]
+        assert progress is not None
+        assert progress["percent"] == round(progress["completed"] / progress["total"] * 100, 2)
+    finally:
+        session.close()

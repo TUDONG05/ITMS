@@ -242,9 +242,8 @@ class DashboardService:
         if total == 0:
             return None
         completed = progress.filter(LearningProgress.status == "COMPLETED").count()
-        percent = progress.with_entities(func.avg(LearningProgress.progress_percent)).scalar() or 0
         return DashboardProgressRead(
-            percent=round(float(percent), 2),
+            percent=round(completed / total * 100, 2),
             completed=completed,
             total=total,
         )
