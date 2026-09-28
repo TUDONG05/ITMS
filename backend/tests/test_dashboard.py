@@ -189,9 +189,7 @@ def test_intern_dashboard_progress_percent_matches_completed_item_ratio() -> Non
     intern = session.query(User).filter(User.email == "intern@itms.local").first()
     assert intern is not None
     try:
-        response = TestClient(app).get(
-            "/api/v1/dashboard", headers={"X-User-Id": str(intern.id)}
-        )
+        response = TestClient(app).get("/api/v1/dashboard", headers={"X-User-Id": str(intern.id)})
         assert response.status_code == 200
         progress = response.json()["progress"]
         assert progress is not None
