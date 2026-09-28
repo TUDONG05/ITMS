@@ -5,7 +5,7 @@ import { Observable } from 'rxjs';
 export type RoadmapStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
 export type ContentType = 'LESSON' | 'DOCUMENT' | 'VIDEO' | 'LINK';
 export type QuizStatus = 'DRAFT' | 'PUBLISHED';
-export type QuestionType = 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE' | 'TEXT';
+export type QuestionType = 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'TEXT';
 
 export interface Roadmap {
   id: string;
@@ -267,8 +267,8 @@ export class TrainingService {
     quiz_id: string;
     content: string;
     type: QuestionType;
-    options?: string | null;
-    correct_answer?: string | null;
+    options?: any;
+    correct_answer?: any;
     score: number;
     order_no: number;
   }): Observable<Question> {
@@ -282,8 +282,8 @@ export class TrainingService {
     payload: {
       content?: string;
       type?: QuestionType;
-      options?: string | null;
-      correct_answer?: string | null;
+      options?: any;
+      correct_answer?: any;
       score?: number;
       order_no?: number;
     },

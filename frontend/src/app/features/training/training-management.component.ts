@@ -38,6 +38,18 @@ import {
   RoadmapStatus,
   TrainingService,
 } from '../../core/api/training.service';
+import { forkJoin } from 'rxjs';
+
+export interface DraftQuestion {
+  tempId: string;
+  content: string;
+  type: QuestionType;
+  score: number;
+  options: { key: string; text: string }[];
+  singleCorrectKey: string;
+  multiCorrectKeys: Set<string>;
+  text_answer_hint: string;
+}
 
 @Component({
   selector: 'app-training-management',
@@ -62,1707 +74,8 @@ import {
     NzTagModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="training-page">
-      <!-- Page Header -->
-      <div class="page-header">
-        <div class="header-titles">
-          <h2>Quản lý Đào tạo (LMS)</h2>
-          <p>Tạo và quản lý Roadmap, Phase, nội dung học tập và bài kiểm tra.</p>
-        </div>
-        <button nz-button nzType="primary" (click)="openCreateRoadmapModal()">
-          <span nz-icon nzType="plus"></span>
-          Tạo Roadmap
-        </button>
-      </div>
-
-      <!-- Roadmap List -->
-      <nz-card [nzBordered]="false" class="main-card">
-        <!-- Toolbar -->
-        <div class="table-toolbar">
-          <div class="search-box">
-            <input
-              type="text"
-              nz-input
-              placeholder="🔎 Tìm kiếm tên roadmap..."
-              [ngModel]="searchQuery()"
-              (ngModelChange)="onSearchChange($event)"
-            />
-          </div>
-          <div class="filter-box">
-            <span class="filter-label">Trạng thái:</span>
-            <nz-select
-              [ngModel]="statusFilter()"
-              (ngModelChange)="onStatusFilterChange($event)"
-              nzPlaceHolder="Tất cả"
-              class="status-filter-select"
-            >
-              <nz-option nzValue="" nzLabel="Tất cả trạng thái"></nz-option>
-              <nz-option nzValue="DRAFT" nzLabel="Bản nháp"></nz-option>
-              <nz-option nzValue="ACTIVE" nzLabel="Đang hoạt động"></nz-option>
-              <nz-option nzValue="ARCHIVED" nzLabel="Lưu trữ"></nz-option>
-            </nz-select>
-          </div>
-        </div>
-
-        <!-- Roadmap Content (Desktop Table + Mobile Cards) -->
-        <nz-spin [nzSpinning]="isLoading()">
-          <!-- 1. BẢNG DỮ LIỆU DESKTOP (> 768px) -->
-          <div class="desktop-view">
-            <nz-table
-              #roadmapTable
-              [nzData]="filteredRoadmaps()"
-              [nzShowPagination]="true"
-              [nzPageSize]="10"
-            >
-              <thead>
-                <tr>
-                  <th nzWidth="220px">Tên Roadmap</th>
-                  <th class="col-desc">Mô tả</th>
-                  <th nzWidth="130px">Trạng thái</th>
-                  <th nzAlign="center" nzWidth="100px">Số Phase</th>
-                  <th nzAlign="center" nzWidth="170px">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (rm of roadmapTable.data; track rm.id) {
-                  <tr [class.selected-row]="selectedRoadmap()?.id === rm.id">
-                    <td>
-                      <strong>{{ rm.name }}</strong>
-                    </td>
-                    <td class="col-desc">
-                      <span class="desc-text">{{ rm.description || '—' }}</span>
-                    </td>
-                    <td>
-                      <nz-tag [nzColor]="getRoadmapStatusColor(rm.status)">
-                        {{ getRoadmapStatusLabel(rm.status) }}
-                      </nz-tag>
-                    </td>
-                    <td nzAlign="center">
-                      <span class="count-number">{{ getRoadmapPhaseCount(rm.id) }}</span>
-                    </td>
-                    <td nzAlign="center">
-                      <div class="table-actions">
-                        <!-- Dòng trên: Nút Quản lý / Chỉnh sửa Phase -->
-                        <button
-                          nz-button
-                          nzType="default"
-                          nzSize="small"
-                          class="btn-manage-phase"
-                          (click)="selectRoadmap(rm)"
-                          [class.btn-active]="selectedRoadmap()?.id === rm.id"
-                        >
-                          <span nz-icon nzType="partition"></span>
-                          <span>Quản lý Phase</span>
-                        </button>
-                        <!-- Dòng dưới: 2 nút Sửa và Xóa cùng một dòng -->
-                        <div class="action-btn-pair">
-                          <button
-                            nz-button
-                            nzType="text"
-                            nzSize="small"
-                            class="action-btn-edit"
-                            (click)="openEditRoadmapModal(rm)"
-                          >
-                            <span nz-icon nzType="edit"></span>
-                            Sửa
-                          </button>
-                          <button
-                            nz-button
-                            nzType="text"
-                            nzSize="small"
-                            nzDanger
-                            class="action-btn-delete"
-                            nz-popconfirm
-                            nzPopconfirmTitle="Bạn có chắc muốn xóa roadmap này?"
-                            nzOkText="Xóa"
-                            nzCancelText="Hủy"
-                            (nzOnConfirm)="deleteRoadmap(rm.id)"
-                          >
-                            <span nz-icon nzType="delete"></span>
-                            Xóa
-                          </button>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                }
-                @if (filteredRoadmaps().length === 0 && !isLoading()) {
-                  <tr>
-                    <td colspan="5" class="empty-cell">
-                      <nz-empty
-                        nzNotFoundContent="Chưa có Roadmap nào. Hãy tạo Roadmap đầu tiên!"
-                      ></nz-empty>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </nz-table>
-          </div>
-
-          <!-- 2. DẠNG THẺ (CARD VIEW) TRÊN ĐIỆN THOẠI (<= 768px): HIỂN THỊ ĐẦY ĐỦ TRONG 1 KHUNG MÀN HÌNH -->
-          <div class="mobile-view">
-            @for (rm of filteredRoadmaps(); track rm.id) {
-              <div
-                class="roadmap-mobile-card"
-                [class.roadmap-mobile-card--selected]="selectedRoadmap()?.id === rm.id"
-                (click)="selectRoadmap(rm)"
-              >
-                <!-- Tiêu đề + Trạng thái -->
-                <div class="card-top-row">
-                  <div class="roadmap-title-area">
-                    <span nz-icon nzType="read" class="roadmap-badge-icon"></span>
-                    <strong class="roadmap-name">{{ rm.name }}</strong>
-                  </div>
-                  <nz-tag [nzColor]="getRoadmapStatusColor(rm.status)" class="status-tag">
-                    {{ getRoadmapStatusLabel(rm.status) }}
-                  </nz-tag>
-                </div>
-
-                <!-- Mô tả đầy đủ -->
-                <div class="roadmap-desc-full">
-                  {{ rm.description || 'Chưa có mô tả cho lộ trình đào tạo này.' }}
-                </div>
-
-                <!-- Thông số chi tiết: Số Phase + Ngày cập nhật -->
-                <div class="roadmap-meta-grid">
-                  <div class="meta-box">
-                    <span class="meta-label">Số giai đoạn</span>
-                    <span class="meta-value highlight">
-                      <span nz-icon nzType="partition"></span>
-                      {{ getRoadmapPhaseCount(rm.id) }} Phase
-                    </span>
-                  </div>
-                  <div class="meta-box">
-                    <span class="meta-label">Cập nhật</span>
-                    <span class="meta-value">
-                      {{ rm.updated_at || rm.created_at | date: 'dd/MM/yyyy' }}
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Thao tác: Quản lý phase ở dòng trên + Sửa, Xóa ở dòng dưới -->
-                <div class="roadmap-mobile-actions" (click)="$event.stopPropagation()">
-                  <button
-                    nz-button
-                    [nzType]="selectedRoadmap()?.id === rm.id ? 'primary' : 'default'"
-                    nzSize="small"
-                    class="action-btn-main"
-                    (click)="selectRoadmap(rm)"
-                  >
-                    <span nz-icon nzType="partition"></span>
-                    <span>{{
-                      selectedRoadmap()?.id === rm.id ? 'Đang chọn Phase' : 'Quản lý Phase'
-                    }}</span>
-                  </button>
-                  <div class="action-btn-pair">
-                    <button
-                      nz-button
-                      nzType="default"
-                      nzSize="small"
-                      class="action-btn-sub"
-                      (click)="openEditRoadmapModal(rm)"
-                    >
-                      <span nz-icon nzType="edit"></span> Sửa
-                    </button>
-                    <button
-                      nz-button
-                      nzType="default"
-                      nzDanger
-                      nzSize="small"
-                      class="action-btn-sub"
-                      nz-popconfirm
-                      nzPopconfirmTitle="Bạn có chắc muốn xóa roadmap này?"
-                      nzOkText="Xóa"
-                      nzCancelText="Hủy"
-                      (nzOnConfirm)="deleteRoadmap(rm.id)"
-                    >
-                      <span nz-icon nzType="delete"></span> Xóa
-                    </button>
-                  </div>
-                </div>
-              </div>
-            }
-            @if (filteredRoadmaps().length === 0 && !isLoading()) {
-              <div class="mobile-empty-state">
-                <nz-empty
-                  nzNotFoundContent="Chưa có Roadmap nào. Hãy tạo Roadmap đầu tiên!"
-                ></nz-empty>
-              </div>
-            }
-          </div>
-        </nz-spin>
-      </nz-card>
-
-      <!-- Phase / Content / Quiz Panel -->
-      @if (selectedRoadmapDetail(); as detail) {
-        <nz-card
-          [nzBordered]="false"
-          class="phase-card"
-          [nzTitle]="phaseCardTitle"
-          [nzExtra]="phaseCardExtra"
-        >
-          <ng-template #phaseCardTitle>
-            <div class="panel-header">
-              <span nz-icon nzType="partition" class="panel-icon"></span>
-              <span
-                >Các Phase của Roadmap: <strong>{{ detail.name }}</strong></span
-              >
-              <nz-tag [nzColor]="getRoadmapStatusColor(detail.status)" style="margin-left: 8px;">
-                {{ getRoadmapStatusLabel(detail.status) }}
-              </nz-tag>
-            </div>
-          </ng-template>
-          <ng-template #phaseCardExtra>
-            <button nz-button nzType="primary" nzSize="small" (click)="openCreatePhaseModal()">
-              <span nz-icon nzType="plus"></span>
-              Thêm Phase
-            </button>
-          </ng-template>
-
-          <!-- Roadmap Summary Banner -->
-          <div class="roadmap-summary-banner">
-            <div class="banner-desc">
-              {{ detail.description || 'Chưa có mô tả cho lộ trình đào tạo này.' }}
-            </div>
-            <div class="banner-meta">
-              <span>
-                <span nz-icon nzType="partition"></span>
-                <strong>{{ detail.phases.length }}</strong> giai đoạn (Phase)
-              </span>
-              <span>
-                <span nz-icon nzType="clock-circle"></span>
-                Cập nhật: {{ detail.updated_at || detail.created_at | date: 'dd/MM/yyyy' }}
-              </span>
-            </div>
-          </div>
-
-          <nz-spin [nzSpinning]="isDetailLoading()">
-            @if (detail.phases.length === 0) {
-              <nz-empty
-                nzNotFoundContent="Roadmap này chưa có Phase nào. Hãy thêm Phase mới!"
-              ></nz-empty>
-            }
-            <nz-collapse>
-              @for (phase of detail.phases; track phase.id) {
-                <nz-collapse-panel
-                  [nzHeader]="phaseHeader"
-                  [nzExtra]="phaseExtra"
-                  [nzActive]="expandedPhaseId() === phase.id"
-                  (nzActiveChange)="onPhaseExpand($event, phase.id)"
-                >
-                  <ng-template #phaseHeader>
-                    <div class="phase-header-content">
-                      <span class="phase-order-badge">Phase {{ phase.order_no }}</span>
-                      <strong>{{ phase.name }}</strong>
-                      @if (phase.description) {
-                        <span class="phase-desc">— {{ phase.description }}</span>
-                      }
-                    </div>
-                  </ng-template>
-                  <ng-template #phaseExtra>
-                    <div class="phase-actions" (click)="$event.stopPropagation()">
-                      <button
-                        nz-button
-                        nzType="default"
-                        nzSize="small"
-                        (click)="openCreateContentModal(phase.id)"
-                      >
-                        <span nz-icon nzType="file-add"></span>
-                        Thêm nội dung
-                      </button>
-                      <button
-                        nz-button
-                        nzType="default"
-                        nzSize="small"
-                        (click)="openCreateQuizModal(phase.id)"
-                      >
-                        <span nz-icon nzType="form"></span>
-                        Thêm Quiz
-                      </button>
-                      <div class="action-btn-pair">
-                        <button
-                          nz-button
-                          nzType="text"
-                          nzSize="small"
-                          (click)="openEditPhaseModal(phase)"
-                        >
-                          <span nz-icon nzType="edit"></span>
-                        </button>
-                        <button
-                          nz-button
-                          nzType="text"
-                          nzSize="small"
-                          nzDanger
-                          nz-popconfirm
-                          nzPopconfirmTitle="Bạn có chắc muốn xóa phase này?"
-                          nzOkText="Xóa"
-                          nzCancelText="Hủy"
-                          (nzOnConfirm)="deletePhase(phase.id)"
-                        >
-                          <span nz-icon nzType="delete"></span>
-                          Xóa phase
-                        </button>
-                      </div>
-                    </div>
-                  </ng-template>
-
-                  <!-- Learning Contents -->
-                  <div class="content-section">
-                    <div class="section-subtitle">
-                      <span nz-icon nzType="read"></span>
-                      <strong>Nội dung học tập</strong>
-                      <span class="section-count">({{ phase.contents.length }})</span>
-                    </div>
-                    @if (phase.contents.length === 0) {
-                      <p class="empty-hint">Chưa có nội dung. Nhấn "Thêm nội dung" để bắt đầu.</p>
-                    }
-                    <nz-table
-                      [nzData]="phase.contents"
-                      [nzShowPagination]="false"
-                      nzSize="small"
-                      class="inner-table"
-                      [nzScroll]="{ x: '580px' }"
-                    >
-                      <thead>
-                        <tr>
-                          <th nzWidth="60px">STT</th>
-                          <th>Tiêu đề</th>
-                          <th nzWidth="120px">Loại</th>
-                          <th nzAlign="center" nzWidth="120px">Thao tác</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (content of phase.contents; track content.id) {
-                          <tr>
-                            <td>{{ content.order_no }}</td>
-                            <td>
-                              <strong>{{ content.title }}</strong>
-                              @if (content.description) {
-                                <br /><small class="desc-hint">{{ content.description }}</small>
-                              }
-                            </td>
-                            <td>
-                              <nz-tag [nzColor]="getContentTypeColor(content.type)">
-                                {{ getContentTypeLabel(content.type) }}
-                              </nz-tag>
-                            </td>
-                            <td nzAlign="center">
-                              <div class="inner-actions">
-                                <button
-                                  nz-button
-                                  nzType="text"
-                                  nzSize="small"
-                                  (click)="openEditContentModal(content)"
-                                >
-                                  <span nz-icon nzType="edit"></span>
-                                </button>
-                                <button
-                                  nz-button
-                                  nzType="text"
-                                  nzSize="small"
-                                  nzDanger
-                                  nz-popconfirm
-                                  nzPopconfirmTitle="Xóa nội dung này?"
-                                  nzOkText="Xóa"
-                                  nzCancelText="Hủy"
-                                  (nzOnConfirm)="deleteContent(content.id, phase.id)"
-                                >
-                                  <span nz-icon nzType="delete"></span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        }
-                      </tbody>
-                    </nz-table>
-                  </div>
-
-                  <nz-divider></nz-divider>
-
-                  <!-- Quizzes -->
-                  <div class="quiz-section">
-                    <div class="section-subtitle">
-                      <span nz-icon nzType="form"></span>
-                      <strong>Bài kiểm tra (Quiz)</strong>
-                      <span class="section-count">({{ getPhaseQuizzes(phase.id).length }})</span>
-                    </div>
-                    @if (getPhaseQuizzes(phase.id).length === 0) {
-                      <p class="empty-hint">Chưa có Quiz. Nhấn "Thêm Quiz" để tạo bài kiểm tra.</p>
-                    }
-                    <nz-table
-                      [nzData]="getPhaseQuizzes(phase.id)"
-                      [nzShowPagination]="false"
-                      nzSize="small"
-                      class="inner-table"
-                      [nzScroll]="{ x: '680px' }"
-                    >
-                      <thead>
-                        <tr>
-                          <th>Tiêu đề Quiz</th>
-                          <th nzWidth="100px">Thời gian</th>
-                          <th nzWidth="100px">Điểm đạt</th>
-                          <th nzWidth="120px">Trạng thái</th>
-                          <th nzAlign="center" nzWidth="220px">Thao tác</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (quiz of getPhaseQuizzes(phase.id); track quiz.id) {
-                          <tr [class.selected-row]="selectedQuiz()?.id === quiz.id">
-                            <td>
-                              <strong>{{ quiz.title }}</strong>
-                            </td>
-                            <td>{{ quiz.duration_minutes }} phút</td>
-                            <td>{{ quiz.pass_score }}/100</td>
-                            <td>
-                              <nz-tag [nzColor]="getQuizStatusColor(quiz.status)">
-                                {{ getQuizStatusLabel(quiz.status) }}
-                              </nz-tag>
-                            </td>
-                            <td nzAlign="center">
-                              <div class="inner-actions">
-                                <button
-                                  nz-button
-                                  nzType="default"
-                                  nzSize="small"
-                                  (click)="selectQuizForQuestions(quiz)"
-                                  [class.btn-active]="selectedQuiz()?.id === quiz.id"
-                                >
-                                  <span nz-icon nzType="unordered-list"></span>
-                                  Câu hỏi
-                                </button>
-                                @if (quiz.status === 'DRAFT') {
-                                  <button
-                                    nz-button
-                                    nzType="default"
-                                    nzSize="small"
-                                    nz-popconfirm
-                                    nzPopconfirmTitle="Phát hành Quiz này? Sau khi phát hành sẽ không thể chỉnh sửa."
-                                    nzOkText="Phát hành"
-                                    nzCancelText="Hủy"
-                                    (nzOnConfirm)="publishQuiz(quiz.id)"
-                                  >
-                                    <span nz-icon nzType="rocket"></span>
-                                    Phát hành
-                                  </button>
-                                }
-                                <div class="action-btn-pair">
-                                  <button
-                                    nz-button
-                                    nzType="text"
-                                    nzSize="small"
-                                    (click)="openEditQuizModal(quiz)"
-                                  >
-                                    <span nz-icon nzType="edit"></span>
-                                  </button>
-                                  <button
-                                    nz-button
-                                    nzType="text"
-                                    nzSize="small"
-                                    nzDanger
-                                    nz-popconfirm
-                                    nzPopconfirmTitle="Xóa Quiz này?"
-                                    nzOkText="Xóa"
-                                    nzCancelText="Hủy"
-                                    (nzOnConfirm)="deleteQuiz(quiz.id, phase.id)"
-                                  >
-                                    <span nz-icon nzType="delete"></span>
-                                  </button>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        }
-                      </tbody>
-                    </nz-table>
-                  </div>
-                </nz-collapse-panel>
-              }
-            </nz-collapse>
-          </nz-spin>
-        </nz-card>
-      }
-
-      <!-- Question Management Panel -->
-      @if (selectedQuiz(); as quiz) {
-        <nz-card
-          [nzBordered]="false"
-          class="question-card"
-          [nzTitle]="questionCardTitle"
-          [nzExtra]="questionCardExtra"
-        >
-          <ng-template #questionCardTitle>
-            <div class="panel-header">
-              <span nz-icon nzType="question-circle" class="panel-icon"></span>
-              <span
-                >Câu hỏi của Quiz: <strong>{{ quiz.title }}</strong></span
-              >
-              <nz-tag [nzColor]="getQuizStatusColor(quiz.status)" style="margin-left: 8px;">
-                {{ getQuizStatusLabel(quiz.status) }}
-              </nz-tag>
-            </div>
-          </ng-template>
-          <ng-template #questionCardExtra>
-            <div class="card-extra-actions">
-              <button nz-button nzType="default" nzSize="small" (click)="closeQuestionPanel()">
-                <span nz-icon nzType="close"></span>
-                Đóng
-              </button>
-              <button nz-button nzType="primary" nzSize="small" (click)="openCreateQuestionModal()">
-                <span nz-icon nzType="plus"></span>
-                Thêm câu hỏi
-              </button>
-            </div>
-          </ng-template>
-
-          <nz-spin [nzSpinning]="isQuestionsLoading()">
-            @if (questions().length === 0 && !isQuestionsLoading()) {
-              <nz-empty nzNotFoundContent="Quiz này chưa có câu hỏi nào."></nz-empty>
-            }
-            <nz-table
-              [nzData]="questions()"
-              [nzShowPagination]="false"
-              nzSize="small"
-              [nzScroll]="{ x: '600px' }"
-            >
-              <thead>
-                <tr>
-                  <th nzWidth="60px">STT</th>
-                  <th>Nội dung câu hỏi</th>
-                  <th nzWidth="160px">Loại câu hỏi</th>
-                  <th nzWidth="80px">Điểm</th>
-                  <th nzAlign="center" nzWidth="120px">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (q of questions(); track q.id) {
-                  <tr>
-                    <td>{{ q.order_no }}</td>
-                    <td>
-                      <strong>{{ q.content }}</strong>
-                      @if (q.options) {
-                        <br /><small class="desc-hint">Đáp án: {{ q.correct_answer }}</small>
-                      }
-                    </td>
-                    <td>
-                      <nz-tag [nzColor]="getQuestionTypeColor(q.type)">
-                        {{ getQuestionTypeLabel(q.type) }}
-                      </nz-tag>
-                    </td>
-                    <td>{{ q.score }}</td>
-                    <td nzAlign="center">
-                      <div class="inner-actions">
-                        <button
-                          nz-button
-                          nzType="text"
-                          nzSize="small"
-                          (click)="openEditQuestionModal(q)"
-                        >
-                          <span nz-icon nzType="edit"></span>
-                        </button>
-                        <button
-                          nz-button
-                          nzType="text"
-                          nzSize="small"
-                          nzDanger
-                          nz-popconfirm
-                          nzPopconfirmTitle="Xóa câu hỏi này?"
-                          nzOkText="Xóa"
-                          nzCancelText="Hủy"
-                          (nzOnConfirm)="deleteQuestion(q.id)"
-                        >
-                          <span nz-icon nzType="delete"></span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </nz-table>
-          </nz-spin>
-        </nz-card>
-      }
-
-      <!-- Modal: Tạo / Chỉnh sửa Roadmap -->
-      <nz-modal
-        [(nzVisible)]="isRoadmapModalVisible"
-        [nzTitle]="editingRoadmap() ? 'Chỉnh sửa Roadmap' : 'Tạo Roadmap mới'"
-        (nzOnCancel)="closeRoadmapModal()"
-        (nzOnOk)="saveRoadmap()"
-        [nzOkLoading]="isSaving()"
-        nzOkText="Lưu"
-        nzCancelText="Hủy"
-        [nzWidth]="'min(540px, 94vw)'"
-      >
-        <ng-container *nzModalContent>
-          <form [formGroup]="roadmapForm" nz-form nzLayout="vertical">
-            <nz-form-item>
-              <nz-form-label nzRequired>Tên Roadmap</nz-form-label>
-              <nz-form-control nzErrorTip="Vui lòng nhập tên Roadmap (tối thiểu 3 ký tự)">
-                <input
-                  nz-input
-                  formControlName="name"
-                  placeholder="Ví dụ: Lộ trình Frontend Developer"
-                />
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label>Mô tả</nz-form-label>
-              <nz-form-control>
-                <textarea
-                  nz-input
-                  rows="3"
-                  formControlName="description"
-                  placeholder="Mô tả mục tiêu và nội dung của Roadmap..."
-                ></textarea>
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label nzRequired>Trạng thái</nz-form-label>
-              <nz-form-control>
-                <nz-select formControlName="status">
-                  <nz-option nzValue="DRAFT" nzLabel="Bản nháp (DRAFT)"></nz-option>
-                  <nz-option nzValue="ACTIVE" nzLabel="Đang hoạt động (ACTIVE)"></nz-option>
-                  <nz-option nzValue="ARCHIVED" nzLabel="Lưu trữ (ARCHIVED)"></nz-option>
-                </nz-select>
-              </nz-form-control>
-            </nz-form-item>
-          </form>
-        </ng-container>
-      </nz-modal>
-
-      <!-- Modal: Tạo / Chỉnh sửa Phase -->
-      <nz-modal
-        [(nzVisible)]="isPhaseModalVisible"
-        [nzTitle]="editingPhase() ? 'Chỉnh sửa Phase' : 'Thêm Phase mới'"
-        (nzOnCancel)="closePhaseModal()"
-        (nzOnOk)="savePhase()"
-        [nzOkLoading]="isSaving()"
-        nzOkText="Lưu"
-        nzCancelText="Hủy"
-        [nzWidth]="'min(540px, 94vw)'"
-      >
-        <ng-container *nzModalContent>
-          <form [formGroup]="phaseForm" nz-form nzLayout="vertical">
-            <nz-form-item>
-              <nz-form-label nzRequired>Tên Phase</nz-form-label>
-              <nz-form-control nzErrorTip="Vui lòng nhập tên Phase">
-                <input
-                  nz-input
-                  formControlName="name"
-                  placeholder="Ví dụ: Phase 1: Kiến thức nền tảng"
-                />
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label>Mô tả</nz-form-label>
-              <nz-form-control>
-                <textarea
-                  nz-input
-                  rows="2"
-                  formControlName="description"
-                  placeholder="Mô tả nội dung của Phase này..."
-                ></textarea>
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label nzRequired>Thứ tự (Order)</nz-form-label>
-              <nz-form-control nzErrorTip="Vui lòng nhập thứ tự phase (số nguyên dương)">
-                <input nz-input type="number" formControlName="order_no" placeholder="1" min="1" />
-              </nz-form-control>
-            </nz-form-item>
-          </form>
-        </ng-container>
-      </nz-modal>
-
-      <!-- Modal: Tạo / Chỉnh sửa Nội dung -->
-      <nz-modal
-        [(nzVisible)]="isContentModalVisible"
-        [nzTitle]="editingContent() ? 'Chỉnh sửa Nội dung' : 'Thêm Nội dung mới'"
-        (nzOnCancel)="closeContentModal()"
-        (nzOnOk)="saveContent()"
-        [nzOkLoading]="isSaving()"
-        nzOkText="Lưu"
-        nzCancelText="Hủy"
-        [nzWidth]="'min(600px, 94vw)'"
-      >
-        <ng-container *nzModalContent>
-          <form [formGroup]="contentForm" nz-form nzLayout="vertical">
-            <nz-form-item>
-              <nz-form-label nzRequired>Tiêu đề nội dung</nz-form-label>
-              <nz-form-control nzErrorTip="Vui lòng nhập tiêu đề">
-                <input
-                  nz-input
-                  formControlName="title"
-                  placeholder="Ví dụ: Bài 1: Giới thiệu Angular"
-                />
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label nzRequired>Loại nội dung</nz-form-label>
-              <nz-form-control>
-                <nz-select formControlName="type">
-                  <nz-option nzValue="LESSON" nzLabel="Bài học (LESSON)"></nz-option>
-                  <nz-option nzValue="DOCUMENT" nzLabel="Tài liệu (DOCUMENT)"></nz-option>
-                  <nz-option nzValue="VIDEO" nzLabel="Video (VIDEO)"></nz-option>
-                  <nz-option nzValue="LINK" nzLabel="Liên kết (LINK)"></nz-option>
-                </nz-select>
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label>Mô tả</nz-form-label>
-              <nz-form-control>
-                <textarea
-                  nz-input
-                  rows="2"
-                  formControlName="description"
-                  placeholder="Mô tả ngắn về nội dung này..."
-                ></textarea>
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label>Nội dung</nz-form-label>
-              <nz-form-control>
-                <textarea
-                  nz-input
-                  rows="4"
-                  formControlName="content"
-                  placeholder="Nhập nội dung chi tiết (Markdown hoặc HTML)..."
-                ></textarea>
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label>URL tài nguyên</nz-form-label>
-              <nz-form-control>
-                <input nz-input formControlName="resource_url" placeholder="https://..." />
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label nzRequired>Thứ tự hiển thị</nz-form-label>
-              <nz-form-control nzErrorTip="Vui lòng nhập thứ tự">
-                <input nz-input type="number" formControlName="order_no" placeholder="1" min="1" />
-              </nz-form-control>
-            </nz-form-item>
-          </form>
-        </ng-container>
-      </nz-modal>
-
-      <!-- Modal: Tạo / Chỉnh sửa Quiz -->
-      <nz-modal
-        [(nzVisible)]="isQuizModalVisible"
-        [nzTitle]="editingQuiz() ? 'Chỉnh sửa Quiz' : 'Thêm Quiz mới'"
-        (nzOnCancel)="closeQuizModal()"
-        (nzOnOk)="saveQuiz()"
-        [nzOkLoading]="isSaving()"
-        nzOkText="Lưu"
-        nzCancelText="Hủy"
-        [nzWidth]="'min(540px, 94vw)'"
-      >
-        <ng-container *nzModalContent>
-          <form [formGroup]="quizForm" nz-form nzLayout="vertical">
-            <nz-form-item>
-              <nz-form-label nzRequired>Tiêu đề Quiz</nz-form-label>
-              <nz-form-control nzErrorTip="Vui lòng nhập tiêu đề Quiz">
-                <input
-                  nz-input
-                  formControlName="title"
-                  placeholder="Ví dụ: Kiểm tra cuối Phase 1"
-                />
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label>Mô tả</nz-form-label>
-              <nz-form-control>
-                <textarea
-                  nz-input
-                  rows="2"
-                  formControlName="description"
-                  placeholder="Mô tả nội dung bài kiểm tra..."
-                ></textarea>
-              </nz-form-control>
-            </nz-form-item>
-            <div class="form-row">
-              <nz-form-item class="form-col">
-                <nz-form-label nzRequired>Thời gian (phút)</nz-form-label>
-                <nz-form-control nzErrorTip="Nhập số phút (> 0)">
-                  <input
-                    nz-input
-                    type="number"
-                    formControlName="duration_minutes"
-                    placeholder="30"
-                    min="1"
-                  />
-                </nz-form-control>
-              </nz-form-item>
-              <nz-form-item class="form-col">
-                <nz-form-label nzRequired>Điểm đạt (0-100)</nz-form-label>
-                <nz-form-control nzErrorTip="Nhập điểm từ 0 đến 100">
-                  <input
-                    nz-input
-                    type="number"
-                    formControlName="pass_score"
-                    placeholder="60"
-                    min="0"
-                    max="100"
-                  />
-                </nz-form-control>
-              </nz-form-item>
-              <nz-form-item class="form-col">
-                <nz-form-label nzRequired>Số lần thử tối đa</nz-form-label>
-                <nz-form-control nzErrorTip="Nhập số lần thử (≥ 1)">
-                  <input
-                    nz-input
-                    type="number"
-                    formControlName="max_attempts"
-                    placeholder="3"
-                    min="1"
-                  />
-                </nz-form-control>
-              </nz-form-item>
-            </div>
-          </form>
-        </ng-container>
-      </nz-modal>
-
-      <!-- Modal: Tạo / Chỉnh sửa Câu hỏi -->
-      <nz-modal
-        [(nzVisible)]="isQuestionModalVisible"
-        [nzTitle]="editingQuestion() ? 'Chỉnh sửa Câu hỏi' : 'Thêm Câu hỏi mới'"
-        (nzOnCancel)="closeQuestionModal()"
-        (nzOnOk)="saveQuestion()"
-        [nzOkLoading]="isSaving()"
-        nzOkText="Lưu"
-        nzCancelText="Hủy"
-        [nzWidth]="'min(600px, 94vw)'"
-      >
-        <ng-container *nzModalContent>
-          <form [formGroup]="questionForm" nz-form nzLayout="vertical">
-            <nz-form-item>
-              <nz-form-label nzRequired>Nội dung câu hỏi</nz-form-label>
-              <nz-form-control nzErrorTip="Vui lòng nhập nội dung câu hỏi">
-                <textarea
-                  nz-input
-                  rows="3"
-                  formControlName="content"
-                  placeholder="Nhập câu hỏi tại đây..."
-                ></textarea>
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label nzRequired>Loại câu hỏi</nz-form-label>
-              <nz-form-control>
-                <nz-select formControlName="type">
-                  <nz-option
-                    nzValue="SINGLE_CHOICE"
-                    nzLabel="Một đáp án (SINGLE_CHOICE)"
-                  ></nz-option>
-                  <nz-option
-                    nzValue="MULTIPLE_CHOICE"
-                    nzLabel="Nhiều đáp án (MULTIPLE_CHOICE)"
-                  ></nz-option>
-                  <nz-option nzValue="TEXT" nzLabel="Tự luận (TEXT)"></nz-option>
-                </nz-select>
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label>Các lựa chọn (phân cách bằng dấu phẩy hoặc JSON)</nz-form-label>
-              <nz-form-control>
-                <textarea
-                  nz-input
-                  rows="2"
-                  formControlName="options"
-                  placeholder='Ví dụ: "A. Option 1, B. Option 2, C. Option 3" hoặc JSON array'
-                ></textarea>
-              </nz-form-control>
-            </nz-form-item>
-            <nz-form-item>
-              <nz-form-label>Đáp án đúng</nz-form-label>
-              <nz-form-control>
-                <input nz-input formControlName="correct_answer" placeholder="Ví dụ: A hoặc A,C" />
-              </nz-form-control>
-            </nz-form-item>
-            <div class="form-row">
-              <nz-form-item class="form-col">
-                <nz-form-label nzRequired>Điểm</nz-form-label>
-                <nz-form-control nzErrorTip="Nhập điểm (≥ 0)">
-                  <input nz-input type="number" formControlName="score" placeholder="10" min="0" />
-                </nz-form-control>
-              </nz-form-item>
-              <nz-form-item class="form-col">
-                <nz-form-label nzRequired>Thứ tự</nz-form-label>
-                <nz-form-control nzErrorTip="Nhập thứ tự (≥ 1)">
-                  <input
-                    nz-input
-                    type="number"
-                    formControlName="order_no"
-                    placeholder="1"
-                    min="1"
-                  />
-                </nz-form-control>
-              </nz-form-item>
-            </div>
-          </form>
-        </ng-container>
-      </nz-modal>
-    </div>
-  `,
-  styles: [
-    `
-      :host {
-        display: block;
-        width: 100%;
-        box-sizing: border-box;
-      }
-
-      .training-page {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        width: 100%;
-        box-sizing: border-box;
-      }
-
-      .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: #fff;
-        padding: 12px 16px;
-        border-radius: 8px;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-
-        .header-titles {
-          h2 {
-            margin: 0 0 2px;
-            font-size: 18px;
-            font-weight: 600;
-            color: #1a1a1a;
-          }
-          p {
-            margin: 0;
-            font-size: 12.5px;
-            color: #64748b;
-          }
-        }
-      }
-
-      .main-card,
-      .phase-card,
-      .question-card {
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-        width: 100%;
-
-        :ng-deep .ant-card-body {
-          padding: 12px 16px !important;
-        }
-
-        :ng-deep .ant-card-head {
-          padding: 0 16px !important;
-          min-height: 46px !important;
-        }
-      }
-
-      .table-toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 10px;
-        flex-wrap: wrap;
-
-        .search-box {
-          flex: 1;
-          min-width: 260px;
-          max-width: 380px;
-        }
-
-        .filter-box {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-
-          .filter-label {
-            font-size: 14px;
-            color: #555;
-            white-space: nowrap;
-          }
-
-          .status-filter-select {
-            width: 180px;
-          }
-        }
-      }
-
-      .selected-row {
-        background-color: #f0f7ff !important;
-      }
-
-      /* Views Switcher */
-      .desktop-view {
-        display: block;
-      }
-      .mobile-view {
-        display: none;
-      }
-
-      /* ── Mobile Roadmap Card Styles ─────────────────────────────────── */
-      .roadmap-mobile-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        padding: 16px;
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-
-      .roadmap-mobile-card:active {
-        transform: scale(0.99);
-      }
-
-      .roadmap-mobile-card--selected {
-        border-color: #1890ff;
-        background: #f8fbff;
-        box-shadow: 0 4px 14px rgba(24, 144, 255, 0.12);
-        border-left: 5px solid #1890ff;
-      }
-
-      .card-top-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 10px;
-        margin-bottom: 8px;
-      }
-
-      .roadmap-title-area {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex: 1;
-        min-width: 0;
-      }
-
-      .roadmap-badge-icon {
-        color: #1890ff;
-        font-size: 18px;
-        flex-shrink: 0;
-      }
-
-      .roadmap-name {
-        font-size: 16px;
-        font-weight: 700;
-        color: #0f172a;
-        line-height: 1.35;
-        word-break: break-word;
-      }
-
-      .status-tag {
-        margin: 0;
-        flex-shrink: 0;
-        font-size: 11.5px;
-        font-weight: 600;
-        border-radius: 6px;
-        padding: 2px 8px;
-      }
-
-      .roadmap-desc-full {
-        font-size: 13px;
-        color: #475569;
-        line-height: 1.55;
-        margin-bottom: 10px;
-        background: #f8fafc;
-        padding: 9px 12px;
-        border-radius: 8px;
-        border-left: 3px solid #cbd5e1;
-        word-break: break-word;
-      }
-
-      .roadmap-meta-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        margin-bottom: 12px;
-        padding: 8px 12px;
-        background: #ffffff;
-        border: 1px dashed #e2e8f0;
-        border-radius: 8px;
-      }
-
-      .meta-box {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-
-      .meta-label {
-        font-size: 11px;
-        color: #94a3b8;
-        text-transform: uppercase;
-        font-weight: 600;
-        letter-spacing: 0.03em;
-      }
-
-      .meta-value {
-        font-size: 12.5px;
-        font-weight: 600;
-        color: #334155;
-      }
-
-      .meta-value.highlight {
-        color: #0284c7;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-      }
-
-      .roadmap-mobile-actions {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        padding-top: 10px;
-        border-top: 1px solid #f1f5f9;
-
-        .action-btn-main {
-          width: 100%;
-          font-weight: 600;
-          height: 32px;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          text-align: center !important;
-          margin: 0 auto !important;
-          gap: 6px;
-          white-space: nowrap;
-
-          ::ng-deep .anticon + span {
-            margin-left: 0 !important;
-          }
-        }
-
-        .action-btn-pair {
-          width: 100%;
-          display: flex;
-          gap: 8px;
-          align-items: center;
-          justify-content: center;
-          flex-wrap: nowrap !important;
-          white-space: nowrap !important;
-
-          .action-btn-sub {
-            flex: 1;
-            height: 32px;
-            font-size: 12px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            white-space: nowrap;
-          }
-        }
-      }
-
-      .mobile-empty-state {
-        text-align: center;
-        padding: 24px;
-        background: #ffffff;
-        border-radius: 12px;
-        border: 1px dashed #e2e8f0;
-      }
-
-      .roadmap-summary-banner {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-left: 4px solid #1890ff;
-        border-radius: 10px;
-        padding: 12px 14px;
-        margin-bottom: 16px;
-
-        .banner-desc {
-          font-size: 13.5px;
-          color: #334155;
-          line-height: 1.5;
-          margin-bottom: 8px;
-        }
-
-        .banner-meta {
-          display: flex;
-          gap: 16px;
-          flex-wrap: wrap;
-          font-size: 12px;
-          color: #64748b;
-
-          strong {
-            color: #0284c7;
-          }
-        }
-      }
-
-      .col-desc {
-        min-width: 200px;
-      }
-
-      .desc-text {
-        color: #475569;
-        font-size: 13px;
-        line-height: 1.5;
-        white-space: normal;
-        word-break: break-word;
-        display: block;
-      }
-
-      /* Compact table paddings to reduce empty vertical space */
-      :host ::ng-deep {
-        .desktop-view table {
-          table-layout: auto !important;
-          width: 100% !important;
-        }
-
-        .ant-table-thead > tr > th {
-          padding: 10px 12px !important;
-          font-weight: 600 !important;
-          font-size: 13px !important;
-        }
-
-        .ant-table-tbody > tr > td {
-          padding: 10px 12px !important;
-          font-size: 13px !important;
-        }
-
-        .ant-collapse > .ant-collapse-item > .ant-collapse-header {
-          padding: 10px 14px !important;
-          align-items: center !important;
-        }
-
-        .ant-collapse-content > .ant-collapse-content-box {
-          padding: 12px 14px !important;
-        }
-      }
-
-      .count-number {
-        font-size: 15px;
-        font-weight: 600;
-        color: #1890ff;
-      }
-
-      .table-actions {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto;
-        width: 100%;
-        text-align: center;
-        gap: 6px;
-        white-space: nowrap;
-
-        .btn-manage-phase {
-          font-size: 12px;
-          height: 28px;
-          padding: 0 12px;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          text-align: center !important;
-          margin: 0 auto !important;
-          gap: 6px;
-          min-width: 124px;
-
-          ::ng-deep .anticon + span {
-            margin-left: 0 !important;
-          }
-        }
-
-        .btn-active {
-          border-color: #1890ff;
-          color: #1890ff;
-          font-weight: 600;
-          background: #e6f7ff;
-        }
-      }
-
-      .action-btn-pair {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto;
-        gap: 4px;
-        white-space: nowrap;
-        flex-wrap: nowrap !important;
-        flex-shrink: 0;
-        text-align: center;
-      }
-
-      .empty-cell {
-        text-align: center;
-        padding: 30px;
-      }
-
-      /* Phase panel */
-      .panel-header {
-        display: flex;
-        align-items: center;
-        font-size: 16px;
-        gap: 8px;
-
-        .panel-icon {
-          color: #1890ff;
-        }
-      }
-
-      .phase-header-content {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-
-        .phase-order-badge {
-          background: #e6f7ff;
-          color: #1890ff;
-          font-size: 12px;
-          font-weight: 600;
-          padding: 2px 8px;
-          border-radius: 10px;
-          border: 1px solid #91d5ff;
-        }
-
-        .phase-desc {
-          color: #888;
-          font-size: 13px;
-          font-weight: 400;
-        }
-      }
-
-      .phase-actions {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-      }
-
-      /* Content & Quiz sections */
-      .content-section,
-      .quiz-section {
-        margin-bottom: 12px;
-      }
-
-      .section-subtitle {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 10px;
-        font-size: 14px;
-        color: #333;
-
-        .section-count {
-          color: #888;
-          font-size: 13px;
-          font-weight: 400;
-        }
-      }
-
-      .empty-hint {
-        color: #aaa;
-        font-style: italic;
-        font-size: 13px;
-        margin: 8px 0 12px;
-        padding-left: 8px;
-      }
-
-      .inner-table {
-        border-radius: 6px;
-        overflow: hidden;
-      }
-
-      .inner-actions {
-        display: inline-flex;
-        gap: 4px;
-        justify-content: center;
-        align-items: center;
-        flex-wrap: nowrap !important;
-        white-space: nowrap !important;
-
-        .btn-active {
-          border-color: #1890ff;
-          color: #1890ff;
-          font-weight: 600;
-        }
-      }
-
-      .desc-hint {
-        color: #888;
-        font-size: 12px;
-      }
-
-      /* Question card */
-      .card-extra-actions {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-
-      /* Modal forms */
-      .form-row {
-        display: flex;
-        gap: 16px;
-        flex-wrap: wrap;
-
-        .form-col {
-          flex: 1;
-          min-width: 120px;
-        }
-      }
-
-      /* ── Responsive breakpoints ─────────────────────────────────────── */
-      @media (max-width: 900px) {
-        .phase-header-content {
-          flex-wrap: wrap;
-        }
-        .phase-actions {
-          flex-wrap: wrap;
-        }
-      }
-
-      @media (max-width: 768px) {
-        .desktop-view {
-          display: none !important;
-        }
-
-        .mobile-view {
-          display: flex !important;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .training-page {
-          gap: 14px;
-        }
-
-        .page-header {
-          flex-direction: column;
-          align-items: stretch;
-          gap: 14px;
-          padding: 14px 16px;
-
-          .header-titles {
-            h2 {
-              font-size: 18px;
-            }
-            p {
-              font-size: 12px;
-            }
-          }
-
-          button {
-            width: 100%;
-            justify-content: center;
-          }
-        }
-
-        .table-toolbar {
-          flex-direction: column;
-          align-items: stretch;
-          gap: 12px;
-
-          .search-box {
-            min-width: 100%;
-            max-width: 100%;
-          }
-
-          .filter-box {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-
-            .filter-label {
-              font-size: 13px;
-              white-space: nowrap;
-            }
-
-            .status-filter-select {
-              flex: 1;
-              width: auto;
-            }
-          }
-        }
-
-        .panel-header {
-          flex-wrap: wrap;
-          font-size: 14px;
-          line-height: 1.4;
-        }
-
-        .phase-header-content {
-          font-size: 13px;
-          gap: 6px;
-
-          .phase-desc {
-            display: block;
-            width: 100%;
-            margin-top: 2px;
-          }
-        }
-
-        .phase-actions {
-          flex-wrap: wrap;
-          gap: 6px;
-          margin-top: 8px;
-
-          button {
-            font-size: 12px;
-            padding: 0 8px;
-          }
-        }
-
-        .card-extra-actions {
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-
-        .form-row {
-          flex-direction: column;
-          gap: 0;
-
-          .form-col {
-            min-width: 100%;
-          }
-        }
-
-        .desc-text {
-          max-width: 180px;
-        }
-      }
-
-      @media (max-width: 576px) {
-        .page-header {
-          padding: 12px 14px;
-        }
-
-        .main-card,
-        .phase-card,
-        .question-card {
-          border-radius: 8px;
-        }
-
-        .main-card :ng-deep .ant-card-body,
-        .phase-card :ng-deep .ant-card-body,
-        .question-card :ng-deep .ant-card-body {
-          padding: 12px !important;
-        }
-
-        .roadmap-mobile-card {
-          padding: 12px 14px;
-          border-radius: 12px;
-        }
-
-        .roadmap-name {
-          font-size: 15px;
-        }
-
-        .roadmap-desc-full {
-          font-size: 12.5px;
-          padding: 8px 10px;
-          margin-bottom: 8px;
-        }
-
-        .roadmap-meta-grid {
-          padding: 6px 10px;
-          margin-bottom: 10px;
-        }
-
-        .meta-label {
-          font-size: 10px;
-        }
-
-        .meta-value {
-          font-size: 12px;
-        }
-
-        .roadmap-mobile-actions {
-          padding-top: 8px;
-          gap: 6px;
-
-          .action-btn-main {
-            font-size: 12px;
-            height: 30px;
-          }
-
-          .action-btn-pair {
-            gap: 6px;
-
-            .action-btn-sub {
-              font-size: 11.5px;
-              height: 30px;
-              padding: 0 8px;
-            }
-          }
-        }
-
-        .table-actions {
-          button {
-            padding: 0 6px;
-            font-size: 11px;
-          }
-        }
-
-        .inner-actions {
-          flex-wrap: nowrap !important;
-          white-space: nowrap !important;
-          button {
-            padding: 0 4px;
-          }
-        }
-
-        .table-toolbar .filter-box {
-          flex-direction: column;
-          align-items: stretch;
-          gap: 6px;
-
-          .status-filter-select {
-            width: 100%;
-          }
-        }
-      }
-
-      @media (max-width: 390px) {
-        .roadmap-name {
-          font-size: 14px;
-        }
-
-        .status-tag {
-          font-size: 10.5px;
-          padding: 1px 6px;
-        }
-
-        .roadmap-meta-grid {
-          grid-template-columns: 1fr;
-          gap: 4px;
-        }
-
-        .roadmap-mobile-actions {
-          gap: 6px;
-
-          .action-btn-main {
-            font-size: 11.5px;
-            height: 28px;
-          }
-
-          .action-btn-pair {
-            gap: 6px;
-
-            .action-btn-sub {
-              font-size: 11px;
-              height: 28px;
-            }
-          }
-        }
-      }
-    `,
-  ],
+  templateUrl: './training-management.component.html',
+  styleUrl: './training-management.component.scss',
 })
 export class TrainingManagementComponent implements OnInit {
   private readonly trainingService = inject(TrainingService);
@@ -1788,6 +101,7 @@ export class TrainingManagementComponent implements OnInit {
   protected readonly quizzesByPhase = signal<Record<string, Quiz[]>>({});
 
   protected readonly selectedQuiz = signal<Quiz | null>(null);
+  protected readonly questionViewMode = signal<'list' | 'form'>('list');
   protected readonly questions = signal<Question[]>([]);
   protected readonly isQuestionsLoading = signal<boolean>(false);
 
@@ -1827,10 +141,18 @@ export class TrainingManagementComponent implements OnInit {
 
   protected isQuizModalVisible = false;
   protected readonly editingQuiz = signal<Quiz | null>(null);
+  protected quizDraftQuestions: DraftQuestion[] = [];
   private pendingQuizPhaseId = '';
 
   protected isQuestionModalVisible = false;
   protected readonly editingQuestion = signal<Question | null>(null);
+
+  /** State for the option builder in the question modal */
+  protected choiceOptions: { key: string; text: string }[] = [];
+  protected singleCorrectKey = '';
+  protected multiCorrectKeys = new Set<string>();
+
+  private static readonly OPTION_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
   // ── Forms ──────────────────────────────────────────────────────────────────
 
@@ -1866,10 +188,9 @@ export class TrainingManagementComponent implements OnInit {
   protected readonly questionForm = this.fb.group({
     content: ['', [Validators.required]],
     type: ['SINGLE_CHOICE' as QuestionType, [Validators.required]],
-    options: [''],
-    correct_answer: [''],
     score: [10, [Validators.required, Validators.min(0)]],
     order_no: [1, [Validators.required, Validators.min(1)]],
+    text_answer_hint: [''],
   });
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -2256,6 +577,111 @@ export class TrainingManagementComponent implements OnInit {
     return this.quizzesByPhase()[phaseId] ?? [];
   }
 
+  createBlankDraftQuestion(orderNo: number = 1): DraftQuestion {
+    return {
+      tempId: 'draft_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      content: '',
+      type: 'SINGLE_CHOICE',
+      score: 10,
+      options: [
+        { key: 'A', text: '' },
+        { key: 'B', text: '' },
+        { key: 'C', text: '' },
+        { key: 'D', text: '' },
+      ],
+      singleCorrectKey: 'A',
+      multiCorrectKeys: new Set(['A']),
+      text_answer_hint: '',
+    };
+  }
+
+  addDraftQuestion(): void {
+    this.quizDraftQuestions.push(this.createBlankDraftQuestion(this.quizDraftQuestions.length + 1));
+    this.cdr.markForCheck();
+  }
+
+  removeDraftQuestion(index: number): void {
+    this.quizDraftQuestions.splice(index, 1);
+    this.cdr.markForCheck();
+  }
+
+  onDraftQuestionTypeChange(dq: DraftQuestion): void {
+    if (dq.type === 'TRUE_FALSE') {
+      dq.options = [
+        { key: 'A', text: 'Đúng' },
+        { key: 'B', text: 'Sai' },
+      ];
+      dq.singleCorrectKey = 'A';
+      dq.multiCorrectKeys = new Set(['A']);
+    } else if (dq.type === 'TEXT') {
+      dq.options = [];
+      dq.singleCorrectKey = '';
+      dq.multiCorrectKeys.clear();
+    } else {
+      if (dq.options.length < 2) {
+        dq.options = [
+          { key: 'A', text: '' },
+          { key: 'B', text: '' },
+          { key: 'C', text: '' },
+          { key: 'D', text: '' },
+        ];
+        dq.singleCorrectKey = 'A';
+        dq.multiCorrectKeys = new Set(['A']);
+      }
+    }
+    this.cdr.markForCheck();
+  }
+
+  addDraftQuestionOption(dq: DraftQuestion): void {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    if (dq.options.length >= letters.length) return;
+    const nextKey = letters[dq.options.length];
+    dq.options.push({ key: nextKey, text: '' });
+    this.cdr.markForCheck();
+  }
+
+  removeDraftQuestionOption(dq: DraftQuestion, optIndex: number): void {
+    if (dq.options.length <= 2) {
+      this.message.warning('Câu hỏi trắc nghiệm cần có ít nhất 2 lựa chọn.');
+      return;
+    }
+    const removedKey = dq.options[optIndex].key;
+    dq.options.splice(optIndex, 1);
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    dq.options.forEach((opt, idx) => {
+      opt.key = letters[idx];
+    });
+    if (
+      dq.singleCorrectKey === removedKey ||
+      !dq.options.some((o) => o.key === dq.singleCorrectKey)
+    ) {
+      dq.singleCorrectKey = dq.options[0]?.key ?? 'A';
+    }
+    dq.multiCorrectKeys.delete(removedKey);
+    if (dq.multiCorrectKeys.size === 0 && dq.options.length > 0) {
+      dq.multiCorrectKeys.add(dq.options[0].key);
+    }
+    this.cdr.markForCheck();
+  }
+
+  toggleDraftQuestionMultiCorrect(dq: DraftQuestion, key: string): void {
+    if (dq.multiCorrectKeys.has(key)) {
+      if (dq.multiCorrectKeys.size === 1) {
+        this.message.warning('Cần chọn ít nhất 1 đáp án đúng.');
+        return;
+      }
+      dq.multiCorrectKeys.delete(key);
+    } else {
+      dq.multiCorrectKeys.add(key);
+    }
+    this.cdr.markForCheck();
+  }
+
+  openQuestionsFromEditModal(quiz: Quiz): void {
+    this.isQuizModalVisible = false;
+    this.selectQuizForQuestions(quiz);
+  }
+
   openCreateQuizModal(phaseId: string): void {
     this.pendingQuizPhaseId = phaseId;
     this.editingQuiz.set(null);
@@ -2266,7 +692,9 @@ export class TrainingManagementComponent implements OnInit {
       pass_score: 60,
       max_attempts: 3,
     });
+    this.quizDraftQuestions = [this.createBlankDraftQuestion(1)];
     this.isQuizModalVisible = true;
+    this.cdr.markForCheck();
   }
 
   openEditQuizModal(quiz: Quiz): void {
@@ -2278,53 +706,180 @@ export class TrainingManagementComponent implements OnInit {
       pass_score: quiz.pass_score,
       max_attempts: quiz.max_attempts,
     });
+    this.quizDraftQuestions = [];
     this.isQuizModalVisible = true;
+    this.cdr.markForCheck();
   }
 
   closeQuizModal(): void {
     this.isQuizModalVisible = false;
+    this.quizDraftQuestions = [];
   }
 
   saveQuiz(): void {
     if (this.quizForm.invalid) {
       this.quizForm.markAllAsTouched();
+      this.message.warning('Vui lòng điền đầy đủ thông tin bài kiểm tra.');
       return;
     }
     const val = this.quizForm.value;
-    this.isSaving.set(true);
     const editing = this.editingQuiz();
-    const op$ = editing
-      ? this.trainingService.updateQuiz(editing.id, {
+
+    // Lọc các câu hỏi nháp có nội dung
+    const activeDrafts = !editing
+      ? this.quizDraftQuestions.filter((q) => q.content && q.content.trim().length > 0)
+      : [];
+
+    // Kiểm tra tính hợp lệ của từng câu hỏi nháp
+    for (let i = 0; i < activeDrafts.length; i++) {
+      const dq = activeDrafts[i];
+      const qNum = i + 1;
+      if (dq.type === 'TRUE_FALSE') {
+        if (!dq.singleCorrectKey) {
+          this.message.warning(`Câu hỏi ${qNum}: Vui lòng chọn đáp án Đúng hoặc Sai.`);
+          return;
+        }
+      } else if (dq.type === 'SINGLE_CHOICE' || dq.type === 'MULTIPLE_CHOICE') {
+        if (dq.options.length < 2) {
+          this.message.warning(`Câu hỏi ${qNum}: Cần có ít nhất 2 lựa chọn.`);
+          return;
+        }
+        const emptyOpt = dq.options.find((o) => !o.text.trim());
+        if (emptyOpt) {
+          this.message.warning(
+            `Câu hỏi ${qNum}: Vui lòng nhập nội dung cho lựa chọn ${emptyOpt.key}.`,
+          );
+          return;
+        }
+        if (dq.type === 'SINGLE_CHOICE' && !dq.singleCorrectKey) {
+          this.message.warning(`Câu hỏi ${qNum}: Vui lòng chọn 1 đáp án đúng.`);
+          return;
+        }
+        if (dq.type === 'MULTIPLE_CHOICE' && dq.multiCorrectKeys.size === 0) {
+          this.message.warning(`Câu hỏi ${qNum}: Vui lòng chọn ít nhất 1 đáp án đúng.`);
+          return;
+        }
+      }
+    }
+
+    this.isSaving.set(true);
+
+    if (editing) {
+      this.trainingService
+        .updateQuiz(editing.id, {
           title: val.title!,
           description: val.description || null,
           duration_minutes: Number(val.duration_minutes),
           pass_score: Number(val.pass_score),
           max_attempts: Number(val.max_attempts),
         })
-      : this.trainingService.createQuiz({
-          phase_id: this.pendingQuizPhaseId,
+        .subscribe({
+          next: () => {
+            this.message.success('Cập nhật bài kiểm tra thành công!');
+            this.isSaving.set(false);
+            this.isQuizModalVisible = false;
+            this.loadPhaseQuizzes(editing.phase_id);
+            this.cdr.markForCheck();
+          },
+          error: (err) => {
+            console.error('Error updating quiz:', err);
+            this.message.error('Cập nhật bài kiểm tra thất bại.');
+            this.isSaving.set(false);
+            this.cdr.markForCheck();
+          },
+        });
+    } else {
+      const phaseId = this.pendingQuizPhaseId;
+      this.trainingService
+        .createQuiz({
+          phase_id: phaseId,
           title: val.title!,
           description: val.description || null,
           duration_minutes: Number(val.duration_minutes),
           pass_score: Number(val.pass_score),
           max_attempts: Number(val.max_attempts),
-        });
+        })
+        .subscribe({
+          next: (newQuiz) => {
+            this.loadPhaseQuizzes(phaseId);
 
-    op$.subscribe({
-      next: (savedQuiz) => {
-        this.message.success(editing ? 'Cập nhật Quiz thành công!' : 'Tạo Quiz thành công!');
-        this.isSaving.set(false);
-        this.isQuizModalVisible = false;
-        const phaseId = editing ? editing.phase_id : this.pendingQuizPhaseId;
-        this.loadPhaseQuizzes(phaseId);
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.message.error('Thao tác thất bại. Vui lòng thử lại.');
-        this.isSaving.set(false);
-        this.cdr.markForCheck();
-      },
-    });
+            if (activeDrafts.length === 0) {
+              this.message.success('Tạo bài kiểm tra thành công!');
+              this.isSaving.set(false);
+              this.isQuizModalVisible = false;
+              this.cdr.markForCheck();
+              return;
+            }
+
+            // Gửi các câu hỏi nháp lên server
+            const questionObservables = activeDrafts.map((dq, idx) => {
+              let optionsPayload: any = null;
+              let correctAnswerPayload: any = null;
+
+              if (dq.type === 'TRUE_FALSE') {
+                optionsPayload = [
+                  { key: 'A', text: 'Đúng' },
+                  { key: 'B', text: 'Sai' },
+                ];
+                correctAnswerPayload = [dq.singleCorrectKey];
+              } else if (dq.type === 'SINGLE_CHOICE') {
+                optionsPayload = dq.options.map((o) => ({ key: o.key, text: o.text.trim() }));
+                correctAnswerPayload = [dq.singleCorrectKey];
+              } else if (dq.type === 'MULTIPLE_CHOICE') {
+                optionsPayload = dq.options.map((o) => ({ key: o.key, text: o.text.trim() }));
+                correctAnswerPayload = Array.from(dq.multiCorrectKeys);
+              } else {
+                // TEXT
+                optionsPayload = null;
+                correctAnswerPayload = dq.text_answer_hint?.trim()
+                  ? [dq.text_answer_hint.trim()]
+                  : [''];
+              }
+
+              return this.trainingService.createQuestion({
+                quiz_id: newQuiz.id,
+                content: dq.content.trim(),
+                type: dq.type,
+                options: optionsPayload,
+                correct_answer: correctAnswerPayload,
+                score: Number(dq.score) || 10,
+                order_no: idx + 1,
+              });
+            });
+
+            forkJoin(questionObservables).subscribe({
+              next: () => {
+                this.message.success(
+                  `Tạo bài kiểm tra và ${activeDrafts.length} câu hỏi thành công!`,
+                );
+                this.isSaving.set(false);
+                this.isQuizModalVisible = false;
+                this.quizDraftQuestions = [];
+                // Mở ngay modal quản lý câu hỏi để người dùng xem kết quả
+                this.selectQuizForQuestions(newQuiz);
+                this.cdr.markForCheck();
+              },
+              error: (err) => {
+                console.error('Error saving drafted questions:', err);
+                this.message.warning('Đã tạo bài kiểm tra, nhưng có lỗi khi lưu một số câu hỏi.');
+                this.isSaving.set(false);
+                this.isQuizModalVisible = false;
+                this.quizDraftQuestions = [];
+                this.selectQuizForQuestions(newQuiz);
+                this.cdr.markForCheck();
+              },
+            });
+          },
+          error: (err) => {
+            console.error('Error creating quiz:', err);
+            const detail = err?.error?.detail;
+            const msg = typeof detail === 'string' ? detail : 'Vui lòng thử lại.';
+            this.message.error(`Tạo bài kiểm tra thất bại: ${msg}`);
+            this.isSaving.set(false);
+            this.cdr.markForCheck();
+          },
+        });
+    }
   }
 
   deleteQuiz(id: string, phaseId: string): void {
@@ -2348,7 +903,7 @@ export class TrainingManagementComponent implements OnInit {
   publishQuiz(id: string): void {
     this.trainingService.publishQuiz(id).subscribe({
       next: (updated) => {
-        this.message.success('Đã phát hành Quiz thành công!');
+        this.message.success('Đã phát hành thành công!');
         // Update in quizzesByPhase map
         this.quizzesByPhase.update((map) => {
           const newMap = { ...map };
@@ -2374,16 +929,25 @@ export class TrainingManagementComponent implements OnInit {
   selectQuizForQuestions(quiz: Quiz): void {
     if (this.selectedQuiz()?.id === quiz.id) {
       this.selectedQuiz.set(null);
+      this.questionViewMode.set('list');
       this.questions.set([]);
       return;
     }
     this.selectedQuiz.set(quiz);
+    this.questionViewMode.set('list');
     this.loadQuestions(quiz.id);
   }
 
   closeQuestionPanel(): void {
     this.selectedQuiz.set(null);
+    this.questionViewMode.set('list');
     this.questions.set([]);
+  }
+
+  switchToListMode(): void {
+    this.questionViewMode.set('list');
+    this.editingQuestion.set(null);
+    this.cdr.markForCheck();
   }
 
   loadQuestions(quizId: string): void {
@@ -2402,45 +966,324 @@ export class TrainingManagementComponent implements OnInit {
     });
   }
 
+  // ── Option builder handlers ────────────────────────────────────────────────
+
+  addOption(): void {
+    const nextIndex = this.choiceOptions.length;
+    const key = TrainingManagementComponent.OPTION_KEYS[nextIndex] || `OPT${nextIndex + 1}`;
+    this.choiceOptions.push({ key, text: '' });
+  }
+
+  removeOption(index: number): void {
+    if (this.choiceOptions.length <= 2) {
+      this.message.warning('Câu hỏi trắc nghiệm cần có ít nhất 2 lựa chọn.');
+      return;
+    }
+    const removedKey = this.choiceOptions[index].key;
+    this.choiceOptions.splice(index, 1);
+    // Re-index keys A, B, C...
+    this.choiceOptions.forEach((opt, idx) => {
+      opt.key = TrainingManagementComponent.OPTION_KEYS[idx] || `OPT${idx + 1}`;
+    });
+    // Adjust correct answers
+    if (this.singleCorrectKey === removedKey) {
+      this.singleCorrectKey = this.choiceOptions[0]?.key || '';
+    }
+    this.multiCorrectKeys.delete(removedKey);
+  }
+
+  setSingleCorrect(key: string): void {
+    this.singleCorrectKey = key;
+  }
+
+  toggleMultiCorrect(key: string): void {
+    if (this.multiCorrectKeys.has(key)) {
+      this.multiCorrectKeys.delete(key);
+    } else {
+      this.multiCorrectKeys.add(key);
+    }
+  }
+
+  onQuestionTypeChange(type: QuestionType): void {
+    if (type === 'TRUE_FALSE') {
+      this.choiceOptions = [
+        { key: 'A', text: 'Đúng' },
+        { key: 'B', text: 'Sai' },
+      ];
+      this.singleCorrectKey = 'A';
+      this.multiCorrectKeys = new Set(['A']);
+    } else if (type === 'TEXT') {
+      this.choiceOptions = [];
+      this.singleCorrectKey = '';
+      this.multiCorrectKeys.clear();
+    } else {
+      if (
+        this.choiceOptions.length === 0 ||
+        (this.choiceOptions.length === 2 && this.choiceOptions[0].text === 'Đúng')
+      ) {
+        this.initDefaultChoiceOptions();
+      }
+    }
+    this.cdr.markForCheck();
+  }
+
+  private initDefaultChoiceOptions(): void {
+    this.choiceOptions = [
+      { key: 'A', text: '' },
+      { key: 'B', text: '' },
+      { key: 'C', text: '' },
+      { key: 'D', text: '' },
+    ];
+    this.singleCorrectKey = 'A';
+    this.multiCorrectKeys = new Set(['A']);
+  }
+
+  getQuestionOptionsList(options: any): { key: string; text: string }[] {
+    if (!options) return [];
+    if (Array.isArray(options)) {
+      return options.map((item, idx) => {
+        if (typeof item === 'object' && item !== null && 'key' in item) {
+          return { key: String(item.key), text: String(item.text ?? '') };
+        }
+        const key = TrainingManagementComponent.OPTION_KEYS[idx] || `OPT${idx + 1}`;
+        if (typeof item === 'boolean') {
+          return { key, text: item ? 'Đúng' : 'Sai' };
+        }
+        return { key, text: String(item) };
+      });
+    }
+    if (typeof options === 'object') {
+      return Object.entries(options).map(([k, v]) => ({ key: k, text: String(v) }));
+    }
+    if (typeof options === 'string') {
+      try {
+        const parsed = JSON.parse(options);
+        return this.getQuestionOptionsList(parsed);
+      } catch {
+        return options.split(',').map((part, idx) => {
+          const trimmed = part.trim();
+          const match = trimmed.match(/^([A-Za-z])[\.\:\)]\s*(.*)$/);
+          if (match) {
+            return { key: match[1].toUpperCase(), text: match[2] };
+          }
+          const key = TrainingManagementComponent.OPTION_KEYS[idx] || `OPT${idx + 1}`;
+          return { key, text: trimmed };
+        });
+      }
+    }
+    return [];
+  }
+
+  extractCorrectKeys(correctAnswer: any, optionsList?: { key: string; text: string }[]): string[] {
+    if (correctAnswer === null || correctAnswer === undefined || correctAnswer === '') return [];
+    let rawItems: any[] = [];
+    if (Array.isArray(correctAnswer)) {
+      rawItems = correctAnswer;
+    } else {
+      rawItems = [correctAnswer];
+    }
+
+    const keys: string[] = [];
+    for (const item of rawItems) {
+      if (typeof item === 'object' && item !== null) {
+        if ('key' in item) keys.push(String(item.key));
+        else if ('keys' in item && Array.isArray(item.keys)) {
+          keys.push(...item.keys.map((k: any) => String(k)));
+        }
+      } else if (typeof item === 'boolean') {
+        keys.push(item ? 'A' : 'B');
+      } else {
+        const str = String(item).trim();
+        try {
+          const parsed = JSON.parse(str);
+          if (Array.isArray(parsed) || typeof parsed === 'object') {
+            keys.push(...this.extractCorrectKeys(parsed, optionsList));
+            continue;
+          }
+        } catch {}
+
+        if (optionsList && optionsList.length > 0) {
+          const byKey = optionsList.find((o) => o.key.toUpperCase() === str.toUpperCase());
+          if (byKey) {
+            keys.push(byKey.key);
+            continue;
+          }
+          const byText = optionsList.find((o) => o.text.trim().toLowerCase() === str.toLowerCase());
+          if (byText) {
+            keys.push(byText.key);
+            continue;
+          }
+        }
+
+        if (/^[A-Za-z]$/.test(str)) {
+          keys.push(str.toUpperCase());
+        } else {
+          const parts = str
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+          for (const p of parts) {
+            if (optionsList && optionsList.length > 0) {
+              const matched = optionsList.find(
+                (o) =>
+                  o.key.toUpperCase() === p.toUpperCase() ||
+                  o.text.trim().toLowerCase() === p.toLowerCase(),
+              );
+              if (matched) {
+                keys.push(matched.key);
+                continue;
+              }
+            }
+            if (/^[A-Za-z]$/.test(p)) {
+              keys.push(p.toUpperCase());
+            } else {
+              keys.push(p);
+            }
+          }
+        }
+      }
+    }
+    return Array.from(new Set(keys));
+  }
+
+  formatCorrectAnswer(correctAnswer: any): string {
+    const keys = this.extractCorrectKeys(correctAnswer);
+    if (keys.length > 0) return keys.join(', ');
+    if (typeof correctAnswer === 'string') return correctAnswer;
+    return JSON.stringify(correctAnswer);
+  }
+
+  isOptionCorrect(q: Question, optionKey: string): boolean {
+    const opts = this.getQuestionOptionsList(q.options);
+    const keys = this.extractCorrectKeys(q.correct_answer, opts);
+    return keys.includes(optionKey.toUpperCase());
+  }
+
   openCreateQuestionModal(): void {
     this.editingQuestion.set(null);
     const nextOrder = this.questions().length + 1;
     this.questionForm.reset({
       content: '',
       type: 'SINGLE_CHOICE',
-      options: '',
-      correct_answer: '',
       score: 10,
       order_no: nextOrder,
+      text_answer_hint: '',
     });
-    this.isQuestionModalVisible = true;
+    this.initDefaultChoiceOptions();
+    this.questionViewMode.set('form');
+    this.cdr.markForCheck();
   }
 
   openEditQuestionModal(q: Question): void {
     this.editingQuestion.set(q);
-    this.questionForm.patchValue({
+    const type = (q.type || 'SINGLE_CHOICE') as QuestionType;
+    this.questionForm.reset({
       content: q.content,
-      type: q.type,
-      options: q.options ?? '',
-      correct_answer: q.correct_answer ?? '',
-      score: q.score,
-      order_no: q.order_no,
+      type: type,
+      score: q.score !== null && q.score !== undefined ? Number(q.score) : 10,
+      order_no: q.order_no || 1,
+      text_answer_hint: type === 'TEXT' ? this.formatCorrectAnswer(q.correct_answer) : '',
     });
-    this.isQuestionModalVisible = true;
+
+    if (type === 'TRUE_FALSE') {
+      this.choiceOptions = [
+        { key: 'A', text: 'Đúng' },
+        { key: 'B', text: 'Sai' },
+      ];
+      const correctKeys = this.extractCorrectKeys(q.correct_answer, this.choiceOptions);
+      this.singleCorrectKey = correctKeys[0] || 'A';
+      this.multiCorrectKeys = new Set([this.singleCorrectKey]);
+    } else if (type !== 'TEXT') {
+      const parsedOptions = this.getQuestionOptionsList(q.options);
+      if (parsedOptions.length > 0) {
+        this.choiceOptions = parsedOptions.map((o) => ({ ...o }));
+      } else {
+        this.initDefaultChoiceOptions();
+      }
+
+      const correctKeys = this.extractCorrectKeys(q.correct_answer, this.choiceOptions);
+      if (type === 'SINGLE_CHOICE') {
+        this.singleCorrectKey = correctKeys[0] || (this.choiceOptions[0]?.key ?? 'A');
+        this.multiCorrectKeys = new Set([this.singleCorrectKey]);
+      } else {
+        this.multiCorrectKeys = new Set(
+          correctKeys.length > 0 ? correctKeys : [this.choiceOptions[0]?.key ?? 'A'],
+        );
+        this.singleCorrectKey = correctKeys[0] || (this.choiceOptions[0]?.key ?? 'A');
+      }
+    } else {
+      this.choiceOptions = [];
+      this.singleCorrectKey = '';
+      this.multiCorrectKeys.clear();
+    }
+
+    this.questionViewMode.set('form');
+    this.cdr.markForCheck();
   }
 
   closeQuestionModal(): void {
-    this.isQuestionModalVisible = false;
+    this.questionViewMode.set('list');
+    this.editingQuestion.set(null);
+    this.cdr.markForCheck();
   }
 
   saveQuestion(): void {
     if (this.questionForm.invalid) {
       this.questionForm.markAllAsTouched();
+      this.message.warning('Vui lòng điền đầy đủ các thông tin bắt buộc.');
       return;
     }
     const val = this.questionForm.value;
     const quiz = this.selectedQuiz();
-    if (!quiz) return;
+    if (!quiz) {
+      this.message.error('Không tìm thấy bài kiểm tra.');
+      return;
+    }
+
+    let optionsPayload: any = null;
+    let correctAnswerPayload: any = null;
+
+    if (val.type === 'TRUE_FALSE') {
+      if (!this.singleCorrectKey) {
+        this.message.warning('Vui lòng chọn đáp án Đúng hoặc Sai.');
+        return;
+      }
+      optionsPayload = [
+        { key: 'A', text: 'Đúng' },
+        { key: 'B', text: 'Sai' },
+      ];
+      correctAnswerPayload = [this.singleCorrectKey];
+    } else if (val.type === 'SINGLE_CHOICE' || val.type === 'MULTIPLE_CHOICE') {
+      const emptyOpt = this.choiceOptions.find((o) => !o.text.trim());
+      if (emptyOpt) {
+        this.message.warning(`Vui lòng nhập nội dung cho lựa chọn ${emptyOpt.key}.`);
+        return;
+      }
+      if (this.choiceOptions.length < 2) {
+        this.message.warning('Câu hỏi trắc nghiệm cần có ít nhất 2 lựa chọn.');
+        return;
+      }
+
+      if (val.type === 'SINGLE_CHOICE') {
+        if (!this.singleCorrectKey) {
+          this.message.warning('Vui lòng chọn 1 đáp án đúng.');
+          return;
+        }
+        correctAnswerPayload = [this.singleCorrectKey];
+      } else {
+        if (this.multiCorrectKeys.size === 0) {
+          this.message.warning('Vui lòng chọn ít nhất 1 đáp án đúng.');
+          return;
+        }
+        correctAnswerPayload = Array.from(this.multiCorrectKeys);
+      }
+
+      optionsPayload = this.choiceOptions.map((o) => ({ key: o.key, text: o.text.trim() }));
+    } else {
+      // TEXT
+      optionsPayload = null;
+      correctAnswerPayload = val.text_answer_hint?.trim() ? [val.text_answer_hint.trim()] : [''];
+    }
 
     this.isSaving.set(true);
     const editing = this.editingQuestion();
@@ -2448,8 +1291,8 @@ export class TrainingManagementComponent implements OnInit {
       ? this.trainingService.updateQuestion(editing.id, {
           content: val.content!,
           type: val.type as QuestionType,
-          options: val.options || null,
-          correct_answer: val.correct_answer || null,
+          options: optionsPayload,
+          correct_answer: correctAnswerPayload,
           score: Number(val.score),
           order_no: Number(val.order_no),
         })
@@ -2457,8 +1300,8 @@ export class TrainingManagementComponent implements OnInit {
           quiz_id: quiz.id,
           content: val.content!,
           type: val.type as QuestionType,
-          options: val.options || null,
-          correct_answer: val.correct_answer || null,
+          options: optionsPayload,
+          correct_answer: correctAnswerPayload,
           score: Number(val.score),
           order_no: Number(val.order_no),
         });
@@ -2467,12 +1310,15 @@ export class TrainingManagementComponent implements OnInit {
       next: () => {
         this.message.success(editing ? 'Cập nhật câu hỏi thành công!' : 'Thêm câu hỏi thành công!');
         this.isSaving.set(false);
-        this.isQuestionModalVisible = false;
+        this.questionViewMode.set('list');
         this.loadQuestions(quiz.id);
         this.cdr.markForCheck();
       },
-      error: () => {
-        this.message.error('Thao tác thất bại. Vui lòng thử lại.');
+      error: (err) => {
+        console.error('Error saving question:', err);
+        const detail = err?.error?.detail;
+        const msg = typeof detail === 'string' ? detail : err?.message || 'Vui lòng thử lại.';
+        this.message.error(`Thao tác thất bại: ${msg}`);
         this.isSaving.set(false);
         this.cdr.markForCheck();
       },
@@ -2488,8 +1334,11 @@ export class TrainingManagementComponent implements OnInit {
         this.loadQuestions(quiz.id);
         this.cdr.markForCheck();
       },
-      error: () => {
-        this.message.error('Xóa câu hỏi thất bại.');
+      error: (err) => {
+        console.error('Error deleting question:', err);
+        const detail = err?.error?.detail;
+        const msg = typeof detail === 'string' ? detail : err?.message || 'Vui lòng thử lại.';
+        this.message.error(`Xóa câu hỏi thất bại: ${msg}`);
         this.cdr.markForCheck();
       },
     });
@@ -2552,18 +1401,20 @@ export class TrainingManagementComponent implements OnInit {
   }
 
   getQuestionTypeLabel(type: QuestionType): string {
-    const labels: Record<QuestionType, string> = {
+    const labels: Record<string, string> = {
       SINGLE_CHOICE: 'Một đáp án',
       MULTIPLE_CHOICE: 'Nhiều đáp án',
+      TRUE_FALSE: 'Đúng / Sai',
       TEXT: 'Tự luận',
     };
     return labels[type] ?? type;
   }
 
   getQuestionTypeColor(type: QuestionType): string {
-    const colors: Record<QuestionType, string> = {
+    const colors: Record<string, string> = {
       SINGLE_CHOICE: 'blue',
       MULTIPLE_CHOICE: 'purple',
+      TRUE_FALSE: 'cyan',
       TEXT: 'orange',
     };
     return colors[type] ?? 'default';

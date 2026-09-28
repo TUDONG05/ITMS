@@ -143,11 +143,11 @@ class QuizRead(BaseSchema):
 class QuestionCreate(BaseSchema):
     quiz_id: uuid.UUID
     content: str
-    type: str = "SINGLE_CHOICE"  # SINGLE_CHOICE | MULTIPLE_CHOICE | TEXT
+    type: str = "SINGLE_CHOICE"  # SINGLE_CHOICE | MULTIPLE_CHOICE | TRUE_FALSE | TEXT
     options: Any | None = None
     correct_answer: Any | None = None
-    score: float | None = None
-    order_no: int
+    score: float | None = 10.0
+    order_no: int | None = None
 
 
 class QuestionUpdate(BaseSchema):
@@ -167,7 +167,7 @@ class QuestionRead(BaseSchema):
     options: Any | None = None
     correct_answer: Any | None = None
     score: float | None = None
-    order_no: int
+    order_no: int | None = None
     created_at: datetime
 
 
