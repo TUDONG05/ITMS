@@ -219,6 +219,101 @@ const dashboards: Record<Role, Dashboard> = {
     ProfileComponent,
     UserManagementComponent,
   ],
+  styles: [
+    `
+      :host ::ng-deep {
+        nz-sider.sidebar,
+        .sidebar {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          bottom: 0 !important;
+          height: 100vh !important;
+          width: 250px !important;
+          min-width: 250px !important;
+          max-width: 250px !important;
+          z-index: 100 !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          background: #fff !important;
+          border-right: 1px solid #e8edf5 !important;
+          box-sizing: border-box !important;
+
+          .ant-layout-sider-children {
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100% !important;
+            min-height: 100% !important;
+            width: 100% !important;
+          }
+        }
+
+        .dashboard-main,
+        nz-layout.dashboard-main {
+          margin-left: 250px !important;
+          min-height: 100vh !important;
+          width: calc(100% - 250px) !important;
+          display: flex !important;
+          flex-direction: column !important;
+          background: #f4f7fc !important;
+        }
+
+        .topbar {
+          position: sticky !important;
+          top: 0 !important;
+          z-index: 90 !important;
+        }
+
+        .metric-card,
+        .metric-card .ant-card-body {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: center !important;
+          text-align: center !important;
+          padding: 18px 12px !important;
+        }
+
+        .metric-card__content {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: center !important;
+          text-align: center !important;
+          width: 100% !important;
+        }
+
+        .metric-card .metric-icon {
+          margin: 0 auto 10px auto !important;
+        }
+
+        .metric-card__label,
+        .metric-card p {
+          margin: 2px 0 6px 0 !important;
+          font-weight: 650 !important;
+          text-align: center !important;
+          width: 100% !important;
+        }
+
+        .metric-card__value,
+        .metric-card strong {
+          display: block !important;
+          font-size: 28px !important;
+          text-align: center !important;
+          width: 100% !important;
+          line-height: 1.2 !important;
+        }
+
+        @media (max-width: 760px) {
+          .dashboard-main,
+          nz-layout.dashboard-main {
+            margin-left: 0 !important;
+            width: 100% !important;
+          }
+        }
+      }
+    `,
+  ],
   template: `
     <div class="dashboard-shell">
       <nz-layout>
@@ -337,17 +432,18 @@ const dashboards: Record<Role, Dashboard> = {
               } @else {
                 <section class="metric-grid">
                   @for (metric of dashboardData()?.metrics; track metric.label) {
-                    <nz-card class="metric-card" [nzBordered]="false">
-                      <i
-                        class="metric-icon metric-icon--{{
-                          metricStyles[metric.key]?.tone || 'blue'
-                        }}"
-                        nz-icon
-                        [nzType]="metricStyles[metric.key]?.icon || 'appstore'"
-                      ></i>
-                      <div>
-                        <p>{{ metric.label }}</p>
-                        <strong>{{ metric.value }}</strong>
+                    <nz-card class="metric-card" [nzBordered]="false" style="text-align: center;">
+                      <div class="metric-card__content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%;">
+                        <i
+                          class="metric-icon metric-icon--{{
+                            metricStyles[metric.key]?.tone || 'blue'
+                          }}"
+                          nz-icon
+                          [nzType]="metricStyles[metric.key]?.icon || 'appstore'"
+                          style="margin: 0 auto 10px auto;"
+                        ></i>
+                        <p class="metric-card__label" style="text-align: center; margin: 2px 0 6px 0; width: 100%;">{{ metric.label }}</p>
+                        <strong class="metric-card__value" style="display: block; text-align: center; width: 100%; font-size: 28px; line-height: 1.2;">{{ metric.value }}</strong>
                       </div>
                     </nz-card>
                   }
