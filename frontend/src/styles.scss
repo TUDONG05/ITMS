@@ -573,6 +573,9 @@ button {
 }
 .content {
   max-width: 1540px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: auto;
   padding: 12px 20px 28px;
 }
@@ -960,7 +963,7 @@ button {
     grid-column: span 2;
   }
 }
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .dashboard-shell {
     display: block;
   }
@@ -979,7 +982,12 @@ button {
     transform: translateX(0);
   }
   .content {
-    padding: 12px;
+    padding: 12px 10px 24px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
   .topbar {
     height: 56px;
@@ -1014,4 +1022,15 @@ button {
   .chart li {
     min-width: 130px;
   }
+}
+
+/* Global Mobile Modal & Overlay Helpers */
+@media (max-width: 576px) {
+  .ant-modal {
+    max-width: calc(100vw - 16px) !important;
+    margin: 8px auto !important;
+  }
+}
+.ant-modal-responsive-helper {
+  display: none;
 }
