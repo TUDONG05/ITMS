@@ -19,6 +19,7 @@ import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { AuthService } from '../../core/api/auth.service';
 import { InternshipManagementComponent } from '../internships/internship-management.component';
+import { MentorInternManagementComponent } from '../mentor/mentor-intern-management.component';
 import { ProfileComponent } from '../profile/profile.component';
 import { UserManagementComponent } from '../users/user-management.component';
 
@@ -202,6 +203,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzProgressModule,
     NzTagModule,
     InternshipManagementComponent,
+    MentorInternManagementComponent,
     ProfileComponent,
     UserManagementComponent,
   ],
@@ -316,7 +318,15 @@ const dashboards: Record<Role, Dashboard> = {
                             : 'Task gần đây'
                       }}
                     </h2>
-                    <button nz-button nzType="link" (click)="choose('tasks')">Xem tất cả</button>
+                    <button
+                      nz-button
+                      nzType="link"
+                      (click)="
+                        dashboard().roleLabel === 'Mentor' ? choose('interns') : choose('tasks')
+                      "
+                    >
+                      Xem tất cả
+                    </button>
                   </div>
                   <div class="table-head">
                     <span>Tên / thông tin</span><span>Tiến độ</span><span>Trạng thái</span>
@@ -397,6 +407,9 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'users' && role() === 'ADMIN') {
               <!-- UC-14: Quản lý người dùng -->
               <app-user-management />
+            } @else if (section() === 'interns' && (role() === 'MENTOR' || role() === 'ADMIN')) {
+              <!-- UC-11: Mentor quản lý Intern -->
+              <app-mentor-intern-management />
             } @else {
               <section class="feature-placeholder">
                 <span nz-icon [nzType]="activeIcon()"></span>
