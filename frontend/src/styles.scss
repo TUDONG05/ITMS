@@ -411,19 +411,51 @@ body {
 button {
   font: inherit;
 }
-.dashboard-shell,
+.dashboard-shell {
+  min-height: 100vh;
+  background: #f4f7fc;
+}
 .dashboard-shell > nz-layout {
   min-height: 100vh;
-}
-.sidebar {
+  background: transparent;
   display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  max-height: 100vh;
-  overflow-y: auto;
+}
+nz-sider.sidebar,
+.sidebar {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  height: 100vh !important;
+  width: 250px !important;
+  min-width: 250px !important;
+  max-width: 250px !important;
+  z-index: 100;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   padding: 20px 15px 16px;
-  background: #fff;
+  background: #fff !important;
   border-right: 1px solid #e8edf5;
+  box-sizing: border-box;
+
+  .ant-layout-sider-children {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    width: 100% !important;
+  }
+}
+.dashboard-main,
+nz-layout.dashboard-main {
+  margin-left: 250px !important;
+  min-height: 100vh !important;
+  width: calc(100% - 250px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: #f4f7fc !important;
 }
 .sidebar-brand {
   padding: 0 12px 16px;
@@ -573,6 +605,9 @@ button {
 }
 .content {
   max-width: 1540px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: auto;
   padding: 12px 20px 28px;
 }
@@ -604,31 +639,63 @@ button {
 }
 .metric-card {
   display: flex;
-  gap: 14px;
-  min-height: 108px;
-  padding: 18px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 120px;
+  padding: 18px 12px;
+
+  .ant-card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
+    padding: 18px 12px;
+  }
 }
-.metric-card p {
-  margin: 1px 0 5px;
+.metric-card div,
+.metric-card__content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.metric-card p,
+.metric-card__label {
+  margin: 2px 0 6px;
   font-weight: 650;
+  text-align: center;
+  width: 100%;
 }
-.metric-card strong {
+.metric-card strong,
+.metric-card__value {
   display: block;
   font-size: 28px;
+  text-align: center;
+  width: 100%;
+  line-height: 1.2;
 }
 .metric-card small {
   display: block;
   margin-top: 5px;
   color: #6a7891;
+  text-align: center;
+  width: 100%;
 }
 .metric-icon {
   display: grid;
-  flex: 0 0 42px;
-  height: 42px;
+  width: 58px;
+  height: 38px;
   place-items: center;
-  border-radius: 13px;
-  font-size: 22px;
+  border-radius: 10px;
+  font-size: 20px;
   font-style: normal;
+  margin: 0 auto 10px auto;
 }
 .metric-icon--green {
   color: #10ac75;
@@ -965,7 +1032,7 @@ button {
     grid-column: span 2;
   }
 }
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .dashboard-shell {
     display: block;
   }
@@ -984,7 +1051,12 @@ button {
     transform: translateX(0);
   }
   .content {
-    padding: 12px;
+    padding: 12px 10px 24px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
   .topbar {
     height: 56px;
@@ -1019,4 +1091,15 @@ button {
   .chart li {
     min-width: 130px;
   }
+}
+
+/* Global Mobile Modal & Overlay Helpers */
+@media (max-width: 576px) {
+  .ant-modal {
+    max-width: calc(100vw - 16px) !important;
+    margin: 8px auto !important;
+  }
+}
+.ant-modal-responsive-helper {
+  display: none;
 }
