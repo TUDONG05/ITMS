@@ -46,7 +46,9 @@ def list_roadmaps(
     db: Session = Depends(get_db),
 ) -> list[RoadmapRead]:
     """Retrieve list of training roadmaps."""
-    roadmaps = TrainingService.get_roadmaps(db, search=search, status=status, skip=skip, limit=limit)
+    roadmaps = TrainingService.get_roadmaps(
+        db, search=search, status=status, skip=skip, limit=limit
+    )
     result: list[RoadmapRead] = []
     for r in roadmaps:
         count = TrainingService.get_phase_count(db, roadmap_id=r.id)

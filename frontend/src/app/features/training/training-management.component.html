@@ -145,7 +145,10 @@
           <div
             class="roadmap-mobile-card"
             [class.roadmap-mobile-card--selected]="selectedRoadmap()?.id === rm.id"
+            role="button"
+            tabindex="0"
             (click)="selectRoadmap(rm)"
+            (keydown.enter)="selectRoadmap(rm)"
           >
             <!-- Tiêu đề + Trạng thái -->
             <div class="card-top-row">
@@ -181,13 +184,13 @@
             </div>
 
             <!-- Thao tác: Quản lý phase ở dòng trên + Sửa, Xóa ở dòng dưới -->
-            <div class="roadmap-mobile-actions" (click)="$event.stopPropagation()">
+            <div class="roadmap-mobile-actions">
               <button
                 nz-button
                 [nzType]="selectedRoadmap()?.id === rm.id ? 'primary' : 'default'"
                 nzSize="small"
                 class="action-btn-main"
-                (click)="selectRoadmap(rm)"
+                (click)="$event.stopPropagation(); selectRoadmap(rm)"
               >
                 <span nz-icon nzType="partition"></span>
                 <span>{{
@@ -200,7 +203,7 @@
                   nzType="default"
                   nzSize="small"
                   class="action-btn-sub"
-                  (click)="openEditRoadmapModal(rm)"
+                  (click)="$event.stopPropagation(); openEditRoadmapModal(rm)"
                 >
                   <span nz-icon nzType="edit"></span> Sửa
                 </button>
@@ -215,6 +218,7 @@
                   nzOkText="Xóa"
                   nzCancelText="Hủy"
                   (nzOnConfirm)="deleteRoadmap(rm.id)"
+                  (click)="$event.stopPropagation()"
                 >
                   <span nz-icon nzType="delete"></span> Xóa
                 </button>
@@ -300,12 +304,12 @@
                 </div>
               </ng-template>
               <ng-template #phaseExtra>
-                <div class="phase-actions" (click)="$event.stopPropagation()">
+                <div class="phase-actions">
                   <button
                     nz-button
                     nzType="default"
                     nzSize="small"
-                    (click)="openCreateContentModal(phase.id)"
+                    (click)="$event.stopPropagation(); openCreateContentModal(phase.id)"
                     title="Thêm nội dung"
                   >
                     <span nz-icon nzType="plus"></span>
@@ -315,7 +319,7 @@
                     nz-button
                     nzType="default"
                     nzSize="small"
-                    (click)="openCreateQuizModal(phase.id)"
+                    (click)="$event.stopPropagation(); openCreateQuizModal(phase.id)"
                     title="Thêm bài kiểm tra"
                   >
                     <span nz-icon nzType="form"></span>
@@ -326,7 +330,7 @@
                       nz-button
                       nzType="text"
                       nzSize="small"
-                      (click)="openEditPhaseModal(phase)"
+                      (click)="$event.stopPropagation(); openEditPhaseModal(phase)"
                       title="Sửa Phase"
                     >
                       <span nz-icon nzType="edit"></span>
@@ -341,6 +345,7 @@
                       nzOkText="Xóa"
                       nzCancelText="Hủy"
                       (nzOnConfirm)="deletePhase(phase.id)"
+                      (click)="$event.stopPropagation()"
                       title="Xóa Phase"
                     >
                       <span nz-icon nzType="delete"></span>

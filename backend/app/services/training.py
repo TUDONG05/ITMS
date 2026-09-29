@@ -95,19 +95,14 @@ class TrainingService:
 
     @staticmethod
     def get_phases(db: Session, roadmap_id: uuid.UUID) -> list[Phase]:
-        query = (
-            select(Phase)
-            .where(Phase.roadmap_id == roadmap_id)
-            .order_by(Phase.order_no.asc())
-        )
+        query = select(Phase).where(Phase.roadmap_id == roadmap_id).order_by(Phase.order_no.asc())
         return list(db.scalars(query).all())
 
     @staticmethod
     def get_phase_count(db: Session, roadmap_id: uuid.UUID) -> int:
         from sqlalchemy import func
-        count = db.scalar(
-            select(func.count(Phase.id)).where(Phase.roadmap_id == roadmap_id)
-        )
+
+        count = db.scalar(select(func.count(Phase.id)).where(Phase.roadmap_id == roadmap_id))
         return count or 0
 
     @staticmethod
@@ -220,11 +215,7 @@ class TrainingService:
 
     @staticmethod
     def get_quizzes(db: Session, phase_id: uuid.UUID) -> list[Quiz]:
-        query = (
-            select(Quiz)
-            .where(Quiz.phase_id == phase_id)
-            .order_by(Quiz.created_at.asc())
-        )
+        query = select(Quiz).where(Quiz.phase_id == phase_id).order_by(Quiz.created_at.asc())
         return list(db.scalars(query).all())
 
     @staticmethod
@@ -291,9 +282,7 @@ class TrainingService:
     @staticmethod
     def get_questions(db: Session, quiz_id: uuid.UUID) -> list[Question]:
         query = (
-            select(Question)
-            .where(Question.quiz_id == quiz_id)
-            .order_by(Question.order_no.asc())
+            select(Question).where(Question.quiz_id == quiz_id).order_by(Question.order_no.asc())
         )
         return list(db.scalars(query).all())
 

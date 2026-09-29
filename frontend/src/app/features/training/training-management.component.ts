@@ -544,12 +544,16 @@ export class TrainingManagementComponent implements OnInit {
     });
   }
 
-  deleteContent(id: string, phaseId: string): void {
+  deleteContent(id: string, phaseId?: string): void {
     this.trainingService.deleteContent(id).subscribe({
       next: () => {
         this.message.success('Đã xóa nội dung.');
         const detail = this.selectedRoadmapDetail();
-        if (detail) this.loadRoadmapDetail(detail.id);
+        if (detail) {
+          this.loadRoadmapDetail(detail.id);
+        } else if (phaseId) {
+          this.loadPhaseQuizzes(phaseId);
+        }
         this.cdr.markForCheck();
       },
       error: () => {
@@ -577,7 +581,7 @@ export class TrainingManagementComponent implements OnInit {
     return this.quizzesByPhase()[phaseId] ?? [];
   }
 
-  createBlankDraftQuestion(orderNo: number = 1): DraftQuestion {
+  createBlankDraftQuestion(): DraftQuestion {
     return {
       tempId: 'draft_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
       content: '',
@@ -596,7 +600,7 @@ export class TrainingManagementComponent implements OnInit {
   }
 
   addDraftQuestion(): void {
-    this.quizDraftQuestions.push(this.createBlankDraftQuestion(this.quizDraftQuestions.length + 1));
+    this.quizDraftQuestions.push(this.createBlankDraftQuestion());
     this.cdr.markForCheck();
   }
 
@@ -692,7 +696,7 @@ export class TrainingManagementComponent implements OnInit {
       pass_score: 60,
       max_attempts: 3,
     });
-    this.quizDraftQuestions = [this.createBlankDraftQuestion(1)];
+    this.quizDraftQuestions = [this.createBlankDraftQuestion()];
     this.isQuizModalVisible = true;
     this.cdr.markForCheck();
   }
@@ -813,8 +817,8 @@ export class TrainingManagementComponent implements OnInit {
 
             // Gửi các câu hỏi nháp lên server
             const questionObservables = activeDrafts.map((dq, idx) => {
-              let optionsPayload: any = null;
-              let correctAnswerPayload: any = null;
+              let optionsPayload: unknown;
+              let correctAnswerPayload: unknown;
 
               if (dq.type === 'TRUE_FALSE') {
                 optionsPayload = [
@@ -1038,12 +1042,13 @@ export class TrainingManagementComponent implements OnInit {
     this.multiCorrectKeys = new Set(['A']);
   }
 
-  getQuestionOptionsList(options: any): { key: string; text: string }[] {
+  getQuestionOptionsList(options: unknown): { key: string; text: string }[] {
     if (!options) return [];
     if (Array.isArray(options)) {
       return options.map((item, idx) => {
         if (typeof item === 'object' && item !== null && 'key' in item) {
-          return { key: String(item.key), text: String(item.text ?? '') };
+          const optObj = item as { key: unknown; text?: unknown };
+          return { key: String(optObj.key), text: String(optObj.text ?? '') };
         }
         const key = TrainingManagementComponent.OPTION_KEYS[idx] || `OPT${idx + 1}`;
         if (typeof item === 'boolean') {
@@ -1053,7 +1058,10 @@ export class TrainingManagementComponent implements OnInit {
       });
     }
     if (typeof options === 'object') {
-      return Object.entries(options).map(([k, v]) => ({ key: k, text: String(v) }));
+      return Object.entries(options as Record<string, unknown>).map(([k, v]) => ({
+        key: k,
+        text: String(v),
+      }));
     }
     if (typeof options === 'string') {
       try {
@@ -1062,7 +1070,7 @@ export class TrainingManagementComponent implements OnInit {
       } catch {
         return options.split(',').map((part, idx) => {
           const trimmed = part.trim();
-          const match = trimmed.match(/^([A-Za-z])[\.\:\)]\s*(.*)$/);
+          const match = trimmed.match(/^([A-Za-z])[.:)]\s*(.*)$/);
           if (match) {
             return { key: match[1].toUpperCase(), text: match[2] };
           }
@@ -1074,21 +1082,20 @@ export class TrainingManagementComponent implements OnInit {
     return [];
   }
 
-  extractCorrectKeys(correctAnswer: any, optionsList?: { key: string; text: string }[]): string[] {
+  extractCorrectKeys(
+    correctAnswer: unknown,
+    optionsList?: { key: string; text: string }[],
+  ): string[] {
     if (correctAnswer === null || correctAnswer === undefined || correctAnswer === '') return [];
-    let rawItems: any[] = [];
-    if (Array.isArray(correctAnswer)) {
-      rawItems = correctAnswer;
-    } else {
-      rawItems = [correctAnswer];
-    }
+    const rawItems: unknown[] = Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer];
 
     const keys: string[] = [];
     for (const item of rawItems) {
       if (typeof item === 'object' && item !== null) {
-        if ('key' in item) keys.push(String(item.key));
-        else if ('keys' in item && Array.isArray(item.keys)) {
-          keys.push(...item.keys.map((k: any) => String(k)));
+        if ('key' in item) {
+          keys.push(String((item as { key: unknown }).key));
+        } else if ('keys' in item && Array.isArray((item as { keys: unknown[] }).keys)) {
+          keys.push(...(item as { keys: unknown[] }).keys.map((k) => String(k)));
         }
       } else if (typeof item === 'boolean') {
         keys.push(item ? 'A' : 'B');
@@ -1100,7 +1107,9 @@ export class TrainingManagementComponent implements OnInit {
             keys.push(...this.extractCorrectKeys(parsed, optionsList));
             continue;
           }
-        } catch {}
+        } catch {
+          // ignore non-json string
+        }
 
         if (optionsList && optionsList.length > 0) {
           const byKey = optionsList.find((o) => o.key.toUpperCase() === str.toUpperCase());
@@ -1146,7 +1155,7 @@ export class TrainingManagementComponent implements OnInit {
     return Array.from(new Set(keys));
   }
 
-  formatCorrectAnswer(correctAnswer: any): string {
+  formatCorrectAnswer(correctAnswer: unknown): string {
     const keys = this.extractCorrectKeys(correctAnswer);
     if (keys.length > 0) return keys.join(', ');
     if (typeof correctAnswer === 'string') return correctAnswer;
@@ -1240,8 +1249,8 @@ export class TrainingManagementComponent implements OnInit {
       return;
     }
 
-    let optionsPayload: any = null;
-    let correctAnswerPayload: any = null;
+    let optionsPayload: unknown;
+    let correctAnswerPayload: unknown;
 
     if (val.type === 'TRUE_FALSE') {
       if (!this.singleCorrectKey) {

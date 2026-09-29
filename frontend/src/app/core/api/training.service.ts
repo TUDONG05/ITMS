@@ -267,8 +267,8 @@ export class TrainingService {
     quiz_id: string;
     content: string;
     type: QuestionType;
-    options?: any;
-    correct_answer?: any;
+    options?: unknown;
+    correct_answer?: unknown;
     score: number;
     order_no: number;
   }): Observable<Question> {
@@ -282,8 +282,8 @@ export class TrainingService {
     payload: {
       content?: string;
       type?: QuestionType;
-      options?: any;
-      correct_answer?: any;
+      options?: unknown;
+      correct_answer?: unknown;
       score?: number;
       order_no?: number;
     },
