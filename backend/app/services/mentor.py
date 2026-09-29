@@ -1,6 +1,5 @@
 import uuid
 from datetime import UTC, datetime
-from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import func
@@ -33,9 +32,7 @@ class MentorService:
     def _find_member(db: Session, member_id_or_intern_id: uuid.UUID) -> InternshipMember | None:
         """Find internship member by either membership ID or intern user ID."""
         member = (
-            db.query(InternshipMember)
-            .filter(InternshipMember.id == member_id_or_intern_id)
-            .first()
+            db.query(InternshipMember).filter(InternshipMember.id == member_id_or_intern_id).first()
         )
         if not member:
             member = (
@@ -79,18 +76,14 @@ class MentorService:
 
         if search:
             pattern = f"%{search}%"
-            query = query.filter(
-                (User.full_name.ilike(pattern)) | (User.email.ilike(pattern))
-            )
+            query = query.filter((User.full_name.ilike(pattern)) | (User.email.ilike(pattern)))
 
         members = query.order_by(InternshipMember.created_at.desc()).all()
         results: list[MentorInternListItem] = []
 
         for member in members:
             # Internship info
-            internship = (
-                db.query(Internship).filter(Internship.id == member.internship_id).first()
-            )
+            internship = db.query(Internship).filter(Internship.id == member.internship_id).first()
             internship_name = internship.name if internship else "Unknown Internship"
 
             # Roadmap info
@@ -269,20 +262,14 @@ class MentorService:
         cls._assert_mentor_access(current_user, member)
 
         intern = member.intern
-        internship = (
-            db.query(Internship).filter(Internship.id == member.internship_id).first()
-        )
+        internship = db.query(Internship).filter(Internship.id == member.internship_id).first()
         mentor = (
-            db.query(User).filter(User.id == member.mentor_id).first()
-            if member.mentor_id
-            else None
+            db.query(User).filter(User.id == member.mentor_id).first() if member.mentor_id else None
         )
 
         roadmap_detail = cls.get_intern_roadmap(db, member)
         quiz_attempts = cls.get_intern_quizzes(db, member)
-        assignment_history = cls.get_assignment_history(
-            db, current_user, member_id=member.id
-        )
+        assignment_history = cls.get_assignment_history(db, current_user, member_id=member.id)
 
         # Collect flat list of learning progress
         flat_progress: list[LearningContentProgressSchema] = []
@@ -331,7 +318,9 @@ class MentorService:
         payload: MentorAssignRequestPayload,
         current_user: User,
     ) -> MentorAssignmentHistoryItem:
-        """Assign or change primary mentor for an intern and record durable audit record in database."""
+        """Assign or change primary mentor for an intern.
+        Record durable audit record in database.
+        """
         member = db.query(InternshipMember).filter(InternshipMember.id == payload.member_id).first()
         if not member:
             raise HTTPException(
@@ -370,9 +359,7 @@ class MentorService:
 
         old_mentor_id = member.mentor_id
         old_mentor = (
-            db.query(User).filter(User.id == old_mentor_id).first()
-            if old_mentor_id
-            else None
+            db.query(User).filter(User.id == old_mentor_id).first() if old_mentor_id else None
         )
         old_mentor_name = old_mentor.full_name if old_mentor else None
 
@@ -401,10 +388,13 @@ class MentorService:
             "note": payload.note,
         }
 
-        # Durable persistence in thong_bao table (Notification entity)
+        notif_content = (
+            payload.note
+            or f"{action}: {intern_name} -> {new_mentor.full_name} by {current_user.full_name}"
+        )
         notif = Notification(
             title=f"MENTOR_{action}",
-            content=payload.note or f"{action}: {intern_name} -> {new_mentor.full_name} by {current_user.full_name}",
+            content=notif_content,
             target_type="USER",
             target_data=[history_payload],
             created_by=current_user.id,
@@ -458,9 +448,7 @@ class MentorService:
             if not notif.target_data:
                 continue
             items = (
-                notif.target_data
-                if isinstance(notif.target_data, list)
-                else [notif.target_data]
+                notif.target_data if isinstance(notif.target_data, list) else [notif.target_data]
             )
             for raw in items:
                 if not isinstance(raw, dict):
@@ -471,10 +459,9 @@ class MentorService:
                     continue
 
                 if current_user.role == UserRole.MENTOR or current_user.role == "MENTOR":
-                    is_related = (
-                        raw.get("old_mentor_id") == str(current_user.id)
-                        or raw.get("new_mentor_id") == str(current_user.id)
-                    )
+                    is_related = raw.get("old_mentor_id") == str(current_user.id) or raw.get(
+                        "new_mentor_id"
+                    ) == str(current_user.id)
                     # If querying member-specific history, permission was already asserted above
                     if not is_related and not member_id:
                         continue

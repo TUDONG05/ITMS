@@ -411,7 +411,7 @@ const dashboards: Record<Role, Dashboard> = {
                     nzAllowClear
                     nzPlaceHolder="Tất cả"
                   >
-@for (internship of internships(); track internship.id) {
+                    @for (internship of internships(); track internship.id) {
                       <nz-option [nzValue]="internship.id" [nzLabel]="internship.name"></nz-option>
                     }
                   </nz-select>

@@ -427,7 +427,6 @@ def test_permission_checks_for_assignment_apis(client: TestClient, mentor_test_d
     """10. Permission checks: Interns or unauthorized users cannot assign or change mentors."""
     intern_a = mentor_test_data["intern_a"]
     mentor_a = mentor_test_data["mentor_a"]
-    mentor_b = mentor_test_data["mentor_b"]
     member_b = mentor_test_data["member_b"]
 
     # Intern tries to assign mentor -> 403 Forbidden

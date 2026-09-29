@@ -70,6 +70,7 @@ def get_intern_roadmap(
     member = MentorService._find_member(db, member_id)
     if not member:
         from fastapi import HTTPException
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Internship member not found",
@@ -88,6 +89,7 @@ def get_intern_quizzes(
     member = MentorService._find_member(db, member_id)
     if not member:
         from fastapi import HTTPException
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Internship member not found",
@@ -103,9 +105,7 @@ def assign_or_change_mentor(
     db: Session = Depends(get_db),
 ) -> MentorAssignmentHistoryItem:
     """Assign or change primary mentor for an intern and record audit trail."""
-    return MentorService.assign_or_change_mentor(
-        db, payload=payload, current_user=current_user
-    )
+    return MentorService.assign_or_change_mentor(db, payload=payload, current_user=current_user)
 
 
 @router.get("/assignments/history", response_model=list[MentorAssignmentHistoryItem])
@@ -115,6 +115,4 @@ def get_assignment_history(
     db: Session = Depends(get_db),
 ) -> list[MentorAssignmentHistoryItem]:
     """Retrieve mentor assignment and change history with full audit trail."""
-    return MentorService.get_assignment_history(
-        db, current_user=current_user, member_id=member_id
-    )
+    return MentorService.get_assignment_history(db, current_user=current_user, member_id=member_id)
