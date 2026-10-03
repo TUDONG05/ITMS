@@ -31,7 +31,7 @@ import { MentorInternManagementComponent } from '../mentor/mentor-intern-managem
 import { ProfileComponent } from '../profile/profile.component';
 import { TrainingManagementComponent } from '../training/training-management.component';
 import { UserManagementComponent } from '../users/user-management.component';
-
+import { RequestManagementComponent } from '../requests/request-management.component';
 enum Role {
   Intern = 'INTERN',
   Mentor = 'MENTOR',
@@ -222,6 +222,7 @@ const dashboards: Record<Role, Dashboard> = {
     ProfileComponent,
     TrainingManagementComponent,
     UserManagementComponent,
+    RequestManagementComponent,
   ],
   styles: [
     `
@@ -586,6 +587,9 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'users' && role() === 'ADMIN') {
               <!-- UC-14: Quản lý người dùng -->
               <app-user-management />
+            } @else if (section() === 'requests' && role() === 'ADMIN') {
+              <!-- UC-17: Quản lý yêu cầu thực tập -->
+              <app-request-management />
             } @else if (section() === 'interns' && (role() === 'MENTOR' || role() === 'ADMIN')) {
               <!-- UC-11: Mentor quản lý Intern -->
               <app-mentor-intern-management />
