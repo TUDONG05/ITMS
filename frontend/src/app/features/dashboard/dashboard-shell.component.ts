@@ -27,6 +27,7 @@ import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { AuthService } from '../../core/api/auth.service';
 import { InternshipManagementComponent } from '../internships/internship-management.component';
+import { MentorInternManagementComponent } from '../mentor/mentor-intern-management.component';
 import { ProfileComponent } from '../profile/profile.component';
 import { TrainingManagementComponent } from '../training/training-management.component';
 import { UserManagementComponent } from '../users/user-management.component';
@@ -217,6 +218,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzProgressModule,
     NzTagModule,
     InternshipManagementComponent,
+    MentorInternManagementComponent,
     ProfileComponent,
     TrainingManagementComponent,
     UserManagementComponent,
@@ -484,7 +486,15 @@ const dashboards: Record<Role, Dashboard> = {
                               : 'Task gần đây'
                         }}
                       </h2>
-                      <button nz-button nzType="link" (click)="choose('tasks')">Xem tất cả</button>
+                      <button
+                        nz-button
+                        nzType="link"
+                        (click)="
+                          dashboard().roleLabel === 'Mentor' ? choose('interns') : choose('tasks')
+                        "
+                      >
+                        Xem tất cả
+                      </button>
                     </div>
                     @if (dashboardData()?.recent_items?.length) {
                       <div class="table-head">
@@ -576,6 +586,9 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'users' && role() === 'ADMIN') {
               <!-- UC-14: Quản lý người dùng -->
               <app-user-management />
+            } @else if (section() === 'interns' && (role() === 'MENTOR' || role() === 'ADMIN')) {
+              <!-- UC-11: Mentor quản lý Intern -->
+              <app-mentor-intern-management />
             } @else if (section() === 'training' && role() === 'ADMIN') {
               <!-- UC-16: Quản lý đào tạo (LMS) -->
               <app-training-management />
