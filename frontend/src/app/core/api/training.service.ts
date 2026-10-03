@@ -298,4 +298,17 @@ export class TrainingService {
       headers: this.getHeaders(),
     });
   }
+
+  // ── File Upload ───────────────────────────────────────────────────────────
+
+  uploadFiles(files: File[]): Observable<{ urls: string[] }> {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file, file.name);
+    }
+    // Do NOT set Content-Type header — browser sets it automatically with boundary
+    const token = sessionStorage.getItem('itms_access_token');
+    const headers = new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
+    return this.http.post<{ urls: string[] }>('/api/v1/training/upload', formData, { headers });
+  }
 }

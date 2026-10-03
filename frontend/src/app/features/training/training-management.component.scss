@@ -1253,3 +1253,72 @@
     }
   }
 }
+
+// ── File picker in content modal ──────────────────────────────────────────
+
+.file-pick-btn {
+  display: block;
+  cursor: pointer;
+  margin-top: 6px;
+
+  &:hover span[nz-button] {
+    border-color: #0284c7;
+    color: #0284c7;
+  }
+}
+
+.file-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.resource-url-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.resource-url-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 12px;
+
+  &.pending {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+  }
+
+  .resource-url-link {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #0284c7;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .file-size {
+    color: #94a3b8;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+}
+
+// ── Multi-file cell in desktop table ─────────────────────────────────────
+
+.resource-files-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

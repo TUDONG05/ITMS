@@ -138,6 +138,11 @@ export class TrainingManagementComponent implements OnInit {
   protected isContentModalVisible = false;
   protected readonly editingContent = signal<LearningContent | null>(null);
   private pendingContentPhaseId = '';
+  /** Files newly selected by the user (not yet uploaded) */
+  protected readonly resourceFiles = signal<File[]>([]);
+  /** URLs already saved on the server (from existing content or just uploaded) */
+  protected readonly resourceUrls = signal<string[]>([]);
+  protected readonly isUploadingFiles = signal<boolean>(false);
 
   protected isQuizModalVisible = false;
   protected readonly editingQuiz = signal<Quiz | null>(null);
@@ -470,6 +475,8 @@ export class TrainingManagementComponent implements OnInit {
   openCreateContentModal(phaseId: string): void {
     this.pendingContentPhaseId = phaseId;
     this.editingContent.set(null);
+    this.resourceFiles.set([]);
+    this.resourceUrls.set([]);
     this.contentForm.reset({
       title: '',
       type: 'LESSON',
@@ -483,12 +490,24 @@ export class TrainingManagementComponent implements OnInit {
 
   openEditContentModal(c: LearningContent): void {
     this.editingContent.set(c);
+    this.resourceFiles.set([]);
+    // Parse existing resource_url: may be JSON array or single URL
+    let existingUrls: string[] = [];
+    if (c.resource_url) {
+      try {
+        const parsed = JSON.parse(c.resource_url) as unknown;
+        existingUrls = Array.isArray(parsed) ? (parsed as string[]) : [c.resource_url];
+      } catch {
+        existingUrls = [c.resource_url];
+      }
+    }
+    this.resourceUrls.set(existingUrls);
     this.contentForm.patchValue({
       title: c.title,
       type: c.type,
       description: c.description ?? '',
       content: c.content ?? '',
-      resource_url: c.resource_url ?? '',
+      resource_url: '',
       order_no: c.order_no,
     });
     this.isContentModalVisible = true;
@@ -496,6 +515,29 @@ export class TrainingManagementComponent implements OnInit {
 
   closeContentModal(): void {
     this.isContentModalVisible = false;
+    this.resourceFiles.set([]);
+    this.resourceUrls.set([]);
+  }
+
+  /** Called when user picks files via the hidden input */
+  onContentFilesSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files) return;
+    const newFiles = Array.from(input.files);
+    this.resourceFiles.update((existing) => [...existing, ...newFiles]);
+    // Reset the input so the same file can be selected again if removed
+    input.value = '';
+    this.cdr.markForCheck();
+  }
+
+  removeSelectedFile(index: number): void {
+    this.resourceFiles.update((files) => files.filter((_, i) => i !== index));
+    this.cdr.markForCheck();
+  }
+
+  removeResourceUrl(index: number): void {
+    this.resourceUrls.update((urls) => urls.filter((_, i) => i !== index));
+    this.cdr.markForCheck();
   }
 
   saveContent(): void {
@@ -503,45 +545,75 @@ export class TrainingManagementComponent implements OnInit {
       this.contentForm.markAllAsTouched();
       return;
     }
-    const val = this.contentForm.value;
-    this.isSaving.set(true);
-    const editing = this.editingContent();
-    const op$ = editing
-      ? this.trainingService.updateContent(editing.id, {
-          title: val.title!,
-          type: val.type as ContentType,
-          description: val.description || null,
-          content: val.content || null,
-          resource_url: val.resource_url || null,
-          order_no: Number(val.order_no),
-        })
-      : this.trainingService.createContent({
-          phase_id: this.pendingContentPhaseId,
-          title: val.title!,
-          type: val.type as ContentType,
-          description: val.description || null,
-          content: val.content || null,
-          resource_url: val.resource_url || null,
-          order_no: Number(val.order_no),
-        });
 
-    op$.subscribe({
-      next: () => {
-        this.message.success(
-          editing ? 'Cập nhật nội dung thành công!' : 'Thêm nội dung thành công!',
-        );
-        this.isSaving.set(false);
-        this.isContentModalVisible = false;
-        const detail = this.selectedRoadmapDetail();
-        if (detail) this.loadRoadmapDetail(detail.id);
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.message.error('Thao tác thất bại. Vui lòng thử lại.');
-        this.isSaving.set(false);
-        this.cdr.markForCheck();
-      },
-    });
+    const doSave = (allUrls: string[]) => {
+      const val = this.contentForm.value;
+      const editing = this.editingContent();
+      const resourceUrlValue = allUrls.length > 0 ? JSON.stringify(allUrls) : null;
+      const op$ = editing
+        ? this.trainingService.updateContent(editing.id, {
+            title: val.title!,
+            type: val.type as ContentType,
+            description: val.description || null,
+            content: val.content || null,
+            resource_url: resourceUrlValue,
+            order_no: Number(val.order_no),
+          })
+        : this.trainingService.createContent({
+            phase_id: this.pendingContentPhaseId,
+            title: val.title!,
+            type: val.type as ContentType,
+            description: val.description || null,
+            content: val.content || null,
+            resource_url: resourceUrlValue,
+            order_no: Number(val.order_no),
+          });
+
+      op$.subscribe({
+        next: () => {
+          this.message.success(
+            editing ? 'Cập nhật nội dung thành công!' : 'Thêm nội dung thành công!',
+          );
+          this.isSaving.set(false);
+          this.isUploadingFiles.set(false);
+          this.isContentModalVisible = false;
+          this.resourceFiles.set([]);
+          this.resourceUrls.set([]);
+          const detail = this.selectedRoadmapDetail();
+          if (detail) this.loadRoadmapDetail(detail.id);
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.message.error('Thao tác thất bại. Vui lòng thử lại.');
+          this.isSaving.set(false);
+          this.isUploadingFiles.set(false);
+          this.cdr.markForCheck();
+        },
+      });
+    };
+
+    const newFiles = this.resourceFiles();
+    const existingUrls = this.resourceUrls();
+
+    if (newFiles.length > 0) {
+      this.isSaving.set(true);
+      this.isUploadingFiles.set(true);
+      this.trainingService.uploadFiles(newFiles).subscribe({
+        next: (result) => {
+          this.isUploadingFiles.set(false);
+          doSave([...existingUrls, ...result.urls]);
+        },
+        error: () => {
+          this.message.error('Tải lên tệp thất bại. Vui lòng thử lại.');
+          this.isSaving.set(false);
+          this.isUploadingFiles.set(false);
+          this.cdr.markForCheck();
+        },
+      });
+    } else {
+      this.isSaving.set(true);
+      doSave(existingUrls);
+    }
   }
 
   deleteContent(id: string, phaseId?: string): void {
@@ -579,6 +651,21 @@ export class TrainingManagementComponent implements OnInit {
 
   getPhaseQuizzes(phaseId: string): Quiz[] {
     return this.quizzesByPhase()[phaseId] ?? [];
+  }
+
+  /** Parse resource_url which may be a JSON array string or a legacy single URL */
+  parseResourceUrls(resourceUrl: string | null): string[] {
+    if (!resourceUrl) return [];
+    try {
+      const parsed = JSON.parse(resourceUrl) as unknown;
+      return Array.isArray(parsed) ? (parsed as string[]) : [resourceUrl];
+    } catch {
+      return [resourceUrl];
+    }
+  }
+
+  getFileNameFromUrl(url: string): string {
+    return url.split('/').pop() ?? url;
   }
 
   createBlankDraftQuestion(): DraftQuestion {

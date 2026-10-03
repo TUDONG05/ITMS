@@ -405,16 +405,20 @@
                           </td>
                           <td>
                             @if (content.resource_url) {
-                              <a
-                                [href]="content.resource_url"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="resource-link"
-                                title="Mở liên kết"
-                              >
-                                <span nz-icon nzType="link"></span>
-                                <span class="url-text">{{ content.resource_url }}</span>
-                              </a>
+                              <div class="resource-files-cell">
+                                @for (url of parseResourceUrls(content.resource_url); track url) {
+                                  <a
+                                    [href]="url"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="resource-link"
+                                    [title]="url"
+                                  >
+                                    <span nz-icon nzType="paper-clip"></span>
+                                    <span class="url-text">{{ getFileNameFromUrl(url) }}</span>
+                                  </a>
+                                }
+                              </div>
                             } @else {
                               <span class="text-muted">—</span>
                             }
@@ -473,15 +477,19 @@
                       }
                       @if (content.resource_url) {
                         <div class="resource-row">
-                          <span nz-icon nzType="link"></span>
-                          <a
-                            [href]="content.resource_url"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="url-text"
-                          >
-                            {{ content.resource_url }}
-                          </a>
+                          @for (url of parseResourceUrls(content.resource_url); track url) {
+                            <div>
+                              <span nz-icon nzType="paper-clip"></span>
+                              <a
+                                [href]="url"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="url-text"
+                              >
+                                {{ getFileNameFromUrl(url) }}
+                              </a>
+                            </div>
+                          }
                         </div>
                       }
                       <div class="mobile-card-actions">
@@ -1239,9 +1247,65 @@
           </nz-form-control>
         </nz-form-item>
         <nz-form-item>
-          <nz-form-label>URL tài nguyên</nz-form-label>
+          <nz-form-label>Tệp tài nguyên</nz-form-label>
           <nz-form-control>
-            <input nz-input formControlName="resource_url" placeholder="https://..." />
+            <!-- Already-saved URLs (from existing content) -->
+            @if (resourceUrls().length > 0) {
+              <div class="resource-url-list">
+                @for (url of resourceUrls(); track url; let i = $index) {
+                  <div class="resource-url-item">
+                    <span nz-icon nzType="paper-clip" nzTheme="outline"></span>
+                    <a [href]="url" target="_blank" class="resource-url-link">{{ url }}</a>
+                    <button
+                      nz-button
+                      nzType="text"
+                      nzDanger
+                      nzSize="small"
+                      (click)="removeResourceUrl(i)"
+                      title="Xóa tệp"
+                    >
+                      <span nz-icon nzType="close" nzTheme="outline"></span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+            <!-- Newly selected files (pending upload) -->
+            @if (resourceFiles().length > 0) {
+              <div class="resource-url-list">
+                @for (file of resourceFiles(); track file.name; let i = $index) {
+                  <div class="resource-url-item pending">
+                    <span nz-icon nzType="file" nzTheme="outline"></span>
+                    <span class="resource-url-link">{{ file.name }}</span>
+                    <span class="file-size">({{ (file.size / 1024).toFixed(0) }} KB)</span>
+                    <button
+                      nz-button
+                      nzType="text"
+                      nzDanger
+                      nzSize="small"
+                      (click)="removeSelectedFile(i)"
+                      title="Bỏ chọn"
+                    >
+                      <span nz-icon nzType="close" nzTheme="outline"></span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+            <!-- File picker trigger -->
+            <label class="file-pick-btn">
+              <input
+                type="file"
+                multiple
+                style="display: none"
+                (change)="onContentFilesSelected($event)"
+              />
+              <span nz-button nzType="dashed" style="width: 100%; cursor: pointer">
+                <span nz-icon nzType="upload" nzTheme="outline"></span>
+                Chọn tệp từ máy tính
+              </span>
+            </label>
+            <div class="file-hint">Hỗ trợ PDF, Word, Excel, PowerPoint, ảnh, video. Tối đa 50 MB / tệp.</div>
           </nz-form-control>
         </nz-form-item>
         <nz-form-item>
