@@ -102,16 +102,6 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
                 <nz-tag [nzColor]="statusColor()">{{ statusLabel() }}</nz-tag>
               </div>
             </div>
-            <div class="header-actions">
-              @if (!editing()) {
-                <button nz-button nzType="primary" (click)="startEdit()">
-                  <span nz-icon nzType="edit"></span>Chỉnh sửa hồ sơ
-                </button>
-              }
-              <button nz-button nzType="default" (click)="openPasswordModal()">
-                <span nz-icon nzType="key"></span>Đổi mật khẩu
-              </button>
-            </div>
           </div>
         </nz-card>
 
@@ -137,7 +127,21 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
         }
 
         <!-- Personal Info / Edit card -->
-        <nz-card class="profile-info-card" [nzBordered]="false" nzTitle="Thông tin cá nhân">
+        <nz-card
+          class="profile-info-card"
+          [nzBordered]="false"
+          [nzTitle]="infoCardTitle"
+        >
+          <ng-template #infoCardTitle>
+            <div class="info-card-title-row">
+              <span>Thông tin cá nhân</span>
+              @if (!editing()) {
+                <button nz-button nzType="primary" nzSize="small" (click)="startEdit()">
+                  <span nz-icon nzType="edit"></span>Chỉnh sửa hồ sơ
+                </button>
+              }
+            </div>
+          </ng-template>
           @if (!editing()) {
             <!-- Read-only view -->
             <div nz-row [nzGutter]="[24, 16]">
@@ -422,8 +426,11 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
       .profile-page {
         display: flex;
         flex-direction: column;
-        gap: 16px;
-        max-width: 800px;
+        gap: 12px;
+        width: 100%;
+        max-width: none;
+        padding: 12px;
+        box-sizing: border-box;
       }
 
       .profile-loading {
@@ -460,11 +467,11 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
         gap: 8px;
       }
 
-      .header-actions {
+      .info-card-title-row {
         display: flex;
-        gap: 8px;
-        align-self: flex-start;
-        margin-left: auto;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
       }
 
       .mentor-row {
