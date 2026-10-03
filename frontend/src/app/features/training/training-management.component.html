@@ -19,7 +19,7 @@
         <input
           type="text"
           nz-input
-          placeholder="🔎 Tìm kiếm tên roadmap..."
+          placeholder="Tìm kiếm tên roadmap..."
           [ngModel]="searchQuery()"
           (ngModelChange)="onSearchChange($event)"
         />
@@ -58,7 +58,7 @@
               <th class="col-desc" nzWidth="240px">Mô tả</th>
               <th nzWidth="130px">Trạng thái</th>
               <th nzAlign="center" nzWidth="90px">Số Phase</th>
-              <th nzAlign="right" nzWidth="180px">Thao tác</th>
+              <th nzAlign="center" nzWidth="180px">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -80,48 +80,27 @@
                 <td nzAlign="center">
                   <span class="count-number">{{ getRoadmapPhaseCount(rm.id) }}</span>
                 </td>
-                <td nzAlign="right">
+                <td nzAlign="center">
                   <div class="table-actions">
-                    <!-- Dòng trên: Nút Quản lý / Chỉnh sửa Phase -->
                     <button
                       nz-button
                       nzType="default"
                       nzSize="small"
-                      class="btn-manage-phase"
+                      (click)="openEditRoadmapModal(rm)"
+                    >
+                      <span nz-icon nzType="edit"></span>
+                      <span>Thông tin</span>
+                    </button>
+                    <button
+                      nz-button
+                      nzType="default"
+                      nzSize="small"
                       (click)="selectRoadmap(rm)"
                       [class.btn-active]="selectedRoadmap()?.id === rm.id"
                     >
                       <span nz-icon nzType="partition"></span>
-                      <span>Quản lý Phase</span>
+                      <span>Nội dung</span>
                     </button>
-                    <!-- Dòng dưới: 2 nút Sửa và Xóa cùng một dòng -->
-                    <div class="action-btn-pair">
-                      <button
-                        nz-button
-                        nzType="text"
-                        nzSize="small"
-                        class="action-btn-edit"
-                        (click)="openEditRoadmapModal(rm)"
-                      >
-                        <span nz-icon nzType="edit"></span>
-                        Sửa
-                      </button>
-                      <button
-                        nz-button
-                        nzType="text"
-                        nzSize="small"
-                        nzDanger
-                        class="action-btn-delete"
-                        nz-popconfirm
-                        nzPopconfirmTitle="Bạn có chắc muốn xóa roadmap này?"
-                        nzOkText="Xóa"
-                        nzCancelText="Hủy"
-                        (nzOnConfirm)="deleteRoadmap(rm.id)"
-                      >
-                        <span nz-icon nzType="delete"></span>
-                        Xóa
-                      </button>
-                    </div>
                   </div>
                 </td>
               </tr>
@@ -182,21 +161,8 @@
                 </span>
               </div>
             </div>
-
-            <!-- Thao tác: Quản lý phase ở dòng trên + Sửa, Xóa ở dòng dưới -->
+            <!-- Thao tác Roadmap -->
             <div class="roadmap-mobile-actions">
-              <button
-                nz-button
-                [nzType]="selectedRoadmap()?.id === rm.id ? 'primary' : 'default'"
-                nzSize="small"
-                class="action-btn-main"
-                (click)="$event.stopPropagation(); selectRoadmap(rm)"
-              >
-                <span nz-icon nzType="partition"></span>
-                <span>{{
-                  selectedRoadmap()?.id === rm.id ? 'Đang chọn Phase' : 'Quản lý Phase'
-                }}</span>
-              </button>
               <div class="action-btn-pair">
                 <button
                   nz-button
@@ -205,22 +171,16 @@
                   class="action-btn-sub"
                   (click)="$event.stopPropagation(); openEditRoadmapModal(rm)"
                 >
-                  <span nz-icon nzType="edit"></span> Sửa
+                  <span nz-icon nzType="edit"></span> Thông tin
                 </button>
                 <button
                   nz-button
-                  nzType="default"
-                  nzDanger
+                  [nzType]="selectedRoadmap()?.id === rm.id ? 'primary' : 'default'"
                   nzSize="small"
                   class="action-btn-sub"
-                  nz-popconfirm
-                  nzPopconfirmTitle="Bạn có chắc muốn xóa roadmap này?"
-                  nzOkText="Xóa"
-                  nzCancelText="Hủy"
-                  (nzOnConfirm)="deleteRoadmap(rm.id)"
-                  (click)="$event.stopPropagation()"
+                  (click)="$event.stopPropagation(); selectRoadmap(rm)"
                 >
-                  <span nz-icon nzType="delete"></span> Xóa
+                  <span nz-icon nzType="partition"></span> Nội dung
                 </button>
               </div>
             </div>
