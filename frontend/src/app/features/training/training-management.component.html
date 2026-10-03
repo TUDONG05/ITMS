@@ -1,0 +1,1661 @@
+<div class="training-page">
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="header-titles">
+      <h2>Quản lý Đào tạo (LMS)</h2>
+      <p>Tạo và quản lý Roadmap, Phase, nội dung học tập và bài kiểm tra.</p>
+    </div>
+    <button nz-button nzType="primary" (click)="openCreateRoadmapModal()">
+      <span nz-icon nzType="plus"></span>
+      Tạo Roadmap
+    </button>
+  </div>
+
+  <!-- Roadmap List -->
+  <nz-card [nzBordered]="false" class="main-card">
+    <!-- Toolbar -->
+    <div class="table-toolbar">
+      <div class="search-box">
+        <input
+          type="text"
+          nz-input
+          placeholder="Tìm kiếm tên roadmap..."
+          [ngModel]="searchQuery()"
+          (ngModelChange)="onSearchChange($event)"
+        />
+      </div>
+      <div class="filter-box">
+        <span class="filter-label">Trạng thái:</span>
+        <nz-select
+          [ngModel]="statusFilter()"
+          (ngModelChange)="onStatusFilterChange($event)"
+          nzPlaceHolder="Tất cả"
+          class="status-filter-select"
+        >
+          <nz-option nzValue="" nzLabel="Tất cả trạng thái"></nz-option>
+          <nz-option nzValue="DRAFT" nzLabel="Bản nháp"></nz-option>
+          <nz-option nzValue="ACTIVE" nzLabel="Đang hoạt động"></nz-option>
+          <nz-option nzValue="ARCHIVED" nzLabel="Lưu trữ"></nz-option>
+        </nz-select>
+      </div>
+    </div>
+
+    <!-- Roadmap Content (Desktop Table + Mobile Cards) -->
+    <nz-spin [nzSpinning]="isLoading()">
+      <!-- 1. BẢNG DỮ LIỆU DESKTOP (> 768px) -->
+      <div class="desktop-view">
+        <nz-table
+          #roadmapTable
+          [nzData]="filteredRoadmaps()"
+          [nzShowPagination]="true"
+          [nzPageSize]="10"
+          [nzScroll]="{ x: '860px' }"
+          nzTableLayout="fixed"
+        >
+          <thead>
+            <tr>
+              <th nzWidth="220px">Tên Roadmap</th>
+              <th class="col-desc" nzWidth="240px">Mô tả</th>
+              <th nzWidth="130px">Trạng thái</th>
+              <th nzAlign="center" nzWidth="90px">Số Phase</th>
+              <th nzAlign="center" nzWidth="180px">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (rm of roadmapTable.data; track rm.id) {
+              <tr [class.selected-row]="selectedRoadmap()?.id === rm.id">
+                <td>
+                  <strong class="roadmap-table-title">{{ rm.name }}</strong>
+                </td>
+                <td class="col-desc">
+                  <span class="desc-text" [title]="rm.description || ''">{{
+                    rm.description || '—'
+                  }}</span>
+                </td>
+                <td>
+                  <nz-tag [nzColor]="getRoadmapStatusColor(rm.status)">
+                    {{ getRoadmapStatusLabel(rm.status) }}
+                  </nz-tag>
+                </td>
+                <td nzAlign="center">
+                  <span class="count-number">{{ getRoadmapPhaseCount(rm.id) }}</span>
+                </td>
+                <td nzAlign="center">
+                  <div class="table-actions">
+                    <button
+                      nz-button
+                      nzType="default"
+                      nzSize="small"
+                      (click)="openEditRoadmapModal(rm)"
+                    >
+                      <span nz-icon nzType="edit"></span>
+                      <span>Thông tin</span>
+                    </button>
+                    <button
+                      nz-button
+                      nzType="default"
+                      nzSize="small"
+                      (click)="selectRoadmap(rm)"
+                      [class.btn-active]="selectedRoadmap()?.id === rm.id"
+                    >
+                      <span nz-icon nzType="partition"></span>
+                      <span>Nội dung</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+            @if (filteredRoadmaps().length === 0 && !isLoading()) {
+              <tr>
+                <td colspan="5" class="empty-cell">
+                  <nz-empty
+                    nzNotFoundContent="Chưa có Roadmap nào. Hãy tạo Roadmap đầu tiên!"
+                  ></nz-empty>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </nz-table>
+      </div>
+
+      <!-- 2. DẠNG THẺ (CARD VIEW) TRÊN ĐIỆN THOẠI (<= 768px): HIỂN THỊ ĐẦY ĐỦ TRONG 1 KHUNG MÀN HÌNH -->
+      <div class="mobile-view">
+        @for (rm of filteredRoadmaps(); track rm.id) {
+          <div
+            class="roadmap-mobile-card"
+            [class.roadmap-mobile-card--selected]="selectedRoadmap()?.id === rm.id"
+            role="button"
+            tabindex="0"
+            (click)="selectRoadmap(rm)"
+            (keydown.enter)="selectRoadmap(rm)"
+          >
+            <!-- Tiêu đề + Trạng thái -->
+            <div class="card-top-row">
+              <div class="roadmap-title-area">
+                <span nz-icon nzType="read" class="roadmap-badge-icon"></span>
+                <strong class="roadmap-name">{{ rm.name }}</strong>
+              </div>
+              <nz-tag [nzColor]="getRoadmapStatusColor(rm.status)" class="status-tag">
+                {{ getRoadmapStatusLabel(rm.status) }}
+              </nz-tag>
+            </div>
+
+            <!-- Mô tả đầy đủ -->
+            <div class="roadmap-desc-full">
+              {{ rm.description || 'Chưa có mô tả cho lộ trình đào tạo này.' }}
+            </div>
+
+            <!-- Thông số chi tiết: Số Phase + Ngày cập nhật -->
+            <div class="roadmap-meta-grid">
+              <div class="meta-box">
+                <span class="meta-label">Số giai đoạn</span>
+                <span class="meta-value highlight">
+                  <span nz-icon nzType="partition"></span>
+                  {{ getRoadmapPhaseCount(rm.id) }} Phase
+                </span>
+              </div>
+              <div class="meta-box">
+                <span class="meta-label">Cập nhật</span>
+                <span class="meta-value">
+                  {{ rm.updated_at || rm.created_at | date: 'dd/MM/yyyy' }}
+                </span>
+              </div>
+            </div>
+            <!-- Thao tác Roadmap -->
+            <div class="roadmap-mobile-actions">
+              <div class="action-btn-pair">
+                <button
+                  nz-button
+                  nzType="default"
+                  nzSize="small"
+                  class="action-btn-sub"
+                  (click)="$event.stopPropagation(); openEditRoadmapModal(rm)"
+                >
+                  <span nz-icon nzType="edit"></span> Thông tin
+                </button>
+                <button
+                  nz-button
+                  [nzType]="selectedRoadmap()?.id === rm.id ? 'primary' : 'default'"
+                  nzSize="small"
+                  class="action-btn-sub"
+                  (click)="$event.stopPropagation(); selectRoadmap(rm)"
+                >
+                  <span nz-icon nzType="partition"></span> Nội dung
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+        @if (filteredRoadmaps().length === 0 && !isLoading()) {
+          <div class="mobile-empty-state">
+            <nz-empty nzNotFoundContent="Chưa có Roadmap nào. Hãy tạo Roadmap đầu tiên!"></nz-empty>
+          </div>
+        }
+      </div>
+    </nz-spin>
+  </nz-card>
+
+  <!-- Phase / Content / Quiz Panel -->
+  @if (selectedRoadmapDetail(); as detail) {
+    <nz-card
+      [nzBordered]="false"
+      class="phase-card"
+      [nzTitle]="phaseCardTitle"
+      [nzExtra]="phaseCardExtra"
+    >
+      <ng-template #phaseCardTitle>
+        <div class="panel-header">
+          <span nz-icon nzType="partition" class="panel-icon"></span>
+          <span
+            >Các Phase của Roadmap: <strong>{{ detail.name }}</strong></span
+          >
+          <nz-tag [nzColor]="getRoadmapStatusColor(detail.status)" style="margin-left: 8px">
+            {{ getRoadmapStatusLabel(detail.status) }}
+          </nz-tag>
+        </div>
+      </ng-template>
+      <ng-template #phaseCardExtra>
+        <button nz-button nzType="primary" nzSize="small" (click)="openCreatePhaseModal()">
+          <span nz-icon nzType="plus"></span>
+          Thêm Phase
+        </button>
+      </ng-template>
+
+      <!-- Roadmap Summary Banner -->
+      <div class="roadmap-summary-banner">
+        <div class="banner-desc">
+          {{ detail.description || 'Chưa có mô tả cho lộ trình đào tạo này.' }}
+        </div>
+        <div class="banner-meta">
+          <span>
+            <span nz-icon nzType="partition"></span>
+            <strong>{{ detail.phases.length }}</strong> giai đoạn (Phase)
+          </span>
+          <span>
+            <span nz-icon nzType="clock-circle"></span>
+            Cập nhật: {{ detail.updated_at || detail.created_at | date: 'dd/MM/yyyy' }}
+          </span>
+        </div>
+      </div>
+
+      <nz-spin [nzSpinning]="isDetailLoading()">
+        @if (detail.phases.length === 0) {
+          <nz-empty
+            nzNotFoundContent="Roadmap này chưa có Phase nào. Hãy thêm Phase mới!"
+          ></nz-empty>
+        }
+        <nz-collapse>
+          @for (phase of detail.phases; track phase.id) {
+            <nz-collapse-panel
+              [nzHeader]="phaseHeader"
+              [nzExtra]="phaseExtra"
+              [nzActive]="expandedPhaseId() === phase.id"
+              (nzActiveChange)="onPhaseExpand($event, phase.id)"
+            >
+              <ng-template #phaseHeader>
+                <div class="phase-header-content">
+                  <span class="phase-order-badge">Phase {{ phase.order_no }}</span>
+                  <div class="phase-title-wrap">
+                    <strong class="phase-title">{{ phase.name }}</strong>
+                    @if (phase.description) {
+                      <div class="phase-desc">{{ phase.description }}</div>
+                    }
+                  </div>
+                </div>
+              </ng-template>
+              <ng-template #phaseExtra>
+                <div class="phase-actions">
+                  <button
+                    nz-button
+                    nzType="default"
+                    nzSize="small"
+                    (click)="$event.stopPropagation(); openCreateContentModal(phase.id)"
+                    title="Thêm nội dung"
+                  >
+                    <span nz-icon nzType="plus"></span>
+                    <span class="action-btn-text">Thêm nội dung</span>
+                  </button>
+                  <button
+                    nz-button
+                    nzType="default"
+                    nzSize="small"
+                    (click)="$event.stopPropagation(); openCreateQuizModal(phase.id)"
+                    title="Thêm bài kiểm tra"
+                  >
+                    <span nz-icon nzType="form"></span>
+                    <span class="action-btn-text">Thêm bài kiểm tra</span>
+                  </button>
+                  <div class="action-btn-pair">
+                    <button
+                      nz-button
+                      nzType="text"
+                      nzSize="small"
+                      (click)="$event.stopPropagation(); openEditPhaseModal(phase)"
+                      title="Sửa Phase"
+                    >
+                      <span nz-icon nzType="edit"></span>
+                    </button>
+                    <button
+                      nz-button
+                      nzType="text"
+                      nzSize="small"
+                      nzDanger
+                      nz-popconfirm
+                      nzPopconfirmTitle="Bạn có chắc muốn xóa phase này?"
+                      nzOkText="Xóa"
+                      nzCancelText="Hủy"
+                      (nzOnConfirm)="deletePhase(phase.id)"
+                      (click)="$event.stopPropagation()"
+                      title="Xóa Phase"
+                    >
+                      <span nz-icon nzType="delete"></span>
+                    </button>
+                  </div>
+                </div>
+              </ng-template>
+
+              <!-- Learning Contents -->
+              <div class="content-section">
+                <div class="section-subtitle">
+                  <span nz-icon nzType="read"></span>
+                  <strong>Nội dung học tập</strong>
+                  <span class="section-count">({{ phase.contents.length }})</span>
+                </div>
+                @if (phase.contents.length === 0) {
+                  <p class="empty-hint">Chưa có nội dung. Nhấn "Thêm nội dung" để bắt đầu.</p>
+                }
+
+                <!-- Desktop Table (> 768px): Chiếm trọn 100% bề rộng khung hình -->
+                <div class="desktop-only">
+                  <nz-table
+                    [nzData]="phase.contents"
+                    [nzShowPagination]="false"
+                    nzSize="small"
+                    class="inner-table full-width-table"
+                    nzTableLayout="auto"
+                  >
+                    <thead>
+                      <tr>
+                        <th nzWidth="55px" nzAlign="center">STT</th>
+                        <th>Tiêu đề & Nội dung</th>
+                        <th nzWidth="120px" nzAlign="center">Phân loại</th>
+                        <th nzWidth="160px">Tài nguyên</th>
+                        <th nzAlign="right" nzWidth="100px">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (content of phase.contents; track content.id) {
+                        <tr>
+                          <td nzAlign="center">
+                            <span class="order-badge">{{ content.order_no }}</span>
+                          </td>
+                          <td>
+                            <div class="item-title">{{ content.title }}</div>
+                            @if (content.description) {
+                              <div class="item-desc">{{ content.description }}</div>
+                            }
+                            @if (content.content) {
+                              <div class="item-text-body">{{ content.content }}</div>
+                            }
+                          </td>
+                          <td nzAlign="center">
+                            <nz-tag [nzColor]="getContentTypeColor(content.type)">
+                              {{ getContentTypeLabel(content.type) }}
+                            </nz-tag>
+                          </td>
+                          <td>
+                            @if (content.resource_url) {
+                              <div class="resource-files-cell">
+                                @for (url of parseResourceUrls(content.resource_url); track url) {
+                                  <a
+                                    [href]="url"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="resource-link"
+                                    [title]="url"
+                                  >
+                                    <span nz-icon nzType="paper-clip"></span>
+                                    <span class="url-text">{{ getFileNameFromUrl(url) }}</span>
+                                  </a>
+                                }
+                              </div>
+                            } @else {
+                              <span class="text-muted">—</span>
+                            }
+                          </td>
+                          <td nzAlign="right">
+                            <div class="inner-actions">
+                              <button
+                                nz-button
+                                nzType="text"
+                                nzSize="small"
+                                (click)="openEditContentModal(content)"
+                                title="Sửa nội dung"
+                              >
+                                <span nz-icon nzType="edit"></span>
+                              </button>
+                              <button
+                                nz-button
+                                nzType="text"
+                                nzSize="small"
+                                nzDanger
+                                nz-popconfirm
+                                nzPopconfirmTitle="Xóa nội dung này?"
+                                nzOkText="Xóa"
+                                nzCancelText="Hủy"
+                                (nzOnConfirm)="deleteContent(content.id, phase.id)"
+                                title="Xóa nội dung"
+                              >
+                                <span nz-icon nzType="delete"></span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </nz-table>
+                </div>
+
+                <!-- Mobile Cards (<= 768px): Tràn viền 100% khung hình -->
+                <div class="mobile-only content-cards-container">
+                  @for (content of phase.contents; track content.id) {
+                    <div class="content-mobile-card">
+                      <div class="card-head">
+                        <div class="card-head-left">
+                          <span class="order-badge">#{{ content.order_no }}</span>
+                          <strong class="item-title">{{ content.title }}</strong>
+                        </div>
+                        <nz-tag [nzColor]="getContentTypeColor(content.type)">
+                          {{ getContentTypeLabel(content.type) }}
+                        </nz-tag>
+                      </div>
+                      @if (content.description) {
+                        <div class="item-desc">{{ content.description }}</div>
+                      }
+                      @if (content.content) {
+                        <div class="item-text-body">{{ content.content }}</div>
+                      }
+                      @if (content.resource_url) {
+                        <div class="resource-row">
+                          @for (url of parseResourceUrls(content.resource_url); track url) {
+                            <div>
+                              <span nz-icon nzType="paper-clip"></span>
+                              <a
+                                [href]="url"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="url-text"
+                              >
+                                {{ getFileNameFromUrl(url) }}
+                              </a>
+                            </div>
+                          }
+                        </div>
+                      }
+                      <div class="mobile-card-actions">
+                        <button
+                          nz-button
+                          nzType="default"
+                          nzSize="small"
+                          class="btn-edit"
+                          (click)="openEditContentModal(content)"
+                        >
+                          <span nz-icon nzType="edit"></span> Sửa
+                        </button>
+                        <button
+                          nz-button
+                          nzType="default"
+                          nzDanger
+                          nzSize="small"
+                          class="btn-del"
+                          nz-popconfirm
+                          nzPopconfirmTitle="Xóa nội dung này?"
+                          nzOkText="Xóa"
+                          nzCancelText="Hủy"
+                          (nzOnConfirm)="deleteContent(content.id, phase.id)"
+                        >
+                          <span nz-icon nzType="delete"></span> Xóa
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <nz-divider></nz-divider>
+
+              <!-- Quizzes -->
+              <div class="quiz-section">
+                <div class="section-subtitle">
+                  <span nz-icon nzType="form"></span>
+                  <strong>Bài kiểm tra</strong>
+                  <span class="section-count">({{ getPhaseQuizzes(phase.id).length }})</span>
+                </div>
+                @if (getPhaseQuizzes(phase.id).length === 0) {
+                  <p class="empty-hint">Chưa có Quiz. Nhấn "Thêm Quiz" để tạo bài kiểm tra.</p>
+                }
+
+                <!-- Desktop Table (> 768px): Chiếm trọn 100% khung hình -->
+                <div class="desktop-only">
+                  <nz-table
+                    [nzData]="getPhaseQuizzes(phase.id)"
+                    [nzShowPagination]="false"
+                    nzSize="small"
+                    class="inner-table full-width-table"
+                    nzTableLayout="auto"
+                  >
+                    <thead>
+                      <tr>
+                        <th>Tiêu đề & Mô tả</th>
+                        <th nzWidth="110px" nzAlign="center">Thời gian</th>
+                        <th nzWidth="100px" nzAlign="center">Điểm đạt</th>
+                        <th nzWidth="100px" nzAlign="center">Số lần thử</th>
+                        <th nzWidth="120px" nzAlign="center">Trạng thái</th>
+                        <th nzAlign="right" nzWidth="260px">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (quiz of getPhaseQuizzes(phase.id); track quiz.id) {
+                        <tr [class.selected-row]="selectedQuiz()?.id === quiz.id">
+                          <td>
+                            <strong class="item-title">{{ quiz.title }}</strong>
+                            @if (quiz.description) {
+                              <div class="item-desc">{{ quiz.description }}</div>
+                            }
+                          </td>
+                          <td nzAlign="center">
+                            <span class="meta-tag-pill">
+                              <span nz-icon nzType="clock-circle"></span>
+                              {{ quiz.duration_minutes }} phút
+                            </span>
+                          </td>
+                          <td nzAlign="center">
+                            <span class="meta-tag-pill meta-tag-pill--green">
+                              <span nz-icon nzType="check-circle"></span>
+                              {{ quiz.pass_score }}/100
+                            </span>
+                          </td>
+                          <td nzAlign="center">
+                            <span class="meta-tag-pill meta-tag-pill--purple">
+                              <span nz-icon nzType="reload"></span>
+                              {{ quiz.max_attempts }} lần
+                            </span>
+                          </td>
+                          <td nzAlign="center">
+                            <nz-tag [nzColor]="getQuizStatusColor(quiz.status)">
+                              {{ getQuizStatusLabel(quiz.status) }}
+                            </nz-tag>
+                          </td>
+                          <td nzAlign="right">
+                            <div class="inner-actions">
+                              <button
+                                nz-button
+                                nzType="default"
+                                nzSize="small"
+                                (click)="selectQuizForQuestions(quiz)"
+                                [class.btn-active]="selectedQuiz()?.id === quiz.id"
+                              >
+                                <span nz-icon nzType="unordered-list"></span>
+                                Chỉnh sửa câu hỏi
+                              </button>
+                              @if (quiz.status === 'DRAFT') {
+                                <button
+                                  nz-button
+                                  nzType="default"
+                                  nzSize="small"
+                                  nz-popconfirm
+                                  nzPopconfirmTitle="Phát hành bài kiểm tra này?"
+                                  nzOkText="Phát hành"
+                                  nzCancelText="Hủy"
+                                  (nzOnConfirm)="publishQuiz(quiz.id)"
+                                >
+                                  <span nz-icon nzType="rocket"></span>
+                                  Phát hành
+                                </button>
+                              }
+                              <div class="action-btn-pair">
+                                <button
+                                  nz-button
+                                  nzType="text"
+                                  nzSize="small"
+                                  (click)="openEditQuizModal(quiz)"
+                                  title="Sửa bài kiểm tra"
+                                >
+                                  <span nz-icon nzType="edit"></span>
+                                </button>
+                                <button
+                                  nz-button
+                                  nzType="text"
+                                  nzSize="small"
+                                  nzDanger
+                                  nz-popconfirm
+                                  nzPopconfirmTitle="Xóa bài kiểm tra này?"
+                                  nzOkText="Xóa"
+                                  nzCancelText="Hủy"
+                                  (nzOnConfirm)="deleteQuiz(quiz.id, phase.id)"
+                                  title="Xóa bài kiểm tra"
+                                >
+                                  <span nz-icon nzType="delete"></span>
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </nz-table>
+                </div>
+
+                <!-- Mobile Cards (<= 768px): Tràn viền 100% khung hình -->
+                <div class="mobile-only quiz-cards-container">
+                  @for (quiz of getPhaseQuizzes(phase.id); track quiz.id) {
+                    <div
+                      class="quiz-mobile-card"
+                      [class.quiz-mobile-card--selected]="selectedQuiz()?.id === quiz.id"
+                    >
+                      <div class="card-head">
+                        <strong class="item-title">{{ quiz.title }}</strong>
+                        <nz-tag [nzColor]="getQuizStatusColor(quiz.status)">
+                          {{ getQuizStatusLabel(quiz.status) }}
+                        </nz-tag>
+                      </div>
+                      @if (quiz.description) {
+                        <div class="item-desc">{{ quiz.description }}</div>
+                      }
+                      <div class="quiz-meta-row">
+                        <span class="meta-pill">
+                          <span nz-icon nzType="clock-circle"></span>
+                          {{ quiz.duration_minutes }} phút
+                        </span>
+                        <span class="meta-pill meta-pill--green">
+                          <span nz-icon nzType="check-circle"></span> Đạt: {{ quiz.pass_score }}/100
+                        </span>
+                        <span class="meta-pill meta-pill--purple">
+                          <span nz-icon nzType="reload"></span> Tối đa: {{ quiz.max_attempts }} lần
+                        </span>
+                      </div>
+                      <div class="mobile-card-actions">
+                        <button
+                          nz-button
+                          nzType="primary"
+                          nzSize="small"
+                          class="btn-questions"
+                          (click)="selectQuizForQuestions(quiz)"
+                        >
+                          <span nz-icon nzType="unordered-list"></span> Chỉnh sửa câu hỏi
+                        </button>
+                        @if (quiz.status === 'DRAFT') {
+                          <button
+                            nz-button
+                            nzType="default"
+                            nzSize="small"
+                            class="btn-publish"
+                            nz-popconfirm
+                            nzPopconfirmTitle="Phát hành bài kiểm tra này?"
+                            nzOkText="Phát hành"
+                            nzCancelText="Hủy"
+                            (nzOnConfirm)="publishQuiz(quiz.id)"
+                          >
+                            <span nz-icon nzType="rocket"></span> Phát hành
+                          </button>
+                        }
+                        <button
+                          nz-button
+                          nzType="default"
+                          nzSize="small"
+                          class="btn-edit"
+                          (click)="openEditQuizModal(quiz)"
+                        >
+                          <span nz-icon nzType="edit"></span> Sửa
+                        </button>
+                        <button
+                          nz-button
+                          nzType="default"
+                          nzDanger
+                          nzSize="small"
+                          class="btn-del"
+                          nz-popconfirm
+                          nzPopconfirmTitle="Xóa bài kiểm tra này?"
+                          nzOkText="Xóa"
+                          nzCancelText="Hủy"
+                          (nzOnConfirm)="deleteQuiz(quiz.id, phase.id)"
+                        >
+                          <span nz-icon nzType="delete"></span> Xóa
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            </nz-collapse-panel>
+          }
+        </nz-collapse>
+      </nz-spin>
+    </nz-card>
+  }
+
+  <!-- Modal: Quản lý danh sách câu hỏi của Quiz (thay thế card hiện ở dưới) -->
+  <!-- Modal: Quản lý & Chỉnh sửa Câu hỏi của Quiz (Một modal duy nhất, chuyển đổi mượt mà) -->
+  <nz-modal
+    [nzVisible]="selectedQuiz() !== null"
+    [nzTitle]="questionModalHeader"
+    (nzOnCancel)="closeQuestionPanel()"
+    [nzFooter]="questionModalFooter"
+    [nzWidth]="questionViewMode() === 'form' ? 'min(720px, 96vw)' : 'min(920px, 96vw)'"
+  >
+    <ng-template #questionModalHeader>
+      <div class="panel-header">
+        <span
+          nz-icon
+          [nzType]="questionViewMode() === 'form' ? 'form' : 'question-circle'"
+          class="panel-icon"
+        ></span>
+        @if (questionViewMode() === 'form') {
+          <span>
+            {{ editingQuestion() ? 'Chỉnh sửa Câu hỏi' : 'Thêm Câu hỏi mới' }}
+            - Quiz: <strong>{{ selectedQuiz()?.title }}</strong>
+          </span>
+        } @else {
+          <span>
+            Bài kiểm tra: <strong>{{ selectedQuiz()?.title }}</strong>
+          </span>
+          @if (selectedQuiz(); as quiz) {
+            <nz-tag [nzColor]="getQuizStatusColor(quiz.status)" style="margin-left: 8px">
+              {{ getQuizStatusLabel(quiz.status) }}
+            </nz-tag>
+          }
+        }
+      </div>
+    </ng-template>
+
+    <ng-template #questionModalFooter>
+      <div class="modal-footer-actions">
+        @if (questionViewMode() === 'form') {
+          <button nz-button nzType="default" (click)="switchToListMode()">
+            Quay lại danh sách
+          </button>
+          <button nz-button nzType="primary" [nzLoading]="isSaving()" (click)="saveQuestion()">
+            Lưu câu hỏi
+          </button>
+        } @else {
+          <button nz-button nzType="default" (click)="closeQuestionPanel()">Đóng</button>
+        }
+      </div>
+    </ng-template>
+
+    <ng-container *nzModalContent>
+      @if (questionViewMode() === 'form') {
+        <!-- Giao diện Form thêm / chỉnh sửa câu hỏi -->
+        <form [formGroup]="questionForm" nz-form nzLayout="vertical">
+          <!-- Nội dung câu hỏi -->
+          <nz-form-item>
+            <nz-form-label nzRequired>Nội dung câu hỏi</nz-form-label>
+            <nz-form-control nzErrorTip="Vui lòng nhập nội dung câu hỏi">
+              <textarea
+                nz-input
+                rows="3"
+                formControlName="content"
+                placeholder="Nhập câu hỏi tại đây..."
+              ></textarea>
+            </nz-form-control>
+          </nz-form-item>
+
+          <div class="form-row">
+            <!-- Loại câu hỏi -->
+            <nz-form-item class="form-col">
+              <nz-form-label nzRequired>Loại câu hỏi</nz-form-label>
+              <nz-form-control>
+                <nz-select formControlName="type" (ngModelChange)="onQuestionTypeChange($event)">
+                  <nz-option nzValue="SINGLE_CHOICE" nzLabel="Một đáp án đúng"></nz-option>
+                  <nz-option nzValue="MULTIPLE_CHOICE" nzLabel="Nhiều đáp án đúng"></nz-option>
+                  <nz-option nzValue="TRUE_FALSE" nzLabel="Đúng / Sai"></nz-option>
+                  <nz-option nzValue="TEXT" nzLabel="Tự luận (TEXT)"></nz-option>
+                </nz-select>
+              </nz-form-control>
+            </nz-form-item>
+
+            <!-- Điểm + Thứ tự -->
+            <nz-form-item class="form-col">
+              <nz-form-label nzRequired>Điểm</nz-form-label>
+              <nz-form-control nzErrorTip="Nhập điểm (≥ 0)">
+                <input nz-input type="number" formControlName="score" placeholder="10" min="0" />
+              </nz-form-control>
+            </nz-form-item>
+            <nz-form-item class="form-col">
+              <nz-form-label nzRequired>Thứ tự</nz-form-label>
+              <nz-form-control nzErrorTip="Nhập thứ tự (≥ 1)">
+                <input nz-input type="number" formControlName="order_no" placeholder="1" min="1" />
+              </nz-form-control>
+            </nz-form-item>
+          </div>
+
+          <!-- Phần lựa chọn — chỉ hiện khi không phải TEXT -->
+          @if (questionForm.get('type')?.value !== 'TEXT') {
+            <div class="options-section">
+              <div class="options-header">
+                <span><strong>Các lựa chọn</strong></span>
+                @if (questionForm.get('type')?.value !== 'TRUE_FALSE') {
+                  <button
+                    nz-button
+                    nzType="dashed"
+                    nzSize="small"
+                    type="button"
+                    (click)="addOption()"
+                  >
+                    <span nz-icon nzType="plus"></span> Thêm lựa chọn
+                  </button>
+                }
+              </div>
+
+              @for (opt of choiceOptions; track opt.key; let i = $index) {
+                <div class="option-row">
+                  @if (questionForm.get('type')?.value === 'MULTIPLE_CHOICE') {
+                    <input
+                      type="checkbox"
+                      class="option-correct-check"
+                      [checked]="multiCorrectKeys.has(opt.key)"
+                      (change)="toggleMultiCorrect(opt.key)"
+                      title="Đánh dấu đáp án đúng"
+                    />
+                  } @else {
+                    <input
+                      type="radio"
+                      name="correct_choice_radio_inline"
+                      class="option-correct-check"
+                      [checked]="singleCorrectKey === opt.key"
+                      (change)="setSingleCorrect(opt.key)"
+                      title="Đánh dấu đáp án đúng"
+                    />
+                  }
+                  <span class="option-label">{{ opt.key }}.</span>
+                  <input
+                    nz-input
+                    class="option-input"
+                    [(ngModel)]="opt.text"
+                    [ngModelOptions]="{ standalone: true }"
+                    [readonly]="questionForm.get('type')?.value === 'TRUE_FALSE'"
+                    placeholder="Nhập nội dung lựa chọn {{ opt.key }}..."
+                  />
+                  @if (
+                    choiceOptions.length > 2 && questionForm.get('type')?.value !== 'TRUE_FALSE'
+                  ) {
+                    <button
+                      nz-button
+                      nzType="text"
+                      nzDanger
+                      nzSize="small"
+                      type="button"
+                      (click)="removeOption(i)"
+                      title="Xóa lựa chọn"
+                    >
+                      <span nz-icon nzType="delete"></span>
+                    </button>
+                  }
+                </div>
+              }
+
+              <div class="options-hint">
+                @if (questionForm.get('type')?.value === 'MULTIPLE_CHOICE') {
+                  <span nz-icon nzType="info-circle" style="color: #722ed1"></span>
+                  Tích <strong>checkbox</strong> bên trái để đánh dấu các đáp án đúng (có thể chọn
+                  nhiều).
+                } @else if (questionForm.get('type')?.value === 'TRUE_FALSE') {
+                  <span nz-icon nzType="info-circle" style="color: #13c2c2"></span>
+                  Chọn radio bên trái đáp án đúng (<strong>A. Đúng</strong> hoặc
+                  <strong>B. Sai</strong>).
+                } @else {
+                  <span nz-icon nzType="info-circle" style="color: #1890ff"></span>
+                  Chọn <strong>radio</strong> bên trái để đánh dấu 1 đáp án đúng duy nhất.
+                }
+              </div>
+            </div>
+          }
+
+          <!-- Phần tự luận — chỉ hiện khi TEXT -->
+          @if (questionForm.get('type')?.value === 'TEXT') {
+            <nz-form-item>
+              <nz-form-label>Gợi ý đáp án (không bắt buộc)</nz-form-label>
+              <nz-form-control>
+                <textarea
+                  nz-input
+                  rows="3"
+                  formControlName="text_answer_hint"
+                  placeholder="Nhập đáp án gợi ý hoặc đáp án mẫu cho câu hỏi tự luận..."
+                ></textarea>
+              </nz-form-control>
+            </nz-form-item>
+          }
+        </form>
+      } @else {
+        <!-- Giao diện Danh sách câu hỏi của Quiz -->
+        <div class="questions-modal-body">
+          <div class="questions-modal-toolbar">
+            <span class="questions-count-text">
+              Tổng cộng: <strong>{{ questions().length }}</strong> câu hỏi
+            </span>
+            <button nz-button nzType="primary" nzSize="small" (click)="openCreateQuestionModal()">
+              <span nz-icon nzType="plus"></span> Thêm câu hỏi
+            </button>
+          </div>
+
+          <nz-spin [nzSpinning]="isQuestionsLoading()">
+            @if (questions().length === 0 && !isQuestionsLoading()) {
+              <div class="empty-questions-box">
+                <nz-empty nzNotFoundContent="Quiz này chưa có câu hỏi nào.">
+                  <button nz-button nzType="primary" (click)="openCreateQuestionModal()">
+                    <span nz-icon nzType="plus"></span> Thêm câu hỏi đầu tiên
+                  </button>
+                </nz-empty>
+              </div>
+            }
+            @if (questions().length > 0) {
+              <!-- Desktop Table: Chiếm 100% bề rộng Modal -->
+              <div class="desktop-only">
+                <nz-table
+                  [nzData]="questions()"
+                  [nzShowPagination]="false"
+                  nzSize="small"
+                  class="questions-modal-table full-width-table"
+                  nzTableLayout="auto"
+                >
+                  <thead>
+                    <tr>
+                      <th nzWidth="55px" nzAlign="center">STT</th>
+                      <th>Nội dung câu hỏi & Lựa chọn đáp án</th>
+                      <th nzWidth="150px">Loại câu hỏi</th>
+                      <th nzWidth="80px" nzAlign="center">Điểm</th>
+                      <th nzAlign="center" nzWidth="110px">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (q of questions(); track q.id) {
+                      <tr>
+                        <td nzAlign="center">{{ q.order_no }}</td>
+                        <td>
+                          <div class="question-title-text">{{ q.content }}</div>
+                          @if (getQuestionOptionsList(q.options).length > 0) {
+                            <div class="question-options-preview">
+                              @for (opt of getQuestionOptionsList(q.options); track opt.key) {
+                                <span
+                                  class="option-badge"
+                                  [class.option-badge--correct]="isOptionCorrect(q, opt.key)"
+                                >
+                                  <strong>{{ opt.key }}.</strong> {{ opt.text }}
+                                </span>
+                              }
+                            </div>
+                          }
+                          @if (q.type === 'TEXT' && q.correct_answer) {
+                            <small class="desc-hint">
+                              Gợi ý đáp án: {{ formatCorrectAnswer(q.correct_answer) }}
+                            </small>
+                          }
+                        </td>
+                        <td>
+                          <nz-tag [nzColor]="getQuestionTypeColor(q.type)">
+                            {{ getQuestionTypeLabel(q.type) }}
+                          </nz-tag>
+                        </td>
+                        <td nzAlign="center">
+                          <strong>{{ q.score }}</strong>
+                        </td>
+                        <td nzAlign="center">
+                          <div class="inner-actions">
+                            <button
+                              nz-button
+                              nzType="text"
+                              nzSize="small"
+                              (click)="openEditQuestionModal(q)"
+                              title="Chỉnh sửa câu hỏi"
+                            >
+                              <span nz-icon nzType="edit"></span>
+                            </button>
+                            <button
+                              nz-button
+                              nzType="text"
+                              nzSize="small"
+                              nzDanger
+                              nz-popconfirm
+                              nzPopconfirmTitle="Xóa câu hỏi này?"
+                              nzOkText="Xóa"
+                              nzCancelText="Hủy"
+                              (nzOnConfirm)="deleteQuestion(q.id)"
+                              title="Xóa câu hỏi"
+                            >
+                              <span nz-icon nzType="delete"></span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </nz-table>
+              </div>
+
+              <!-- Mobile Cards: Hiển thị trọn vẹn trong khung hình Mobile -->
+              <div class="mobile-only question-cards-container">
+                @for (q of questions(); track q.id) {
+                  <div class="question-mobile-card">
+                    <div class="card-head">
+                      <div class="card-head-left">
+                        <span class="order-badge">Câu {{ q.order_no }}</span>
+                        <nz-tag [nzColor]="getQuestionTypeColor(q.type)">
+                          {{ getQuestionTypeLabel(q.type) }}
+                        </nz-tag>
+                      </div>
+                      <span class="meta-pill meta-pill--green"> {{ q.score }} điểm </span>
+                    </div>
+                    <div class="question-title-text">{{ q.content }}</div>
+                    @if (getQuestionOptionsList(q.options).length > 0) {
+                      <div class="question-options-preview">
+                        @for (opt of getQuestionOptionsList(q.options); track opt.key) {
+                          <span
+                            class="option-badge"
+                            [class.option-badge--correct]="isOptionCorrect(q, opt.key)"
+                          >
+                            <strong>{{ opt.key }}.</strong> {{ opt.text }}
+                          </span>
+                        }
+                      </div>
+                    }
+                    @if (q.type === 'TEXT' && q.correct_answer) {
+                      <div class="desc-hint">
+                        Gợi ý đáp án: {{ formatCorrectAnswer(q.correct_answer) }}
+                      </div>
+                    }
+                    <div class="mobile-card-actions">
+                      <button
+                        nz-button
+                        nzType="default"
+                        nzSize="small"
+                        class="btn-edit"
+                        (click)="openEditQuestionModal(q)"
+                      >
+                        <span nz-icon nzType="edit"></span> Chỉnh sửa
+                      </button>
+                      <button
+                        nz-button
+                        nzType="default"
+                        nzDanger
+                        nzSize="small"
+                        class="btn-del"
+                        nz-popconfirm
+                        nzPopconfirmTitle="Xóa câu hỏi này?"
+                        nzOkText="Xóa"
+                        nzCancelText="Hủy"
+                        (nzOnConfirm)="deleteQuestion(q.id)"
+                      >
+                        <span nz-icon nzType="delete"></span> Xóa
+                      </button>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </nz-spin>
+        </div>
+      }
+    </ng-container>
+  </nz-modal>
+
+  <!-- Modal: Tạo / Chỉnh sửa Roadmap -->
+  <nz-modal
+    [(nzVisible)]="isRoadmapModalVisible"
+    [nzTitle]="editingRoadmap() ? 'Chỉnh sửa Roadmap' : 'Tạo Roadmap mới'"
+    (nzOnCancel)="closeRoadmapModal()"
+    (nzOnOk)="saveRoadmap()"
+    [nzOkLoading]="isSaving()"
+    nzOkText="Lưu"
+    nzCancelText="Hủy"
+    [nzWidth]="'min(540px, 94vw)'"
+  >
+    <ng-container *nzModalContent>
+      <form [formGroup]="roadmapForm" nz-form nzLayout="vertical">
+        <nz-form-item>
+          <nz-form-label nzRequired>Tên Roadmap</nz-form-label>
+          <nz-form-control nzErrorTip="Vui lòng nhập tên Roadmap (tối thiểu 3 ký tự)">
+            <input
+              nz-input
+              formControlName="name"
+              placeholder="Ví dụ: Lộ trình Frontend Developer"
+            />
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label>Mô tả</nz-form-label>
+          <nz-form-control>
+            <textarea
+              nz-input
+              rows="3"
+              formControlName="description"
+              placeholder="Mô tả mục tiêu và nội dung của Roadmap..."
+            ></textarea>
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label nzRequired>Trạng thái</nz-form-label>
+          <nz-form-control>
+            <nz-select formControlName="status">
+              <nz-option nzValue="DRAFT" nzLabel="Bản nháp (DRAFT)"></nz-option>
+              <nz-option nzValue="ACTIVE" nzLabel="Đang hoạt động (ACTIVE)"></nz-option>
+              <nz-option nzValue="ARCHIVED" nzLabel="Lưu trữ (ARCHIVED)"></nz-option>
+            </nz-select>
+          </nz-form-control>
+        </nz-form-item>
+      </form>
+    </ng-container>
+  </nz-modal>
+
+  <!-- Modal: Tạo / Chỉnh sửa Phase -->
+  <nz-modal
+    [(nzVisible)]="isPhaseModalVisible"
+    [nzTitle]="editingPhase() ? 'Chỉnh sửa Phase' : 'Thêm Phase mới'"
+    (nzOnCancel)="closePhaseModal()"
+    (nzOnOk)="savePhase()"
+    [nzOkLoading]="isSaving()"
+    nzOkText="Lưu"
+    nzCancelText="Hủy"
+    [nzWidth]="'min(540px, 94vw)'"
+  >
+    <ng-container *nzModalContent>
+      <form [formGroup]="phaseForm" nz-form nzLayout="vertical">
+        <nz-form-item>
+          <nz-form-label nzRequired>Tên Phase</nz-form-label>
+          <nz-form-control nzErrorTip="Vui lòng nhập tên Phase">
+            <input
+              nz-input
+              formControlName="name"
+              placeholder="Ví dụ: Phase 1: Kiến thức nền tảng"
+            />
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label>Mô tả</nz-form-label>
+          <nz-form-control>
+            <textarea
+              nz-input
+              rows="2"
+              formControlName="description"
+              placeholder="Mô tả nội dung của Phase này..."
+            ></textarea>
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label nzRequired>Thứ tự (Order)</nz-form-label>
+          <nz-form-control nzErrorTip="Vui lòng nhập thứ tự phase (số nguyên dương)">
+            <input nz-input type="number" formControlName="order_no" placeholder="1" min="1" />
+          </nz-form-control>
+        </nz-form-item>
+      </form>
+    </ng-container>
+  </nz-modal>
+
+  <!-- Modal: Tạo / Chỉnh sửa Nội dung -->
+  <nz-modal
+    [(nzVisible)]="isContentModalVisible"
+    [nzTitle]="editingContent() ? 'Chỉnh sửa Nội dung' : 'Thêm Nội dung mới'"
+    (nzOnCancel)="closeContentModal()"
+    (nzOnOk)="saveContent()"
+    [nzOkLoading]="isSaving()"
+    nzOkText="Lưu"
+    nzCancelText="Hủy"
+    [nzWidth]="'min(600px, 94vw)'"
+  >
+    <ng-container *nzModalContent>
+      <form [formGroup]="contentForm" nz-form nzLayout="vertical">
+        <nz-form-item>
+          <nz-form-label nzRequired>Tiêu đề nội dung</nz-form-label>
+          <nz-form-control nzErrorTip="Vui lòng nhập tiêu đề">
+            <input
+              nz-input
+              formControlName="title"
+              placeholder="Ví dụ: Bài 1: Giới thiệu Angular"
+            />
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label nzRequired>Loại nội dung</nz-form-label>
+          <nz-form-control>
+            <nz-select formControlName="type">
+              <nz-option nzValue="LESSON" nzLabel="Bài học (LESSON)"></nz-option>
+              <nz-option nzValue="DOCUMENT" nzLabel="Tài liệu (DOCUMENT)"></nz-option>
+              <nz-option nzValue="VIDEO" nzLabel="Video (VIDEO)"></nz-option>
+              <nz-option nzValue="LINK" nzLabel="Liên kết (LINK)"></nz-option>
+            </nz-select>
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label>Mô tả</nz-form-label>
+          <nz-form-control>
+            <textarea
+              nz-input
+              rows="2"
+              formControlName="description"
+              placeholder="Mô tả ngắn về nội dung này..."
+            ></textarea>
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label>Nội dung</nz-form-label>
+          <nz-form-control>
+            <textarea
+              nz-input
+              rows="4"
+              formControlName="content"
+              placeholder="Nhập nội dung chi tiết (Markdown hoặc HTML)..."
+            ></textarea>
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label>Tệp tài nguyên</nz-form-label>
+          <nz-form-control>
+            <!-- Already-saved URLs (from existing content) -->
+            @if (resourceUrls().length > 0) {
+              <div class="resource-url-list">
+                @for (url of resourceUrls(); track url; let i = $index) {
+                  <div class="resource-url-item">
+                    <span nz-icon nzType="paper-clip" nzTheme="outline"></span>
+                    <a [href]="url" target="_blank" class="resource-url-link">{{ url }}</a>
+                    <button
+                      nz-button
+                      nzType="text"
+                      nzDanger
+                      nzSize="small"
+                      (click)="removeResourceUrl(i)"
+                      title="Xóa tệp"
+                    >
+                      <span nz-icon nzType="close" nzTheme="outline"></span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+            <!-- Newly selected files (pending upload) -->
+            @if (resourceFiles().length > 0) {
+              <div class="resource-url-list">
+                @for (file of resourceFiles(); track file.name; let i = $index) {
+                  <div class="resource-url-item pending">
+                    <span nz-icon nzType="file" nzTheme="outline"></span>
+                    <span class="resource-url-link">{{ file.name }}</span>
+                    <span class="file-size">({{ (file.size / 1024).toFixed(0) }} KB)</span>
+                    <button
+                      nz-button
+                      nzType="text"
+                      nzDanger
+                      nzSize="small"
+                      (click)="removeSelectedFile(i)"
+                      title="Bỏ chọn"
+                    >
+                      <span nz-icon nzType="close" nzTheme="outline"></span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+            <!-- File picker trigger -->
+            <label class="file-pick-btn">
+              <input
+                type="file"
+                multiple
+                style="display: none"
+                (change)="onContentFilesSelected($event)"
+              />
+              <span nz-button nzType="dashed" style="width: 100%; cursor: pointer">
+                <span nz-icon nzType="upload" nzTheme="outline"></span>
+                Chọn tệp từ máy tính
+              </span>
+            </label>
+            <div class="file-hint">
+              Hỗ trợ PDF, Word, Excel, PowerPoint, ảnh, video. Tối đa 50 MB / tệp.
+            </div>
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label nzRequired>Thứ tự hiển thị</nz-form-label>
+          <nz-form-control nzErrorTip="Vui lòng nhập thứ tự">
+            <input nz-input type="number" formControlName="order_no" placeholder="1" min="1" />
+          </nz-form-control>
+        </nz-form-item>
+      </form>
+    </ng-container>
+  </nz-modal>
+
+  <!-- Modal: Tạo / Chỉnh sửa Quiz -->
+  <nz-modal
+    [(nzVisible)]="isQuizModalVisible"
+    [nzTitle]="editingQuiz() ? 'Chỉnh sửa bài kiểm tra' : 'Thêm bài kiểm tra & Soạn câu hỏi'"
+    (nzOnCancel)="closeQuizModal()"
+    (nzOnOk)="saveQuiz()"
+    [nzOkLoading]="isSaving()"
+    [nzOkText]="editingQuiz() ? 'Lưu thay đổi' : 'Lưu bài kiểm tra'"
+    nzCancelText="Hủy"
+    [nzWidth]="editingQuiz() ? 'min(600px, 94vw)' : 'min(860px, 95vw)'"
+  >
+    <ng-container *nzModalContent>
+      <div style="max-height: 72vh; overflow-y: auto; padding-right: 6px">
+        <form [formGroup]="quizForm" nz-form nzLayout="vertical">
+          <nz-form-item>
+            <nz-form-label nzRequired>Tiêu đề bài kiểm tra</nz-form-label>
+            <nz-form-control nzErrorTip="Vui lòng nhập tiêu đề bài kiểm tra">
+              <input nz-input formControlName="title" placeholder="Ví dụ: Kiểm tra cuối Phase 1" />
+            </nz-form-control>
+          </nz-form-item>
+          <nz-form-item>
+            <nz-form-label>Mô tả</nz-form-label>
+            <nz-form-control>
+              <textarea
+                nz-input
+                rows="2"
+                formControlName="description"
+                placeholder="Mô tả nội dung bài kiểm tra..."
+              ></textarea>
+            </nz-form-control>
+          </nz-form-item>
+          <div class="form-row">
+            <nz-form-item class="form-col">
+              <nz-form-label nzRequired>Thời gian (phút)</nz-form-label>
+              <nz-form-control nzErrorTip="Nhập số phút (> 0)">
+                <input
+                  nz-input
+                  type="number"
+                  formControlName="duration_minutes"
+                  placeholder="30"
+                  min="1"
+                />
+              </nz-form-control>
+            </nz-form-item>
+            <nz-form-item class="form-col">
+              <nz-form-label nzRequired>Điểm đạt (0-100)</nz-form-label>
+              <nz-form-control nzErrorTip="Nhập điểm từ 0 đến 100">
+                <input
+                  nz-input
+                  type="number"
+                  formControlName="pass_score"
+                  placeholder="60"
+                  min="0"
+                  max="100"
+                />
+              </nz-form-control>
+            </nz-form-item>
+            <nz-form-item class="form-col">
+              <nz-form-label nzRequired>Số lần thử tối đa</nz-form-label>
+              <nz-form-control nzErrorTip="Nhập số lần thử (≥ 1)">
+                <input
+                  nz-input
+                  type="number"
+                  formControlName="max_attempts"
+                  placeholder="3"
+                  min="1"
+                />
+              </nz-form-control>
+            </nz-form-item>
+          </div>
+        </form>
+
+        @if (editingQuiz(); as currentQuiz) {
+          <!-- Thông báo khi chỉnh sửa: có thể bấm sang Quản lý câu hỏi -->
+          <div
+            style="
+              background: #e6f7ff;
+              border: 1px solid #91d5ff;
+              border-radius: 6px;
+              padding: 12px 16px;
+              margin-top: 16px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+            "
+          >
+            <div>
+              <span nz-icon nzType="info-circle" style="color: #1890ff; margin-right: 8px"></span>
+              <span style="font-size: 13px; color: #1e293b">
+                Bạn muốn thêm mới, sửa hoặc xóa các câu hỏi của bài kiểm tra này?
+              </span>
+            </div>
+            <button
+              nz-button
+              nzType="primary"
+              nzSize="small"
+              type="button"
+              (click)="openQuestionsFromEditModal(currentQuiz)"
+            >
+              <span nz-icon nzType="unordered-list"></span>
+              Quản lý câu hỏi
+            </button>
+          </div>
+        } @else {
+          <!-- Phần soạn câu hỏi ngay khi tạo bài kiểm tra mới -->
+          <nz-divider style="margin: 20px 0 16px 0"></nz-divider>
+
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 14px;
+              flex-wrap: wrap;
+              gap: 8px;
+            "
+          >
+            <div>
+              <h4
+                style="
+                  margin: 0;
+                  font-size: 15px;
+                  font-weight: 600;
+                  color: #1e293b;
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                "
+              >
+                <span nz-icon nzType="question-circle" style="color: #1890ff"></span>
+                Soạn câu hỏi cho bài kiểm tra
+                @if (quizDraftQuestions.length > 0) {
+                  <nz-tag nzColor="blue">{{ quizDraftQuestions.length }} câu</nz-tag>
+                }
+              </h4>
+              <span style="font-size: 12.5px; color: #64748b">
+                Bạn có thể soạn câu hỏi ngay tại đây hoặc tạo bài kiểm tra trước rồi bổ sung sau.
+              </span>
+            </div>
+            <button
+              nz-button
+              nzType="dashed"
+              nzSize="small"
+              type="button"
+              (click)="addDraftQuestion()"
+            >
+              <span nz-icon nzType="plus"></span> Thêm câu hỏi
+            </button>
+          </div>
+
+          @if (quizDraftQuestions.length === 0) {
+            <div
+              style="
+                text-align: center;
+                padding: 24px;
+                background: #f8fafc;
+                border: 1px dashed #cbd5e1;
+                border-radius: 8px;
+                margin-bottom: 12px;
+              "
+            >
+              <p style="color: #64748b; margin-bottom: 10px; font-size: 13px">
+                Chưa có câu hỏi nào được thêm.
+              </p>
+              <button
+                nz-button
+                nzType="primary"
+                nzGhost
+                nzSize="small"
+                type="button"
+                (click)="addDraftQuestion()"
+              >
+                <span nz-icon nzType="plus"></span> Thêm câu hỏi ngay
+              </button>
+            </div>
+          } @else {
+            @for (dq of quizDraftQuestions; track dq.tempId; let qIdx = $index) {
+              <div class="draft-question-card">
+                <div class="draft-question-header">
+                  <div class="draft-title">
+                    <span nz-icon nzType="form" style="color: #1890ff"></span>
+                    <strong>Câu hỏi {{ qIdx + 1 }}</strong>
+                    <nz-tag [nzColor]="getQuestionTypeColor(dq.type)">
+                      {{ getQuestionTypeLabel(dq.type) }}
+                    </nz-tag>
+                  </div>
+                  <button
+                    nz-button
+                    nzType="text"
+                    nzDanger
+                    nzSize="small"
+                    type="button"
+                    (click)="removeDraftQuestion(qIdx)"
+                    title="Xóa câu hỏi này"
+                  >
+                    <span nz-icon nzType="delete"></span> Xóa câu hỏi
+                  </button>
+                </div>
+
+                <!-- Nội dung câu hỏi -->
+                <nz-form-item style="margin-bottom: 12px">
+                  <nz-form-label nzRequired>Nội dung câu hỏi</nz-form-label>
+                  <nz-form-control>
+                    <textarea
+                      nz-input
+                      rows="2"
+                      [(ngModel)]="dq.content"
+                      [ngModelOptions]="{ standalone: true }"
+                      placeholder="Nhập nội dung câu hỏi {{ qIdx + 1 }}..."
+                    ></textarea>
+                  </nz-form-control>
+                </nz-form-item>
+
+                <!-- Loại câu hỏi & Điểm số -->
+                <div class="form-row" style="margin-bottom: 12px">
+                  <nz-form-item class="form-col">
+                    <nz-form-label nzRequired>Loại câu hỏi</nz-form-label>
+                    <nz-form-control>
+                      <nz-select
+                        [(ngModel)]="dq.type"
+                        [ngModelOptions]="{ standalone: true }"
+                        (ngModelChange)="onDraftQuestionTypeChange(dq)"
+                      >
+                        <nz-option nzValue="SINGLE_CHOICE" nzLabel="Một đáp án đúng"></nz-option>
+                        <nz-option
+                          nzValue="MULTIPLE_CHOICE"
+                          nzLabel="Nhiều đáp án đúng"
+                        ></nz-option>
+                        <nz-option nzValue="TRUE_FALSE" nzLabel="Đúng / Sai"></nz-option>
+                        <nz-option nzValue="TEXT" nzLabel="Tự luận (TEXT)"></nz-option>
+                      </nz-select>
+                    </nz-form-control>
+                  </nz-form-item>
+
+                  <nz-form-item class="form-col" style="max-width: 140px">
+                    <nz-form-label nzRequired>Điểm</nz-form-label>
+                    <nz-form-control>
+                      <input
+                        nz-input
+                        type="number"
+                        [(ngModel)]="dq.score"
+                        [ngModelOptions]="{ standalone: true }"
+                        placeholder="10"
+                        min="0"
+                      />
+                    </nz-form-control>
+                  </nz-form-item>
+                </div>
+
+                <!-- Các lựa chọn cho SINGLE_CHOICE hoặc MULTIPLE_CHOICE -->
+                @if (dq.type === 'SINGLE_CHOICE' || dq.type === 'MULTIPLE_CHOICE') {
+                  <div class="options-section" style="margin-top: 4px">
+                    <div class="options-header">
+                      <span style="font-size: 13px; font-weight: 600"
+                        >Các lựa chọn & Đáp án đúng</span
+                      >
+                      <button
+                        nz-button
+                        nzType="dashed"
+                        nzSize="small"
+                        type="button"
+                        (click)="addDraftQuestionOption(dq)"
+                      >
+                        <span nz-icon nzType="plus"></span> Thêm lựa chọn
+                      </button>
+                    </div>
+
+                    @for (opt of dq.options; track opt.key; let optIdx = $index) {
+                      <div class="option-row">
+                        @if (dq.type === 'MULTIPLE_CHOICE') {
+                          <input
+                            type="checkbox"
+                            class="option-correct-check"
+                            [checked]="dq.multiCorrectKeys.has(opt.key)"
+                            (change)="toggleDraftQuestionMultiCorrect(dq, opt.key)"
+                            title="Đánh dấu đáp án đúng"
+                          />
+                        } @else {
+                          <input
+                            type="radio"
+                            [name]="'draft_correct_radio_' + dq.tempId"
+                            class="option-correct-check"
+                            [checked]="dq.singleCorrectKey === opt.key"
+                            (change)="dq.singleCorrectKey = opt.key"
+                            title="Đánh dấu đáp án đúng"
+                          />
+                        }
+                        <span class="option-label">{{ opt.key }}.</span>
+                        <input
+                          nz-input
+                          class="option-input"
+                          [(ngModel)]="opt.text"
+                          [ngModelOptions]="{ standalone: true }"
+                          placeholder="Nhập nội dung lựa chọn {{ opt.key }}..."
+                        />
+                        @if (dq.options.length > 2) {
+                          <button
+                            nz-button
+                            nzType="text"
+                            nzDanger
+                            nzSize="small"
+                            type="button"
+                            (click)="removeDraftQuestionOption(dq, optIdx)"
+                            title="Xóa lựa chọn này"
+                          >
+                            <span nz-icon nzType="close"></span>
+                          </button>
+                        }
+                      </div>
+                    }
+                    <div class="options-hint">
+                      <span nz-icon nzType="info-circle"></span>
+                      @if (dq.type === 'MULTIPLE_CHOICE') {
+                        <span>Tích chọn vào ô vuông bên trái để đánh dấu các đáp án đúng.</span>
+                      } @else {
+                        <span
+                          >Tích chọn vào nút tròn bên trái để đánh dấu đáp án đúng duy nhất.</span
+                        >
+                      }
+                    </div>
+                  </div>
+                }
+
+                <!-- TRUE_FALSE -->
+                @if (dq.type === 'TRUE_FALSE') {
+                  <div class="options-section" style="margin-top: 4px">
+                    <div class="options-header">
+                      <span style="font-size: 13px; font-weight: 600">Đáp án Đúng / Sai</span>
+                    </div>
+                    @for (opt of dq.options; track opt.key) {
+                      <div class="option-row">
+                        <input
+                          type="radio"
+                          [name]="'draft_correct_radio_' + dq.tempId"
+                          class="option-correct-check"
+                          [checked]="dq.singleCorrectKey === opt.key"
+                          (change)="dq.singleCorrectKey = opt.key"
+                        />
+                        <span class="option-label">{{ opt.key }}.</span>
+                        <input nz-input class="option-input" [value]="opt.text" readonly />
+                      </div>
+                    }
+                    <div class="options-hint">
+                      <span nz-icon nzType="info-circle"></span>
+                      <span>Chọn nút tròn tương ứng với đáp án Đúng hoặc Sai.</span>
+                    </div>
+                  </div>
+                }
+
+                <!-- TEXT -->
+                @if (dq.type === 'TEXT') {
+                  <nz-form-item style="margin-top: 4px; margin-bottom: 0">
+                    <nz-form-label>Gợi ý câu trả lời / Đáp án mẫu</nz-form-label>
+                    <nz-form-control>
+                      <textarea
+                        nz-input
+                        rows="2"
+                        [(ngModel)]="dq.text_answer_hint"
+                        [ngModelOptions]="{ standalone: true }"
+                        placeholder="Nhập gợi ý hoặc đáp án mẫu cho câu tự luận..."
+                      ></textarea>
+                    </nz-form-control>
+                  </nz-form-item>
+                }
+              </div>
+            }
+
+            <div style="text-align: center; margin: 12px 0">
+              <button nz-button nzType="dashed" type="button" (click)="addDraftQuestion()">
+                <span nz-icon nzType="plus"></span> Thêm câu hỏi tiếp theo
+              </button>
+            </div>
+          }
+        }
+      </div>
+    </ng-container>
+  </nz-modal>
+</div>
