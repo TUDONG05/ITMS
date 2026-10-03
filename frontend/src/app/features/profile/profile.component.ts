@@ -127,11 +127,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
         }
 
         <!-- Personal Info / Edit card -->
-        <nz-card
-          class="profile-info-card"
-          [nzBordered]="false"
-          [nzTitle]="infoCardTitle"
-        >
+        <nz-card class="profile-info-card" [nzBordered]="false" [nzTitle]="infoCardTitle">
           <ng-template #infoCardTitle>
             <div class="info-card-title-row">
               <span>Thông tin cá nhân</span>
