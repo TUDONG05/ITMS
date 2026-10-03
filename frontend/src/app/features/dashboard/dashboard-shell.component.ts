@@ -21,7 +21,7 @@ import { AuthService } from '../../core/api/auth.service';
 import { InternshipManagementComponent } from '../internships/internship-management.component';
 import { ProfileComponent } from '../profile/profile.component';
 import { UserManagementComponent } from '../users/user-management.component';
-
+import { RequestManagementComponent } from '../requests/request-management.component';
 enum Role {
   Intern = 'INTERN',
   Mentor = 'MENTOR',
@@ -204,6 +204,7 @@ const dashboards: Record<Role, Dashboard> = {
     InternshipManagementComponent,
     ProfileComponent,
     UserManagementComponent,
+    RequestManagementComponent,
   ],
   template: `
     <div class="dashboard-shell">
@@ -397,6 +398,9 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'users' && role() === 'ADMIN') {
               <!-- UC-14: Quản lý người dùng -->
               <app-user-management />
+            } @else if (section() === 'requests' && role() === 'ADMIN') {
+              <!-- UC-17: Quản lý yêu cầu thực tập -->
+              <app-request-management />
             } @else {
               <section class="feature-placeholder">
                 <span nz-icon [nzType]="activeIcon()"></span>

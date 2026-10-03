@@ -134,3 +134,22 @@ class InternshipMemberUpdate(BaseSchema):
         ):
             raise ValueError("end_date must not be before start_date")
         return self
+
+
+class InternshipRequestReview(BaseSchema):
+    status: str  # "APPROVED" hoặc "REJECTED"
+    review_note: str | None = None
+
+
+class InternshipRequestRead(BaseSchema):
+    id: uuid.UUID
+    internship_member_id: uuid.UUID
+    requested_by: uuid.UUID
+    type: str  # EXTEND | STOP | COMPLETE
+    reason: str
+    requested_end_date: date | None = None
+    status: str  # PENDING | APPROVED | REJECTED
+    reviewed_by: uuid.UUID | None = None
+    review_note: str | None = None
+    created_at: datetime
+    reviewed_at: datetime | None = None

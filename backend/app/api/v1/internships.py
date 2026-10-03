@@ -13,6 +13,8 @@ from app.schemas.internship import (
     InternshipMemberCreate,
     InternshipMemberDetailRead,
     InternshipRead,
+    InternshipRequestRead,
+    InternshipRequestReview,
     InternshipUpdate,
 )
 from app.services.internship import InternshipService
@@ -45,6 +47,37 @@ def create_internship(
     """Admin creates a new internship batch."""
     internship = InternshipService.create_internship(db, data=payload, creator_id=current_user.id)
     return InternshipRead.model_validate(internship)
+
+
+# --- ĐẶT CÁC ROUTE REQUESTS LÊN TRƯỚC BẤT KỲ ROUTE CHỨA {id} NÀO ---
+
+
+@router.get("/requests", response_model=list[InternshipRequestRead])
+def list_internship_requests(
+    status: str | None = Query(None, description="Filter: PENDING, APPROVED, REJECTED"),
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> list[InternshipRequestRead]:
+    """Admin retrieves all internship requests."""
+    requests = InternshipService.get_requests(db, status_filter=status)
+    return [InternshipRequestRead.model_validate(r) for r in requests]
+
+
+@router.patch("/requests/{request_id}/review", response_model=InternshipRequestRead)
+def review_internship_request(
+    request_id: uuid.UUID,
+    payload: InternshipRequestReview,
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> InternshipRequestRead:
+    """Admin approves or rejects an internship request (extend, stop, complete)."""
+    req = InternshipService.review_request(
+        db, request_id=request_id, payload=payload, reviewer_id=current_user.id
+    )
+    return InternshipRequestRead.model_validate(req)
+
+
+# --- CÁC ROUTE DÙNG ID ---
 
 
 @router.get("/{id}", response_model=InternshipDetailRead)
