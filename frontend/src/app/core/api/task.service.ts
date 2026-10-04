@@ -2,12 +2,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
-export type TaskStatus =
-  | 'TODO'
-  | 'SUBMITTED'
-  | 'REVISION_REQUIRED'
-  | 'COMPLETED'
-  | 'CANCELLED';
+export type TaskStatus = 'TODO' | 'SUBMITTED' | 'REVISION_REQUIRED' | 'COMPLETED' | 'CANCELLED';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 
 export interface Task {
@@ -104,7 +99,14 @@ export class TaskService {
 
   updateTask(
     id: string,
-    payload: { title?: string; description?: string | null; deadline?: string | null; priority?: string; status?: string; attachment_url?: string | null },
+    payload: {
+      title?: string;
+      description?: string | null;
+      deadline?: string | null;
+      priority?: string;
+      status?: string;
+      attachment_url?: string | null;
+    },
   ): Observable<Task> {
     return this.http.patch<Task>(`/api/v1/tasks/${id}`, payload, { headers: this.getHeaders() });
   }
@@ -113,7 +115,10 @@ export class TaskService {
     return this.http.delete<Task>(`/api/v1/tasks/${id}`, { headers: this.getHeaders() });
   }
 
-  submitTask(id: string, payload: { content?: string | null; link?: string | null; attachment_url?: string | null }): Observable<TaskSubmission> {
+  submitTask(
+    id: string,
+    payload: { content?: string | null; link?: string | null; attachment_url?: string | null },
+  ): Observable<TaskSubmission> {
     return this.http.post<TaskSubmission>(`/api/v1/tasks/${id}/submit`, payload, {
       headers: this.getHeaders(),
     });
@@ -125,7 +130,10 @@ export class TaskService {
     });
   }
 
-  reviewTask(id: string, payload: { decision: 'COMPLETED' | 'REVISION_REQUIRED'; review_comment?: string | null }): Observable<TaskSubmission> {
+  reviewTask(
+    id: string,
+    payload: { decision: 'COMPLETED' | 'REVISION_REQUIRED'; review_comment?: string | null },
+  ): Observable<TaskSubmission> {
     return this.http.post<TaskSubmission>(`/api/v1/tasks/${id}/review`, payload, {
       headers: this.getHeaders(),
     });

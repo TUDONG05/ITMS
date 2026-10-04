@@ -86,9 +86,7 @@ class TaskService:
             intern_name = member.intern.full_name
         if member is not None:
             internship_name = (
-                db.query(Internship.name)
-                .filter(Internship.id == member.internship_id)
-                .scalar()
+                db.query(Internship.name).filter(Internship.id == member.internship_id).scalar()
             )
         submissions_count = (
             db.query(func.count(TaskSubmission.id))
@@ -106,9 +104,7 @@ class TaskService:
             and task.status in ("TODO", "SUBMITTED", "REVISION_REQUIRED")
             and task.deadline < now
         )
-        latest = (
-            db.query(TaskSubmission).filter(TaskSubmission.task_id == task.id).first()
-        )
+        latest = db.query(TaskSubmission).filter(TaskSubmission.task_id == task.id).first()
         is_late = bool(
             latest is not None and task.deadline is not None and latest.submitted_at > task.deadline
         )
@@ -243,9 +239,7 @@ class TaskService:
     def get_detail(cls, db: Session, user: User, task_id: uuid.UUID) -> dict:
         task = cls._get_task(db, task_id)
         cls._assert_task_access(db, user, task)
-        submissions = (
-            db.query(TaskSubmission).filter(TaskSubmission.task_id == task.id).all()
-        )
+        submissions = db.query(TaskSubmission).filter(TaskSubmission.task_id == task.id).all()
         comments = (
             db.query(TaskComment)
             .filter(TaskComment.task_id == task.id)
@@ -347,9 +341,7 @@ class TaskService:
         now = datetime.now(UTC)
         resolved_content = content or (link if link and not content else None)
         resolved_file = file_url or link or None
-        submission = (
-            db.query(TaskSubmission).filter(TaskSubmission.task_id == task.id).first()
-        )
+        submission = db.query(TaskSubmission).filter(TaskSubmission.task_id == task.id).first()
         if submission is None:
             # Lần nộp đầu: tạo bài nộp duy nhất của task
             submission = TaskSubmission(
@@ -377,9 +369,7 @@ class TaskService:
         return cls._submission_to_dict(submission, task.deadline)
 
     @classmethod
-    def delete_submission(
-        cls, db: Session, user: User, task_id: uuid.UUID
-    ) -> None:
+    def delete_submission(cls, db: Session, user: User, task_id: uuid.UUID) -> None:
         if not _is_intern(user):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -394,9 +384,7 @@ class TaskService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Task is already closed and its submission cannot be deleted",
             )
-        submission = (
-            db.query(TaskSubmission).filter(TaskSubmission.task_id == task.id).first()
-        )
+        submission = db.query(TaskSubmission).filter(TaskSubmission.task_id == task.id).first()
         if submission is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -417,9 +405,7 @@ class TaskService:
             )
         task = cls._get_task(db, task_id)
         cls._assert_task_access(db, user, task)
-        latest = (
-            db.query(TaskSubmission).filter(TaskSubmission.task_id == task.id).first()
-        )
+        latest = db.query(TaskSubmission).filter(TaskSubmission.task_id == task.id).first()
         if not latest:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="No submission to review yet"

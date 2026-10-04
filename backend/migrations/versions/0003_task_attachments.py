@@ -29,10 +29,7 @@ def upgrade() -> None:
         )
         """
     )
-    op.execute(
-        "CREATE INDEX ix_task_attachments_task_id"
-        " ON tep_dinh_kem_cong_viec (cong_viec_id)"
-    )
+    op.execute("CREATE INDEX ix_task_attachments_task_id ON tep_dinh_kem_cong_viec (cong_viec_id)")
 
 
 def downgrade() -> None:

@@ -17,8 +17,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.execute(
-        "ALTER TABLE bai_nop_cong_viec"
-        " DROP CONSTRAINT IF EXISTS uq_task_submissions_version"
+        "ALTER TABLE bai_nop_cong_viec DROP CONSTRAINT IF EXISTS uq_task_submissions_version"
     )
     op.execute("ALTER TABLE bai_nop_cong_viec DROP COLUMN IF EXISTS version")
     # Gộp dữ liệu cũ: mỗi task chỉ giữ lại bài nộp mới nhất
@@ -33,15 +32,12 @@ def upgrade() -> None:
         """
     )
     op.execute(
-        "ALTER TABLE bai_nop_cong_viec"
-        " ADD CONSTRAINT uq_task_submission_task UNIQUE (cong_viec_id)"
+        "ALTER TABLE bai_nop_cong_viec ADD CONSTRAINT uq_task_submission_task UNIQUE (cong_viec_id)"
     )
 
 
 def downgrade() -> None:
-    op.execute(
-        "ALTER TABLE bai_nop_cong_viec DROP CONSTRAINT IF EXISTS uq_task_submission_task"
-    )
+    op.execute("ALTER TABLE bai_nop_cong_viec DROP CONSTRAINT IF EXISTS uq_task_submission_task")
     op.execute("ALTER TABLE bai_nop_cong_viec ADD COLUMN IF NOT EXISTS version INTEGER")
     op.execute(
         "ALTER TABLE bai_nop_cong_viec"

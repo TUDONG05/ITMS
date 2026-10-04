@@ -33,7 +33,11 @@
         }
       </nz-select>
       <div class="overdue-check">
-        <input type="checkbox" [ngModel]="overdueOnly()" (ngModelChange)="overdueOnly.set($event); loadTasks()" />
+        <input
+          type="checkbox"
+          [ngModel]="overdueOnly()"
+          (ngModelChange)="overdueOnly.set($event); loadTasks()"
+        />
         Quá hạn
       </div>
     </div>
@@ -70,7 +74,9 @@
               <button class="link-btn" (click)="openDetail(t.id)">
                 <b>{{ t.title }}</b>
               </button>
-              <small class="sub">Nộp: {{ t.submissions_count }} · Trao đổi: {{ t.comments_count }}</small>
+              <small class="sub"
+                >Nộp: {{ t.submissions_count }} · Trao đổi: {{ t.comments_count }}</small
+              >
             </td>
             @if (isMentorSide()) {
               <td>{{ t.intern_name ?? '-' }}</td>
@@ -133,7 +139,10 @@
         (ngModelChange)="form.set({ ...form(), internship_member_id: $event })"
       >
         @for (m of interns(); track m.id) {
-          <nz-option [nzValue]="m.id" [nzLabel]="m.intern_name + ' — ' + m.internship_name"></nz-option>
+          <nz-option
+            [nzValue]="m.id"
+            [nzLabel]="m.intern_name + ' — ' + m.internship_name"
+          ></nz-option>
         }
       </nz-select>
     }
@@ -215,7 +224,9 @@
       <p class="muted">{{ d.description || 'Không có mô tả' }}</p>
       <p>
         <nz-tag [nzColor]="statusColor(d.status)">{{ statusLabel(d.status) }}</nz-tag>
-        <span class="muted">Hạn: {{ d.deadline ? (d.deadline | date: 'HH:mm dd/MM/yyyy') : '-' }}</span>
+        <span class="muted"
+          >Hạn: {{ d.deadline ? (d.deadline | date: 'HH:mm dd/MM/yyyy') : '-' }}</span
+        >
         @if (d.is_overdue) {
           <nz-tag nzColor="error">Quá hạn</nz-tag>
         }
@@ -234,7 +245,15 @@
       } @else {
         @for (s of d.submissions; track s.id) {
           <div class="submission">
-            <nz-tag [nzColor]="s.status === 'ACCEPTED' ? 'success' : s.status === 'REVISION_REQUIRED' ? 'error' : 'warning'">
+            <nz-tag
+              [nzColor]="
+                s.status === 'ACCEPTED'
+                  ? 'success'
+                  : s.status === 'REVISION_REQUIRED'
+                    ? 'error'
+                    : 'warning'
+              "
+            >
               {{ s.status }}
             </nz-tag>
             @if (s.is_late) {
@@ -249,7 +268,12 @@
             }
             <div class="submission-footer">
               <small class="muted">Nộp lúc {{ s.submitted_at | date: 'HH:mm dd/MM/yyyy' }}</small>
-              @if (!isMentorSide() && d.status !== 'COMPLETED' && d.status !== 'CANCELLED' && !isEditingSubmission()) {
+              @if (
+                !isMentorSide() &&
+                d.status !== 'COMPLETED' &&
+                d.status !== 'CANCELLED' &&
+                !isEditingSubmission()
+              ) {
                 <div class="submission-actions">
                   <button nz-button nzType="link" (click)="editSubmission(s)">
                     <span nz-icon nzType="edit"></span>Sửa bài nộp
@@ -272,7 +296,12 @@
         }
       }
 
-      @if (!isMentorSide() && d.status !== 'COMPLETED' && d.status !== 'CANCELLED' && (!d.submissions.length || isEditingSubmission())) {
+      @if (
+        !isMentorSide() &&
+        d.status !== 'COMPLETED' &&
+        d.status !== 'CANCELLED' &&
+        (!d.submissions.length || isEditingSubmission())
+      ) {
         <h4>{{ isEditingSubmission() ? 'Sửa bài nộp' : 'Nộp bài' }}</h4>
         <textarea
           nz-input
@@ -318,14 +347,25 @@
             {{ isEditingSubmission() ? 'Lưu thay đổi' : 'Nộp bài' }}
           </button>
           @if (isEditingSubmission()) {
-            <button nz-button [disabled]="isSubmitting()" (click)="cancelEditSubmission()">Hủy</button>
+            <button nz-button [disabled]="isSubmitting()" (click)="cancelEditSubmission()">
+              Hủy
+            </button>
           }
         </div>
       }
 
-      @if (isMentorSide() && d.submissions.length && d.status !== 'COMPLETED' && d.status !== 'CANCELLED') {
+      @if (
+        isMentorSide() &&
+        d.submissions.length &&
+        d.status !== 'COMPLETED' &&
+        d.status !== 'CANCELLED'
+      ) {
         <h4>Review bài nộp</h4>
-        <nz-select style="width: 100%; margin-bottom: 8px" [ngModel]="reviewDecision()" (ngModelChange)="reviewDecision.set($event)">
+        <nz-select
+          style="width: 100%; margin-bottom: 8px"
+          [ngModel]="reviewDecision()"
+          (ngModelChange)="reviewDecision.set($event)"
+        >
           <nz-option nzValue="COMPLETED" nzLabel="Xác nhận hoàn thành"></nz-option>
           <nz-option nzValue="REVISION_REQUIRED" nzLabel="Yêu cầu làm lại"></nz-option>
         </nz-select>

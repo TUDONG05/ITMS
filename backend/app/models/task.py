@@ -23,8 +23,7 @@ class Task(Base):
     __table_args__ = (
         CheckConstraint("uu_tien IN ('LOW', 'MEDIUM', 'HIGH')", name="ck_tasks_priority"),
         CheckConstraint(
-            "status IN ('TODO', 'SUBMITTED', "
-            "'REVISION_REQUIRED', 'COMPLETED', 'CANCELLED')",
+            "status IN ('TODO', 'SUBMITTED', 'REVISION_REQUIRED', 'COMPLETED', 'CANCELLED')",
             name="ck_tasks_status",
         ),
         Index("ix_tasks_internship_member_id", "thanh_vien_id"),
