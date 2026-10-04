@@ -1,10 +1,11 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
-import { tap } from 'rxjs';
+import { catchError, finalize, firstValueFrom, Observable, of, shareReplay, tap } from 'rxjs';
 
 export interface LoginRequest {
   email: string;
   password: string;
+  remember_me?: boolean;
 }
 
 export interface AuthenticatedUser {
@@ -77,20 +78,48 @@ export interface UpdateProfileRequest {
 export class AuthService {
   private readonly http = inject(HttpClient);
 
-  readonly currentUser = signal<AuthenticatedUser | null>(this.readStoredUser());
+  private readonly accessTokenSignal = signal<string | null>(null);
+  readonly accessToken = this.accessTokenSignal.asReadonly();
+  readonly currentUser = signal<AuthenticatedUser | null>(null);
+
+  private refreshInFlight$: Observable<LoginResponse> | null = null;
 
   login(payload: LoginRequest) {
     return this.http
-      .post<LoginResponse>('/api/v1/auth/login', payload)
+      .post<LoginResponse>('/api/v1/auth/login', payload, { withCredentials: true })
       .pipe(tap((res) => this.storeSession(res)));
   }
 
+  initialize(): Promise<void> {
+    return firstValueFrom(
+      this.refreshSession().pipe(
+        catchError(() => {
+          this.clearSession();
+          return of(null);
+        }),
+      ),
+    ).then(() => undefined);
+  }
+
+  refreshSession(): Observable<LoginResponse> {
+    if (!this.refreshInFlight$) {
+      this.refreshInFlight$ = this.http
+        .post<LoginResponse>('/api/v1/auth/refresh', {}, { withCredentials: true })
+        .pipe(
+          tap((res) => this.storeSession(res)),
+          shareReplay(1),
+          finalize(() => {
+            this.refreshInFlight$ = null;
+          }),
+        );
+    }
+    return this.refreshInFlight$;
+  }
+
   changePassword(payload: ChangePasswordRequest) {
-    return this.http.post<MessageResponse>(
-      '/api/v1/auth/change-password',
-      payload,
-      this.authorizedOptions(),
-    );
+    return this.http.post<MessageResponse>('/api/v1/auth/change-password', payload, {
+      withCredentials: true,
+    });
   }
 
   requestPasswordReset(payload: ForgotPasswordRequest) {
@@ -102,19 +131,21 @@ export class AuthService {
   }
 
   logout() {
-    return this.http.post<MessageResponse>('/api/v1/auth/logout', {}, this.authorizedOptions());
+    return this.http
+      .post<MessageResponse>('/api/v1/auth/logout', {}, { withCredentials: true })
+      .pipe(tap(() => this.clearSession()));
   }
 
   // UC-5 – Profile
   getProfile() {
     return this.http
-      .get<InternProfileRead>('/api/v1/profile', this.authorizedOptions())
+      .get<InternProfileRead>('/api/v1/profile', { withCredentials: true })
       .pipe(tap((profile) => this.syncWithProfile(profile)));
   }
 
   updateProfile(payload: UpdateProfileRequest) {
     return this.http
-      .patch<InternProfileRead>('/api/v1/profile', payload, this.authorizedOptions())
+      .patch<InternProfileRead>('/api/v1/profile', payload, { withCredentials: true })
       .pipe(tap((profile) => this.syncWithProfile(profile)));
   }
 
@@ -122,19 +153,17 @@ export class AuthService {
     const form = new FormData();
     form.append('file', file, file.name);
     return this.http
-      .post<InternProfileRead>('/api/v1/profile/avatar', form, this.authorizedOptions())
+      .post<InternProfileRead>('/api/v1/profile/avatar', form, { withCredentials: true })
       .pipe(tap((profile) => this.syncWithProfile(profile)));
   }
 
   storeSession(response: LoginResponse): void {
-    sessionStorage.setItem('itms_access_token', response.access_token);
-    sessionStorage.setItem('itms_authenticated_user', JSON.stringify(response.user));
+    this.accessTokenSignal.set(response.access_token);
     this.currentUser.set(response.user);
   }
 
   clearSession(): void {
-    sessionStorage.removeItem('itms_access_token');
-    sessionStorage.removeItem('itms_authenticated_user');
+    this.accessTokenSignal.set(null);
     this.currentUser.set(null);
   }
 
@@ -147,20 +176,5 @@ export class AuthService {
       avatar_url: profile.avatar_url,
     };
     this.currentUser.set(updated);
-    sessionStorage.setItem('itms_authenticated_user', JSON.stringify(updated));
-  }
-
-  private readStoredUser(): AuthenticatedUser | null {
-    try {
-      const raw = sessionStorage.getItem('itms_authenticated_user');
-      return raw ? (JSON.parse(raw) as AuthenticatedUser) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private authorizedOptions(): { headers: HttpHeaders } {
-    const token = sessionStorage.getItem('itms_access_token');
-    return { headers: new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {}) };
   }
 }
