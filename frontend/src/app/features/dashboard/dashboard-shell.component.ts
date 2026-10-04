@@ -35,7 +35,7 @@ import { ProfileComponent } from '../profile/profile.component';
 import { TrainingManagementComponent } from '../training/training-management.component';
 import { UserManagementComponent } from '../users/user-management.component';
 import { RequestManagementComponent } from '../requests/request-management.component';
-import { NZ_I18N, vi_VN, NzI18nService } from 'ng-zorro-antd/i18n';
+
 enum Role {
   Intern = 'INTERN',
   Mentor = 'MENTOR',
@@ -210,7 +210,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzResultModule,
     NzEmptyModule,
     NzSelectModule,
-    NzDatePickerModule, 
+    NzDatePickerModule,
     FormsModule,
     NzAvatarModule,
     NzBadgeModule,
@@ -229,7 +229,7 @@ const dashboards: Record<Role, Dashboard> = {
     UserManagementComponent,
     RequestManagementComponent,
   ],
- 
+
   styles: [
     `
       :host ::ng-deep {
@@ -588,7 +588,9 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'profile') {
               <!-- UC-5: Hồ sơ cá nhân -->
               <app-profile />
-            } @else if (section() === 'internships' && (role() === 'ADMIN' || role() === 'MENTOR')) {
+            } @else if (
+              section() === 'internships' && (role() === 'ADMIN' || role() === 'MENTOR')
+            ) {
               <app-internship-management />
             } @else if (section() === 'users' && (role() === 'ADMIN' || role() === 'MENTOR')) {
               <!-- UC-14: Quản lý người dùng -->

@@ -145,7 +145,9 @@ import {
                   <td>
                     <span>{{ req.created_at | date: 'dd/MM/yyyy HH:mm' }}</span>
                     @if (req.requested_end_date) {
-                      <br /><small class="text-muted">Đề xuất KT: {{ req.requested_end_date }}</small>
+                      <br /><small class="text-muted"
+                        >Đề xuất KT: {{ req.requested_end_date }}</small
+                      >
                     }
                   </td>
                   <td>
@@ -203,18 +205,15 @@ import {
                       }
                     </p>
                     @if (req.review_note) {
-                      <p class="note-text"><small>Phản hồi: {{ req.review_note }}</small></p>
+                      <p class="note-text">
+                        <small>Phản hồi: {{ req.review_note }}</small>
+                      </p>
                     }
                   </div>
 
                   <div class="card-footer">
                     @if (req.status === 'PENDING') {
-                      <button
-                        nz-button
-                        nzType="primary"
-                        nzBlock
-                        (click)="openReviewModal(req)"
-                      >
+                      <button nz-button nzType="primary" nzBlock (click)="openReviewModal(req)">
                         <span nz-icon nzType="check-circle"></span> Xem & Xử lý
                       </button>
                     } @else {
@@ -300,59 +299,199 @@ import {
   `,
   styles: [
     `
-      .request-page { display: flex; flex-direction: column; gap: 16px; }
+      .request-page {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
       .page-header {
-        background: #fff; padding: 16px 20px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; color: #1a1a1a; }
-        p { margin: 0; font-size: 13px; color: #666; }
+        background: #fff;
+        padding: 16px 20px;
+        border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        h2 {
+          margin: 0 0 4px;
+          font-size: 18px;
+          font-weight: 600;
+          color: #1a1a1a;
+        }
+        p {
+          margin: 0;
+          font-size: 13px;
+          color: #666;
+        }
       }
-      .main-card { border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-      .table-toolbar { margin-bottom: 20px; }
-      .filter-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-      .filter-item { display: flex; align-items: center; gap: 8px; }
-      .filter-label { font-size: 13px; font-weight: 500; color: #595959; white-space: nowrap; }
-      .filter-select { width: 180px; }
-      .date-picker { width: 250px; }
-      .reason-cell { word-break: break-word; white-space: normal; line-height: 1.5; }
+      .main-card {
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+      .table-toolbar {
+        margin-bottom: 20px;
+      }
+      .filter-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .filter-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .filter-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: #595959;
+        white-space: nowrap;
+      }
+      .filter-select {
+        width: 180px;
+      }
+      .date-picker {
+        width: 250px;
+      }
+      .reason-cell {
+        word-break: break-word;
+        white-space: normal;
+        line-height: 1.5;
+      }
       .info-box {
-        background: #fafafa; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; border-left: 3px solid #1890ff;
-        p { margin: 4px 0; font-size: 13px; line-height: 1.5; }
+        background: #fafafa;
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        border-left: 3px solid #1890ff;
+        p {
+          margin: 4px 0;
+          font-size: 13px;
+          line-height: 1.5;
+        }
       }
-      .text-muted { color: #8c8c8c; font-size: 12px; }
-      .mb-0 { margin-bottom: 0 !important; }
-      .desktop-only { display: block; }
-      .mobile-only { display: none; }
-      ::ng-deep .custom-review-modal .ant-modal-footer { padding: 12px 24px 20px 24px !important; border-top: none !important; }
+      .text-muted {
+        color: #8c8c8c;
+        font-size: 12px;
+      }
+      .mb-0 {
+        margin-bottom: 0 !important;
+      }
+      .desktop-only {
+        display: block;
+      }
+      .mobile-only {
+        display: none;
+      }
+      ::ng-deep .custom-review-modal .ant-modal-footer {
+        padding: 12px 24px 20px 24px !important;
+        border-top: none !important;
+      }
       .modal-footer-btns {
-        display: flex; flex-direction: column; gap: 10px; width: 100%;
-        .btn-action { width: 100% !important; height: 40px !important; border-radius: 6px !important; font-weight: 500; font-size: 14px; margin: 0 !important; }
-        .btn-approve { background-color: #1890ff; border-color: #1890ff; }
-        .btn-cancel { background-color: #fff; border: 1px solid #d9d9d9; color: #262626; }
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 100%;
+        .btn-action {
+          width: 100% !important;
+          height: 40px !important;
+          border-radius: 6px !important;
+          font-weight: 500;
+          font-size: 14px;
+          margin: 0 !important;
+        }
+        .btn-approve {
+          background-color: #1890ff;
+          border-color: #1890ff;
+        }
+        .btn-cancel {
+          background-color: #fff;
+          border: 1px solid #d9d9d9;
+          color: #262626;
+        }
       }
       @media (min-width: 577px) {
-        .modal-footer-btns { flex-direction: row-reverse; justify-content: flex-start; .btn-action { width: auto !important; min-width: 100px; height: 36px !important; } }
+        .modal-footer-btns {
+          flex-direction: row-reverse;
+          justify-content: flex-start;
+          .btn-action {
+            width: auto !important;
+            min-width: 100px;
+            height: 36px !important;
+          }
+        }
       }
       @media (max-width: 768px) {
-        .filter-row { flex-direction: column; align-items: stretch; }
-        .filter-item { flex-direction: column; align-items: flex-start; .filter-select, .date-picker { width: 100%; } }
+        .filter-row {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .filter-item {
+          flex-direction: column;
+          align-items: flex-start;
+          .filter-select,
+          .date-picker {
+            width: 100%;
+          }
+        }
       }
       @media (max-width: 576px) {
-        .desktop-only { display: none; }
-        .mobile-only { display: block; }
-        .mobile-card-list { display: flex; flex-direction: column; gap: 12px; }
-        .mobile-request-card {
-          border: 1px solid #f0f0f0; border-radius: 8px; padding: 14px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-          .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-          .card-body {
-            font-size: 13px; margin-bottom: 12px;
-            .reason-text { margin: 0 0 6px; color: #262626; line-height: 1.4; }
-            .time-text { margin: 0 0 4px; color: #8c8c8c; }
-            .note-text { margin: 0; color: #595959; font-style: italic; }
-          }
-          .card-footer { border-top: 1px dashed #f0f0f0; padding-top: 10px; }
-          .status-done-label { text-align: center; color: #8c8c8c; font-size: 12px; }
+        .desktop-only {
+          display: none;
         }
-        .loading-box, .empty-box { text-align: center; padding: 24px; color: #8c8c8c; font-size: 13px; }
+        .mobile-only {
+          display: block;
+        }
+        .mobile-card-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .mobile-request-card {
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+          padding: 14px;
+          background: #fff;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+          .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+          }
+          .card-body {
+            font-size: 13px;
+            margin-bottom: 12px;
+            .reason-text {
+              margin: 0 0 6px;
+              color: #262626;
+              line-height: 1.4;
+            }
+            .time-text {
+              margin: 0 0 4px;
+              color: #8c8c8c;
+            }
+            .note-text {
+              margin: 0;
+              color: #595959;
+              font-style: italic;
+            }
+          }
+          .card-footer {
+            border-top: 1px dashed #f0f0f0;
+            padding-top: 10px;
+          }
+          .status-done-label {
+            text-align: center;
+            color: #8c8c8c;
+            font-size: 12px;
+          }
+        }
+        .loading-box,
+        .empty-box {
+          text-align: center;
+          padding: 24px;
+          color: #8c8c8c;
+          font-size: 13px;
+        }
       }
     `,
   ],
@@ -477,37 +616,53 @@ export class RequestManagementComponent implements OnInit {
 
   getRequestTypeColor(type: RequestType): string {
     switch (type) {
-      case 'EXTEND': return 'orange';
-      case 'STOP': return 'volcano';
-      case 'COMPLETE': return 'green';
-      default: return 'blue';
+      case 'EXTEND':
+        return 'orange';
+      case 'STOP':
+        return 'volcano';
+      case 'COMPLETE':
+        return 'green';
+      default:
+        return 'blue';
     }
   }
 
   getRequestTypeLabel(type: RequestType): string {
     switch (type) {
-      case 'EXTEND': return 'Gia hạn thực tập';
-      case 'STOP': return 'Dừng thực tập';
-      case 'COMPLETE': return 'Kết thúc thực tập';
-      default: return type;
+      case 'EXTEND':
+        return 'Gia hạn thực tập';
+      case 'STOP':
+        return 'Dừng thực tập';
+      case 'COMPLETE':
+        return 'Kết thúc thực tập';
+      default:
+        return type;
     }
   }
 
   getRequestStatusColor(status: RequestStatus): string {
     switch (status) {
-      case 'PENDING': return 'processing';
-      case 'APPROVED': return 'success';
-      case 'REJECTED': return 'error';
-      default: return status;
+      case 'PENDING':
+        return 'processing';
+      case 'APPROVED':
+        return 'success';
+      case 'REJECTED':
+        return 'error';
+      default:
+        return status;
     }
   }
 
   getRequestStatusLabel(status: RequestStatus): string {
     switch (status) {
-      case 'PENDING': return 'Chờ duyệt';
-      case 'APPROVED': return 'Đã duyệt';
-      case 'REJECTED': return 'Từ chối';
-      default: return status;
+      case 'PENDING':
+        return 'Chờ duyệt';
+      case 'APPROVED':
+        return 'Đã duyệt';
+      case 'REJECTED':
+        return 'Từ chối';
+      default:
+        return status;
     }
   }
 }

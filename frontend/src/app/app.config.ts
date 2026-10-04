@@ -49,7 +49,7 @@ import {
 
 // Import đầy đủ các I18n & Date Adapter provider từ Ng-Zorro
 import { provideNzNativeDateAdapter } from 'ng-zorro-antd/core/time';
-import { NZ_I18N, NzI18nService, provideNzI18n, vi_VN } from 'ng-zorro-antd/i18n';
+import { provideNzI18n, vi_VN } from 'ng-zorro-antd/i18n';
 import { provideNzIcons } from 'ng-zorro-antd/icon';
 
 import { routes } from './app.routes';

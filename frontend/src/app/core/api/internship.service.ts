@@ -204,7 +204,7 @@ export class InternshipService {
     status?: string,
     type?: string,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
   ): Observable<InternshipRequest[]> {
     let params = new HttpParams();
     if (status) params = params.set('status', status);
