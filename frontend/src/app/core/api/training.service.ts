@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -79,11 +79,6 @@ export interface RoadmapDetail extends Roadmap {
 export class TrainingService {
   private readonly http = inject(HttpClient);
 
-  private getHeaders(): HttpHeaders {
-    const token = sessionStorage.getItem('itms_access_token');
-    return new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
-  }
-
   // ── Roadmaps ──────────────────────────────────────────────────────────────
 
   getRoadmaps(search?: string, status?: RoadmapStatus | ''): Observable<Roadmap[]> {
@@ -95,7 +90,6 @@ export class TrainingService {
       params = params.set('status', status);
     }
     return this.http.get<Roadmap[]>('/api/v1/training/roadmaps', {
-      headers: this.getHeaders(),
       params,
     });
   }
@@ -105,30 +99,22 @@ export class TrainingService {
     description?: string | null;
     status?: RoadmapStatus;
   }): Observable<Roadmap> {
-    return this.http.post<Roadmap>('/api/v1/training/roadmaps', payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.post<Roadmap>('/api/v1/training/roadmaps', payload, {});
   }
 
   getRoadmap(id: string): Observable<RoadmapDetail> {
-    return this.http.get<RoadmapDetail>(`/api/v1/training/roadmaps/${id}`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.get<RoadmapDetail>(`/api/v1/training/roadmaps/${id}`, {});
   }
 
   updateRoadmap(
     id: string,
     payload: { name?: string; description?: string | null; status?: RoadmapStatus },
   ): Observable<Roadmap> {
-    return this.http.patch<Roadmap>(`/api/v1/training/roadmaps/${id}`, payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.patch<Roadmap>(`/api/v1/training/roadmaps/${id}`, payload, {});
   }
 
   deleteRoadmap(id: string): Observable<void> {
-    return this.http.delete<void>(`/api/v1/training/roadmaps/${id}`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.delete<void>(`/api/v1/training/roadmaps/${id}`, {});
   }
 
   // ── Phases ────────────────────────────────────────────────────────────────
@@ -139,32 +125,24 @@ export class TrainingService {
     description?: string | null;
     order_no: number;
   }): Observable<Phase> {
-    return this.http.post<Phase>('/api/v1/training/phases', payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.post<Phase>('/api/v1/training/phases', payload, {});
   }
 
   updatePhase(
     id: string,
     payload: { name?: string; description?: string | null; order_no?: number },
   ): Observable<Phase> {
-    return this.http.patch<Phase>(`/api/v1/training/phases/${id}`, payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.patch<Phase>(`/api/v1/training/phases/${id}`, payload, {});
   }
 
   deletePhase(id: string): Observable<void> {
-    return this.http.delete<void>(`/api/v1/training/phases/${id}`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.delete<void>(`/api/v1/training/phases/${id}`, {});
   }
 
   // ── Learning Contents ─────────────────────────────────────────────────────
 
   getContents(phaseId: string): Observable<LearningContent[]> {
-    return this.http.get<LearningContent[]>(`/api/v1/training/phases/${phaseId}/contents`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.get<LearningContent[]>(`/api/v1/training/phases/${phaseId}/contents`, {});
   }
 
   createContent(payload: {
@@ -176,9 +154,7 @@ export class TrainingService {
     resource_url?: string | null;
     order_no: number;
   }): Observable<LearningContent> {
-    return this.http.post<LearningContent>('/api/v1/training/contents', payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.post<LearningContent>('/api/v1/training/contents', payload, {});
   }
 
   updateContent(
@@ -192,23 +168,17 @@ export class TrainingService {
       order_no?: number;
     },
   ): Observable<LearningContent> {
-    return this.http.patch<LearningContent>(`/api/v1/training/contents/${id}`, payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.patch<LearningContent>(`/api/v1/training/contents/${id}`, payload, {});
   }
 
   deleteContent(id: string): Observable<void> {
-    return this.http.delete<void>(`/api/v1/training/contents/${id}`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.delete<void>(`/api/v1/training/contents/${id}`, {});
   }
 
   // ── Quizzes ───────────────────────────────────────────────────────────────
 
   getQuizzes(phaseId: string): Observable<Quiz[]> {
-    return this.http.get<Quiz[]>(`/api/v1/training/phases/${phaseId}/quizzes`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.get<Quiz[]>(`/api/v1/training/phases/${phaseId}/quizzes`, {});
   }
 
   createQuiz(payload: {
@@ -219,9 +189,7 @@ export class TrainingService {
     pass_score: number;
     max_attempts: number;
   }): Observable<Quiz> {
-    return this.http.post<Quiz>('/api/v1/training/quizzes', payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.post<Quiz>('/api/v1/training/quizzes', payload, {});
   }
 
   updateQuiz(
@@ -234,33 +202,21 @@ export class TrainingService {
       max_attempts?: number;
     },
   ): Observable<Quiz> {
-    return this.http.patch<Quiz>(`/api/v1/training/quizzes/${id}`, payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.patch<Quiz>(`/api/v1/training/quizzes/${id}`, payload, {});
   }
 
   deleteQuiz(id: string): Observable<void> {
-    return this.http.delete<void>(`/api/v1/training/quizzes/${id}`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.delete<void>(`/api/v1/training/quizzes/${id}`, {});
   }
 
   publishQuiz(id: string): Observable<Quiz> {
-    return this.http.post<Quiz>(
-      `/api/v1/training/quizzes/${id}/publish`,
-      {},
-      {
-        headers: this.getHeaders(),
-      },
-    );
+    return this.http.post<Quiz>(`/api/v1/training/quizzes/${id}/publish`, {}, {});
   }
 
   // ── Questions ─────────────────────────────────────────────────────────────
 
   getQuestions(quizId: string): Observable<Question[]> {
-    return this.http.get<Question[]>(`/api/v1/training/quizzes/${quizId}/questions`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.get<Question[]>(`/api/v1/training/quizzes/${quizId}/questions`, {});
   }
 
   createQuestion(payload: {
@@ -272,9 +228,7 @@ export class TrainingService {
     score: number;
     order_no: number;
   }): Observable<Question> {
-    return this.http.post<Question>('/api/v1/training/questions', payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.post<Question>('/api/v1/training/questions', payload, {});
   }
 
   updateQuestion(
@@ -288,15 +242,11 @@ export class TrainingService {
       order_no?: number;
     },
   ): Observable<Question> {
-    return this.http.patch<Question>(`/api/v1/training/questions/${id}`, payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.patch<Question>(`/api/v1/training/questions/${id}`, payload, {});
   }
 
   deleteQuestion(id: string): Observable<void> {
-    return this.http.delete<void>(`/api/v1/training/questions/${id}`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.delete<void>(`/api/v1/training/questions/${id}`, {});
   }
 
   // ── File Upload ───────────────────────────────────────────────────────────
@@ -306,9 +256,6 @@ export class TrainingService {
     for (const file of files) {
       formData.append('files', file, file.name);
     }
-    // Do NOT set Content-Type header — browser sets it automatically with boundary
-    const token = sessionStorage.getItem('itms_access_token');
-    const headers = new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
-    return this.http.post<{ urls: string[] }>('/api/v1/training/upload', formData, { headers });
+    return this.http.post<{ urls: string[] }>('/api/v1/training/upload', formData);
   }
 }

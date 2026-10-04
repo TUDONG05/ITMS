@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
@@ -13,7 +13,7 @@ import { ApiErrorResponse, AuthService } from '../../core/api/auth.service';
   template: `
     <main class="auth-page">
       <form class="auth-card" [formGroup]="form" (ngSubmit)="submit()">
-        <a class="back-link" [routerLink]="dashboardLink">← Quay lại dashboard</a>
+        <a class="back-link" [routerLink]="dashboardLink()">← Quay lại dashboard</a>
         <h1>Đổi mật khẩu</h1>
         <p class="auth-card__intro">Đặt mật khẩu mới để bảo vệ tài khoản ITMS của bạn.</p>
 
@@ -72,6 +72,10 @@ export class ChangePasswordComponent {
   private readonly formBuilder = inject(FormBuilder).nonNullable;
   private readonly router = inject(Router);
 
+  protected readonly dashboardLink = computed(() =>
+    dashboardLinkForCurrentUser(this.authService.currentUser()?.role),
+  );
+
   protected readonly form = this.formBuilder.group({
     currentPassword: ['', Validators.required],
     newPassword: ['', [Validators.required, Validators.minLength(8)]],
@@ -80,7 +84,6 @@ export class ChangePasswordComponent {
   protected readonly isSubmitting = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly message = signal<string | null>(null);
-  protected readonly dashboardLink = dashboardLinkForCurrentUser();
 
   protected submit(): void {
     if (
@@ -109,15 +112,11 @@ export class ChangePasswordComponent {
   }
 }
 
-function dashboardLinkForCurrentUser(): string[] {
-  try {
-    const role = (
-      JSON.parse(sessionStorage.getItem('itms_authenticated_user') ?? '{}') as { role?: string }
-    ).role?.toLowerCase();
-    return role && ['intern', 'mentor', 'admin'].includes(role) ? ['/dashboard', role] : ['/login'];
-  } catch {
-    return ['/login'];
-  }
+function dashboardLinkForCurrentUser(role?: string): string[] {
+  const normalized = role?.toLowerCase();
+  return normalized && ['intern', 'mentor', 'admin'].includes(normalized)
+    ? ['/dashboard', normalized]
+    : ['/login'];
 }
 
 function errorMessage(error: unknown, fallback: string): string {

@@ -1,4 +1,6 @@
+import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
+import { AuthService } from './core/api/auth.service';
 import { dashboardRoleGuard } from './core/guards/dashboard-role.guard';
 import { ChangePasswordComponent } from './features/auth/change-password.component';
 import { ForgotPasswordComponent } from './features/auth/forgot-password.component';
@@ -19,15 +21,10 @@ export const routes: Routes = [
   {
     path: 'profile',
     redirectTo: () => {
-      const savedUser = sessionStorage.getItem('itms_authenticated_user');
-      if (!savedUser) return '/login';
-      try {
-        const user = JSON.parse(savedUser) as { role?: string };
-        const role = user.role?.toLowerCase() || 'intern';
-        return `/dashboard/${role}?section=profile`;
-      } catch {
-        return '/login';
-      }
+      const user = inject(AuthService).currentUser();
+      if (!user) return '/login';
+      const role = user.role?.toLowerCase() || 'intern';
+      return `/dashboard/${role}?section=profile`;
     },
   },
   { path: '', pathMatch: 'full', redirectTo: 'login' },

@@ -438,7 +438,7 @@ const dashboards: Record<Role, Dashboard> = {
                 <nz-result
                   nzStatus="error"
                   nzTitle="Lỗi tải dữ liệu"
-                  nzSubTitle="Vui lòng thử lại sau."
+                  [nzSubTitle]="dashboardError()"
                 >
                   <div nz-result-extra>
                     <button nz-button nzType="primary" (click)="loadDashboard()">Thử lại</button>
@@ -648,6 +648,7 @@ export class DashboardShellComponent implements OnInit {
   protected readonly dashboardData = signal<DashboardResponse | null>(null);
   protected readonly isLoading = signal(true);
   protected readonly hasError = signal(false);
+  protected readonly dashboardError = signal('Vui lòng thử lại sau.');
   private readonly internshipService = inject(InternshipService);
   protected readonly internships = signal<Internship[]>([]);
   protected selectedInternshipId: string | null = null;
@@ -728,7 +729,8 @@ export class DashboardShellComponent implements OnInit {
         }
         this.isLoading.set(false);
       },
-      error: () => {
+      error: (err: { status?: number }) => {
+        this.dashboardError.set(mapDashboardError(err.status));
         this.hasError.set(true);
         this.isLoading.set(false);
       },
@@ -826,4 +828,11 @@ export class DashboardShellComponent implements OnInit {
     if (val == null) return 0;
     return Math.round(val * 100) / 100;
   }
+}
+
+function mapDashboardError(status?: number): string {
+  if (status === 401) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+  if (status === 403) return 'Tài khoản không có quyền xem dữ liệu này.';
+  if (status !== undefined && status >= 500) return 'Máy chủ đang gặp sự cố. Vui lòng thử lại sau.';
+  return 'Vui lòng thử lại sau.';
 }

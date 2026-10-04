@@ -678,6 +678,10 @@ export class ProfileComponent implements OnInit {
       error: (err: { status?: number }) => {
         if (err.status === 401) {
           this.error.set('Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.');
+        } else if (err.status === 403) {
+          this.error.set('Tài khoản không có quyền xem hồ sơ này.');
+        } else if (err.status !== undefined && err.status >= 500) {
+          this.error.set('Máy chủ đang gặp sự cố. Vui lòng thử lại sau.');
         } else {
           this.error.set('Không thể tải thông tin hồ sơ. Vui lòng thử lại.');
         }

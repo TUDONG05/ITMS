@@ -146,13 +146,13 @@ export class LoginComponent {
       return;
     }
 
-    const { email, password } = this.form.getRawValue();
+    const { email, password, rememberMe } = this.form.getRawValue();
     this.errorMessage.set(null);
     this.authenticatedUser.set(null);
     this.isSubmitting.set(true);
 
     this.authService
-      .login({ email, password })
+      .login({ email, password, remember_me: rememberMe })
       .pipe(finalize(() => this.isSubmitting.set(false)))
       .subscribe({
         next: (response) => {
