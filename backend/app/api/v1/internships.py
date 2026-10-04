@@ -1,14 +1,12 @@
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from datetime import date
-from app.models.enums import RequestType
-
 from app.core.deps import get_current_user, require_roles
 from app.db.session import get_db
-from app.models.enums import InternshipStatus, UserRole
+from app.models.enums import InternshipStatus, RequestType, UserRole
 from app.models.user import User
 from app.schemas.internship import (
     InternshipCreate,
