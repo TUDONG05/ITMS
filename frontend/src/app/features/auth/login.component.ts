@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
@@ -125,7 +125,7 @@ import { ApiErrorResponse, AuthenticatedUser, AuthService } from '../../core/api
     </main>
   `,
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly formBuilder = inject(FormBuilder).nonNullable;
@@ -139,6 +139,13 @@ export class LoginComponent {
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly isPasswordVisible = signal(false);
   protected readonly isSubmitting = signal(false);
+
+  ngOnInit(): void {
+    const user = this.authService.currentUser();
+    if (user) {
+      void this.router.navigate(['/dashboard', user.role.toLowerCase()]);
+    }
+  }
 
   protected submit(): void {
     if (this.form.invalid) {
