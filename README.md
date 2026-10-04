@@ -73,6 +73,10 @@ Ví dụ cấu hình PostgreSQL local:
 ITMS_ENVIRONMENT=development
 ITMS_DATABASE_URL=postgresql+psycopg://postgres:your_password@localhost:5432/itms
 ITMS_JWT_SECRET=replace-with-a-long-random-development-secret
+ITMS_ACCESS_TOKEN_TTL_SECONDS=900
+ITMS_SESSION_REFRESH_TTL_SECONDS=43200
+ITMS_REMEMBERED_REFRESH_TTL_SECONDS=2592000
+ITMS_REFRESH_COOKIE_NAME=itms_refresh_token
 ```
 
 Nếu sử dụng quên mật khẩu qua Gmail, điền `ITMS_SMTP_USERNAME`,
@@ -144,17 +148,38 @@ Tiền tố API cố định: `/api/v1`.
 | ----------- | ----------------------- | -------------------------------- |
 | `GET`       | `/health`               | Health probe của dịch vụ         |
 | `GET`       | `/health/db`            | Kiểm tra kết nối PostgreSQL      |
-| `POST`      | `/auth/login`           | Đăng nhập và nhận JWT            |
-| `POST`      | `/auth/refresh`         | Làm mới access token             |
-| `POST`      | `/auth/logout`          | Thu hồi phiên đang hoạt động     |
-| `POST`      | `/auth/change-password` | Đổi mật khẩu khi đã đăng nhập    |
+| `POST`      | `/auth/login`           | Đăng nhập, tạo session DB và đặt refresh cookie |
+| `POST`      | `/auth/refresh`         | Xoay refresh token từ cookie (không cần bearer) |
+| `POST`      | `/auth/logout`          | Thu hồi session hiện tại và xóa cookie |
+| `POST`      | `/auth/change-password` | Đổi mật khẩu khi đã đăng nhập (thu hồi mọi session) |
 | `POST`      | `/auth/forgot-password` | Gửi OTP đặt lại mật khẩu         |
 | `POST`      | `/auth/reset-password`  | Xác thực OTP và đặt mật khẩu mới |
 | `GET`       | `/me`                   | Lấy tài khoản từ Bearer token    |
 
+### Phiên đăng nhập bền vững
+
+- Access token (JWT, 15 phút) chỉ giữ trong bộ nhớ Angular, không lưu web storage.
+- Refresh token dạng opaque lưu băm SHA-256 trong bảng `phien_dang_nhap`; giá trị gốc
+  chỉ nằm trong cookie `itms_refresh_token` (`HttpOnly`, `SameSite=Lax`,
+  path `/api/v1/auth`; `Secure` trên production).
+- Không chọn “Ghi nhớ đăng nhập”: session cookie, tối đa 12 giờ. Có chọn: persistent
+  cookie, tối đa 30 ngày. Mỗi lần refresh xoay token một lần; token cũ mất hiệu lực.
+- Đổi/đặt lại mật khẩu thu hồi toàn bộ session; đăng xuất thu hồi session hiện tại.
+- `X-User-Id` chỉ có tác dụng ở `development`/`test`; Bearer UUID luôn bị từ chối.
+
+### Triển khai phiên bản session
+
+1. Bắt buộc chạy `uv run alembic upgrade head` trước khi deploy (migration
+   `0007_auth_sessions` tạo bảng `phien_dang_nhap`).
+2. Đặt đủ biến `ITMS_SESSION_REFRESH_TTL_SECONDS`,
+   `ITMS_REMEMBERED_REFRESH_TTL_SECONDS`, `ITMS_REFRESH_COOKIE_NAME` nếu cần khác mặc định.
+3. Sau deploy, mọi phiên cũ phải đăng nhập lại một lần để tạo session mới.
+
 ## Mô hình dữ liệu
 
-Migration hiện quản lý 20 bảng nghiệp vụ, với tên bảng/thuộc tính tiếng Việt. Chúng bao phủ:
+Migration hiện quản lý 21 bảng: 20 bảng nghiệp vụ với tên bảng/thuộc tính tiếng Việt, Chúng bao phủ:
+
+- phiên đăng nhập bền vững (`phien_dang_nhap`);
 
 - người dùng và phân quyền;
 - đợt/thành viên/yêu cầu thực tập;
