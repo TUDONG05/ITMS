@@ -10,7 +10,6 @@ ITMS là hệ thống quản lý thực tập sinh dành cho ba vai trò **Admin
 **Intern**. Ứng dụng cung cấp giao diện Angular, REST API FastAPI và cơ sở dữ liệu
 PostgreSQL trong cùng một repository.
 
-
 ## Chức năng chính
 
 - Xác thực bằng email/mật khẩu, JWT access token và refresh token `HttpOnly`.
@@ -140,8 +139,8 @@ npm start
 
 | Dịch vụ         | Địa chỉ                                  |
 | --------------- | ---------------------------------------- |
-| Web client   | <http://localhost:4200>                  |
-| API health   | <http://localhost:8000/api/v1/health>    |
+| Web client      | <http://localhost:4200>                  |
+| API health      | <http://localhost:8000/api/v1/health>    |
 | Database health | <http://localhost:8000/api/v1/health/db> |
 
 Angular sử dụng `frontend/proxy.conf.json` để chuyển tiếp `/api/*` tới backend
@@ -159,11 +158,11 @@ Tất cả endpoint sử dụng tiền tố `/api/v1`.
 
 | Nhóm        | Endpoint tiêu biểu                                            | Mục đích                                |
 | ----------- | ------------------------------------------------------------- | --------------------------------------- |
-| Health   | `/health`, `/health/db`                                       | Kiểm tra service và kết nối DB          |
+| Health      | `/health`, `/health/db`                                       | Kiểm tra service và kết nối DB          |
 | Auth        | `/auth/login`, `/auth/refresh`, `/auth/logout`, `/me`         | Quản lý phiên đăng nhập                 |
 | Users       | `/users`                                                      | Quản lý tài khoản và trạng thái         |
 | Internships | `/internships`, `/internship-members`                         | Quản lý đợt và thành viên               |
-| Mentor   | `/mentor/overview`, `/mentor/interns`, `/mentor/assignments`  | Theo dõi và phân công Intern            |
+| Mentor      | `/mentor/overview`, `/mentor/interns`, `/mentor/assignments`  | Theo dõi và phân công Intern            |
 | Training    | `/training/roadmaps`, `/training/phases`, `/training/quizzes` | Quản lý đào tạo                         |
 | Tasks       | `/tasks`                                                      | Quản lý công việc, bài nộp và bình luận |
 | Profile     | `/profile`, `/profile/avatar`                                 | Quản lý hồ sơ cá nhân                   |
