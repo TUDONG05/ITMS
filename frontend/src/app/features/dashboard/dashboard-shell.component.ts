@@ -392,7 +392,12 @@ const dashboards: Record<Role, Dashboard> = {
             </button>
             <div class="topbar__right">
               <nz-badge [nzCount]="(unreadCount$ | async) ?? 0" [nzOverflowCount]="99"
-                ><button nz-button nzType="text" class="notification" (click)="choose('notifications')">
+                ><button
+                  nz-button
+                  nzType="text"
+                  class="notification"
+                  (click)="choose('notifications')"
+                >
                   <span nz-icon nzType="bell"></span></button
               ></nz-badge>
               <nz-avatar

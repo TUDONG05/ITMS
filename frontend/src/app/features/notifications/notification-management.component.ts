@@ -28,10 +28,7 @@ import { NzDividerModule } from 'ng-zorro-antd/divider';
 import { NzCardModule } from 'ng-zorro-antd/card';
 import { AuthService } from '../../core/api/auth.service';
 import { User, UserManagementService } from '../../core/api/user-management.service';
-import {
-  Notification,
-  NotificationService,
-} from '../../core/api/notification.service';
+import { Notification, NotificationService } from '../../core/api/notification.service';
 
 @Component({
   selector: 'app-notification-management',
@@ -63,16 +60,19 @@ import {
       <!-- ===== ADMIN VIEW ===== -->
       @if (role === 'ADMIN') {
         <div class="page-header">
-          <h2>
-            <span nz-icon nzType="bell"></span> Quản lý Thông báo
-          </h2>
+          <h2><span nz-icon nzType="bell"></span> Quản lý Thông báo</h2>
           <button nz-button nzType="primary" (click)="openCreateModal()">
             <span nz-icon nzType="plus"></span> Tạo thông báo mới
           </button>
         </div>
 
         @if (errorMsg()) {
-          <nz-alert nzType="error" [nzMessage]="errorMsg()!" nzShowIcon style="margin-bottom:16px;"></nz-alert>
+          <nz-alert
+            nzType="error"
+            [nzMessage]="errorMsg()!"
+            nzShowIcon
+            style="margin-bottom:16px;"
+          ></nz-alert>
         }
 
         <nz-spin [nzSpinning]="isLoading()">
@@ -98,21 +98,19 @@ import {
               </thead>
               <tbody>
                 @for (n of adminTable.data; track n.id) {
-                  <tr
-                    class="notif-row"
-                    (click)="viewDetail(n)"
-                    style="cursor:pointer;"
-                  >
+                  <tr class="notif-row" (click)="viewDetail(n)" style="cursor:pointer;">
                     <td>
                       <b>{{ n.title }}</b>
-                      <div class="notif-content-preview">{{ n.content | slice: 0 : 80 }}{{ n.content.length > 80 ? '...' : '' }}</div>
+                      <div class="notif-content-preview">
+                        {{ n.content | slice: 0 : 80 }}{{ n.content.length > 80 ? '...' : '' }}
+                      </div>
                     </td>
                     <td>
-                      <nz-tag [nzColor]="targetColor(n.target_type)">{{ targetLabel(n.target_type) }}</nz-tag>
+                      <nz-tag [nzColor]="targetColor(n.target_type)">{{
+                        targetLabel(n.target_type)
+                      }}</nz-tag>
                     </td>
-                    <td>
-                      <span nz-icon nzType="eye"></span> {{ n.read_count ?? 0 }}
-                    </td>
+                    <td><span nz-icon nzType="eye"></span> {{ n.read_count ?? 0 }}</td>
                     <td>{{ n.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
                     <td>{{ n.creator_name ?? '-' }}</td>
                     <td>
@@ -220,7 +218,9 @@ import {
                 </nz-form-item>
               }
               <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
-                <button nz-button nzType="default" type="button" (click)="closeCreateModal()">Hủy</button>
+                <button nz-button nzType="default" type="button" (click)="closeCreateModal()">
+                  Hủy
+                </button>
                 <button
                   nz-button
                   nzType="primary"
@@ -246,14 +246,24 @@ import {
             }
           </h2>
           @if (unreadCount() > 0) {
-            <button nz-button nzType="default" (click)="markAllAsRead()" [nzLoading]="isMarkingAll()">
+            <button
+              nz-button
+              nzType="default"
+              (click)="markAllAsRead()"
+              [nzLoading]="isMarkingAll()"
+            >
               <span nz-icon nzType="check"></span> Đánh dấu tất cả đã đọc
             </button>
           }
         </div>
 
         @if (errorMsg()) {
-          <nz-alert nzType="error" [nzMessage]="errorMsg()!" nzShowIcon style="margin-bottom:16px;"></nz-alert>
+          <nz-alert
+            nzType="error"
+            [nzMessage]="errorMsg()!"
+            nzShowIcon
+            style="margin-bottom:16px;"
+          ></nz-alert>
         }
 
         <nz-spin [nzSpinning]="isLoading()">
@@ -275,7 +285,9 @@ import {
                         <span class="unread-dot"></span>
                       }
                       <b class="notif-card__title">{{ n.title }}</b>
-                      <nz-tag [nzColor]="targetColor(n.target_type)" style="margin-left:auto;">{{ targetLabel(n.target_type) }}</nz-tag>
+                      <nz-tag [nzColor]="targetColor(n.target_type)" style="margin-left:auto;">{{
+                        targetLabel(n.target_type)
+                      }}</nz-tag>
                     </div>
                     <div class="notif-card__meta">
                       <span nz-icon nzType="clock-circle"></span>
@@ -284,11 +296,16 @@ import {
                         &nbsp;&bull;&nbsp;{{ n.creator_name }}
                       }
                       @if (n.is_read && n.read_at) {
-                        &nbsp;&bull;&nbsp;<span style="color:#52c41a;"><span nz-icon nzType="check-circle"></span> Đã đọc {{ n.read_at | date: 'dd/MM' }}</span>
+                        &nbsp;&bull;&nbsp;<span style="color:#52c41a;"
+                          ><span nz-icon nzType="check-circle"></span> Đã đọc
+                          {{ n.read_at | date: 'dd/MM' }}</span
+                        >
                       }
                     </div>
                   </div>
-                  <div class="notif-card__preview">{{ n.content | slice: 0 : 120 }}{{ n.content.length > 120 ? '...' : '' }}</div>
+                  <div class="notif-card__preview">
+                    {{ n.content | slice: 0 : 120 }}{{ n.content.length > 120 ? '...' : '' }}
+                  </div>
                 </nz-card>
               }
             </div>
@@ -307,22 +324,27 @@ import {
             @if (selectedNotif(); as n) {
               <div class="notif-detail">
                 <div class="notif-detail__meta">
-                  <nz-tag [nzColor]="targetColor(n.target_type)">{{ targetLabel(n.target_type) }}</nz-tag>
+                  <nz-tag [nzColor]="targetColor(n.target_type)">{{
+                    targetLabel(n.target_type)
+                  }}</nz-tag>
                   <span class="notif-detail__date">
                     <span nz-icon nzType="clock-circle"></span>
                     {{ n.created_at | date: 'dd/MM/yyyy HH:mm' }}
                   </span>
                   @if (n.creator_name) {
-                    <span>
-                      <span nz-icon nzType="user"></span> {{ n.creator_name }}
-                    </span>
+                    <span> <span nz-icon nzType="user"></span> {{ n.creator_name }} </span>
                   }
                 </div>
                 <nz-divider></nz-divider>
                 <div class="notif-detail__content">{{ n.content }}</div>
                 @if (n.is_read && n.read_at) {
                   <div class="notif-detail__read-status">
-                    <span nz-icon nzType="check-circle" nzTheme="fill" style="color:#52c41a;"></span>
+                    <span
+                      nz-icon
+                      nzType="check-circle"
+                      nzTheme="fill"
+                      style="color:#52c41a;"
+                    ></span>
                     Đã đọc lúc {{ n.read_at | date: 'dd/MM/yyyy HH:mm' }}
                   </div>
                 }
@@ -453,7 +475,7 @@ export class NotificationManagementComponent implements OnInit {
   protected isCreateModalOpen = false;
   protected isDetailModalOpen = false;
 
-  protected role: string = 'INTERN';
+  protected role = 'INTERN';
 
   protected readonly createForm = this.fb.group({
     title: ['', [Validators.required, Validators.minLength(1), Validators.maxLength(255)]],
@@ -463,8 +485,7 @@ export class NotificationManagementComponent implements OnInit {
     target_users: [[] as string[]],
   });
 
-  protected readonly unreadCount = () =>
-    this.notifications().filter((n) => !n.is_read).length;
+  protected readonly unreadCount = () => this.notifications().filter((n) => !n.is_read).length;
 
   ngOnInit(): void {
     const user = this.authService.currentUser();

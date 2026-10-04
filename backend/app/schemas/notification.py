@@ -16,7 +16,9 @@ class NotificationCreate(BaseSchema):
     title: str = Field(..., min_length=1, max_length=255)
     content: str = Field(..., min_length=1)
     target_type: str = Field(default="ALL")
-    target_data: list[Any] | None = Field(None, description="Danh sách role hoặc user_id tuỳ target_type")
+    target_data: list[Any] | None = Field(
+        None, description="Danh sách role hoặc user_id tuỳ target_type"
+    )
 
     @field_validator("target_type")
     @classmethod

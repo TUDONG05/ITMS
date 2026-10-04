@@ -52,9 +52,9 @@ export class NotificationService {
   }
 
   createNotification(payload: NotificationCreate): Observable<Notification> {
-    return this.http.post<Notification>('/api/v1/notifications', payload).pipe(
-      tap(() => this.refreshUnreadCount()),
-    );
+    return this.http
+      .post<Notification>('/api/v1/notifications', payload)
+      .pipe(tap(() => this.refreshUnreadCount()));
   }
 
   markAsRead(id: string): Observable<Notification> {
@@ -69,14 +69,14 @@ export class NotificationService {
   }
 
   markAllAsRead(): Observable<{ marked_count: number }> {
-    return this.http.post<{ marked_count: number }>('/api/v1/notifications/read-all', {}).pipe(
-      tap(() => this.unreadCountSubject.next(0)),
-    );
+    return this.http
+      .post<{ marked_count: number }>('/api/v1/notifications/read-all', {})
+      .pipe(tap(() => this.unreadCountSubject.next(0)));
   }
 
   deleteNotification(id: string): Observable<void> {
-    return this.http.delete<void>(`/api/v1/notifications/${id}`).pipe(
-      tap(() => this.refreshUnreadCount()),
-    );
+    return this.http
+      .delete<void>(`/api/v1/notifications/${id}`)
+      .pipe(tap(() => this.refreshUnreadCount()));
   }
 }
