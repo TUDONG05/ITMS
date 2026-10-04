@@ -42,9 +42,7 @@ def upgrade() -> None:
         ["refresh_token_hash"],
         unique=True,
     )
-    op.create_index(
-        "ix_phien_dang_nhap_user_id", "phien_dang_nhap", ["user_id"], unique=False
-    )
+    op.create_index("ix_phien_dang_nhap_user_id", "phien_dang_nhap", ["user_id"], unique=False)
 
 
 def downgrade() -> None:

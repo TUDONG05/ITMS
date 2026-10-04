@@ -77,9 +77,7 @@ def get_settings() -> Settings:
         jwt_issuer=os.getenv("ITMS_JWT_ISSUER", "itms-backend"),
         jwt_audience=os.getenv("ITMS_JWT_AUDIENCE", "itms-web-client"),
         access_token_ttl_seconds=int(os.getenv("ITMS_ACCESS_TOKEN_TTL_SECONDS", "900")),
-        session_refresh_ttl_seconds=int(
-            os.getenv("ITMS_SESSION_REFRESH_TTL_SECONDS", "43200")
-        ),
+        session_refresh_ttl_seconds=int(os.getenv("ITMS_SESSION_REFRESH_TTL_SECONDS", "43200")),
         remembered_refresh_ttl_seconds=int(
             os.getenv("ITMS_REMEMBERED_REFRESH_TTL_SECONDS", "2592000")
         ),
