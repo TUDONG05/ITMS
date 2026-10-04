@@ -133,7 +133,7 @@ export class LoginComponent implements OnInit {
   protected readonly form = this.formBuilder.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required]],
-    rememberMe: [false],
+    rememberMe: [true],
   });
   protected readonly authenticatedUser = signal<AuthenticatedUser | null>(null);
   protected readonly errorMessage = signal<string | null>(null);
