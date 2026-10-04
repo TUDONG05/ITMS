@@ -1,7 +1,10 @@
+import { registerLocaleData } from '@angular/common';
 import { provideHttpClient } from '@angular/common/http';
+import vi from '@angular/common/locales/vi';
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
+
 import {
   AppstoreOutline,
   ArrowRightOutline,
@@ -26,6 +29,7 @@ import {
   LogoutOutline,
   MailOutline,
   MenuOutline,
+  PartitionOutline,
   PlusOutline,
   ReadOutline,
   ReloadOutline,
@@ -42,18 +46,28 @@ import {
   UserOutline,
   WarningOutline,
 } from '@ant-design/icons-angular/icons';
-import { provideNzI18n, vi_VN } from 'ng-zorro-antd/i18n';
+
+// Import đầy đủ các I18n & Date Adapter provider từ Ng-Zorro
+import { provideNzNativeDateAdapter } from 'ng-zorro-antd/core/time';
+import { NZ_I18N, NzI18nService, provideNzI18n, vi_VN } from 'ng-zorro-antd/i18n';
 import { provideNzIcons } from 'ng-zorro-antd/icon';
 
 import { routes } from './app.routes';
 
+// Đăng ký locale tiếng Việt cho Angular
+registerLocaleData(vi);
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideAnimationsAsync(),
+    provideAnimations(),
     provideRouter(routes),
     provideHttpClient(),
+
+    // 👉 Cấp Provider I18n & NzI18nService để giải quyết lỗi NG0201
     provideNzI18n(vi_VN),
+    provideNzNativeDateAdapter(),
+
     provideNzIcons([
       AppstoreOutline,
       ArrowRightOutline,
@@ -78,6 +92,7 @@ export const appConfig: ApplicationConfig = {
       LogoutOutline,
       MailOutline,
       MenuOutline,
+      PartitionOutline,
       PlusOutline,
       ReadOutline,
       ReloadOutline,

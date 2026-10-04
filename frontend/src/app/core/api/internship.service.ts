@@ -200,12 +200,18 @@ export class InternshipService {
     });
   }
 
-  getRequests(status?: RequestStatus | ''): Observable<InternshipRequest[]> {
+  getRequests(
+    status?: string,
+    type?: string,
+    startDate?: string,
+    endDate?: string
+  ): Observable<InternshipRequest[]> {
     let params = new HttpParams();
-    if (status) {
-      params = params.set('status', status);
-    }
-    // Sửa URL từ /api/v1/internship-members/requests sang /api/v1/internships/requests
+    if (status) params = params.set('status', status);
+    if (type) params = params.set('type', type);
+    if (startDate) params = params.set('start_date', startDate);
+    if (endDate) params = params.set('end_date', endDate);
+
     return this.http.get<InternshipRequest[]>('/api/v1/internships/requests', {
       headers: this.getHeaders(),
       params,

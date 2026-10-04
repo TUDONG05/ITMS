@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
-
+from datetime import date, datetime, time
 from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole
 from app.models.internship import Internship, InternshipMember, InternshipRequest
 from app.models.user import User
@@ -309,10 +309,28 @@ class InternshipService:
         return InternshipService.get_member_by_id(db, member_id)
 
     @staticmethod
-    def get_requests(db: Session, status_filter: str | None = None) -> list[InternshipRequest]:
+    def get_requests(
+        db: Session,
+        status_filter: str | None = None,
+        type_filter: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[InternshipRequest]:
         stmt = select(InternshipRequest).order_by(InternshipRequest.created_at.desc())
+
         if status_filter:
             stmt = stmt.where(InternshipRequest.status == status_filter)
+        if type_filter:
+            stmt = stmt.where(InternshipRequest.type == type_filter)
+        if start_date:
+            stmt = stmt.where(
+                InternshipRequest.created_at >= datetime.combine(start_date, time.min)
+            )
+        if end_date:
+            stmt = stmt.where(
+                InternshipRequest.created_at <= datetime.combine(end_date, time.max)
+            )
+
         return list(db.scalars(stmt).all())
 
     @staticmethod
