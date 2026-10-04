@@ -3,7 +3,15 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,8 +23,7 @@ class Task(Base):
     __table_args__ = (
         CheckConstraint("uu_tien IN ('LOW', 'MEDIUM', 'HIGH')", name="ck_tasks_priority"),
         CheckConstraint(
-            "status IN ('TODO', 'IN_PROGRESS', 'SUBMITTED', "
-            "'REVISION_REQUIRED', 'COMPLETED', 'CANCELLED')",
+            "status IN ('TODO', 'SUBMITTED', 'REVISION_REQUIRED', 'COMPLETED', 'CANCELLED')",
             name="ck_tasks_status",
         ),
         Index("ix_tasks_internship_member_id", "thanh_vien_id"),
@@ -42,6 +49,7 @@ class Task(Base):
     description: Mapped[str | None] = mapped_column("mo_ta", Text, nullable=True)
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     priority: Mapped[str | None] = mapped_column("uu_tien", String(10), nullable=True)
+    attachment_url: Mapped[str | None] = mapped_column("url_tep", Text, nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="TODO")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
@@ -54,7 +62,7 @@ class Task(Base):
 class TaskSubmission(Base):
     __tablename__ = "bai_nop_cong_viec"
     __table_args__ = (
-        UniqueConstraint("cong_viec_id", "version", name="uq_task_submissions_version"),
+        UniqueConstraint("cong_viec_id", name="uq_task_submission_task"),
         CheckConstraint(
             "status IN ('SUBMITTED', 'REVISION_REQUIRED', 'ACCEPTED')",
             name="ck_task_submissions_status",
@@ -68,7 +76,6 @@ class TaskSubmission(Base):
         ForeignKey("cong_viec.id", ondelete="CASCADE"),
         nullable=False,
     )
-    version: Mapped[int] = mapped_column(nullable=False)
     content: Mapped[str | None] = mapped_column("noi_dung", Text, nullable=True)
     file_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="SUBMITTED")

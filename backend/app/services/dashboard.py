@@ -21,7 +21,7 @@ from app.schemas.dashboard import (
     DashboardTaskBreakdownRead,
 )
 
-OPEN_TASK_STATUSES = ("TODO", "IN_PROGRESS", "SUBMITTED", "REVISION_REQUIRED")
+OPEN_TASK_STATUSES = ("TODO", "SUBMITTED", "REVISION_REQUIRED")
 ACTIVE_MEMBER_STATUSES = (InternshipMemberStatus.ACTIVE, InternshipMemberStatus.EXTENDED)
 
 
@@ -161,9 +161,9 @@ class DashboardService:
             ),
             DashboardMetricRead(key="assigned_tasks", label="Task được giao", value=tasks.count()),
             DashboardMetricRead(
-                key="in_progress_tasks",
-                label="Task đang thực hiện",
-                value=tasks.filter(Task.status == "IN_PROGRESS").count(),
+                key="unsubmitted_tasks",
+                label="Task chưa nộp",
+                value=tasks.filter(Task.status == "TODO").count(),
             ),
             DashboardMetricRead(
                 key="tasks_needing_action",
@@ -212,7 +212,7 @@ class DashboardService:
 
     @staticmethod
     def _task_breakdown(tasks: Query[Task]) -> DashboardTaskBreakdownRead:
-        statuses = ("TODO", "IN_PROGRESS", "SUBMITTED", "REVISION_REQUIRED", "COMPLETED")
+        statuses = ("TODO", "SUBMITTED", "REVISION_REQUIRED", "COMPLETED")
         counts = {status: 0 for status in statuses}
         for status, count in tasks.with_entities(Task.status, func.count(Task.id)).group_by(
             Task.status
@@ -226,7 +226,6 @@ class DashboardService:
         ).count()
         return DashboardTaskBreakdownRead(
             todo=counts["TODO"],
-            in_progress=counts["IN_PROGRESS"],
             submitted=counts["SUBMITTED"],
             revision_required=counts["REVISION_REQUIRED"],
             completed=counts["COMPLETED"],

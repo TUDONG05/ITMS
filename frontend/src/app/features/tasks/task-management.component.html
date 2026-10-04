@@ -1,0 +1,407 @@
+<nz-card class="task-card" [nzBordered]="false">
+  <div class="task-toolbar">
+    <div class="task-toolbar__filters">
+      <input
+        nz-input
+        class="search-input"
+        placeholder="Tìm theo task hoặc Intern..."
+        [ngModel]="searchQuery()"
+        (ngModelChange)="onSearchChange($event)"
+      />
+      <nz-select
+        class="filter-select"
+        nzPlaceHolder="Trạng thái"
+        nzAllowClear
+        [ngModel]="statusFilter()"
+        (ngModelChange)="statusFilter.set($event); loadTasks()"
+      >
+        <nz-option nzValue="TODO" nzLabel="Chưa nộp"></nz-option>
+        <nz-option nzValue="SUBMITTED" nzLabel="Chờ review"></nz-option>
+        <nz-option nzValue="REVISION_REQUIRED" nzLabel="Yêu cầu làm lại"></nz-option>
+        <nz-option nzValue="COMPLETED" nzLabel="Hoàn thành"></nz-option>
+        <nz-option nzValue="CANCELLED" nzLabel="Đã hủy"></nz-option>
+      </nz-select>
+      <nz-select
+        class="filter-select"
+        nzPlaceHolder="Đợt thực tập"
+        nzAllowClear
+        [ngModel]="internshipFilter()"
+        (ngModelChange)="internshipFilter.set($event); loadTasks()"
+      >
+        @for (p of internships(); track p.id) {
+          <nz-option [nzValue]="p.id" [nzLabel]="p.name"></nz-option>
+        }
+      </nz-select>
+      <div class="overdue-check">
+        <input
+          type="checkbox"
+          [ngModel]="overdueOnly()"
+          (ngModelChange)="overdueOnly.set($event); loadTasks()"
+        />
+        Quá hạn
+      </div>
+    </div>
+    @if (isMentorSide()) {
+      <button nz-button nzType="primary" (click)="openCreate()">
+        <span nz-icon nzType="plus"></span>Giao task
+      </button>
+    }
+  </div>
+
+  @if (isLoading()) {
+    <div class="loading"><nz-spin nzSimple nzSize="large"></nz-spin></div>
+  } @else if (!filteredTasks().length) {
+    <nz-empty nzNotFoundContent="Chưa có task"></nz-empty>
+  } @else {
+    <nz-table #taskTable [nzData]="filteredTasks()" [nzPageSize]="8" nzSize="middle">
+      <thead>
+        <tr>
+          <th>Task</th>
+          @if (isMentorSide()) {
+            <th>Intern</th>
+          }
+          <th>Đợt thực tập</th>
+          <th>Hạn</th>
+          <th>Ưu tiên</th>
+          <th>Trạng thái</th>
+          <th class="actions-col">Thao tác</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (t of taskTable.data; track t.id) {
+          <tr>
+            <td>
+              <button class="link-btn" (click)="openDetail(t.id)">
+                <b>{{ t.title }}</b>
+              </button>
+              <small class="sub"
+                >Nộp: {{ t.submissions_count }} · Trao đổi: {{ t.comments_count }}</small
+              >
+            </td>
+            @if (isMentorSide()) {
+              <td>{{ t.intern_name ?? '-' }}</td>
+            }
+            <td>{{ t.internship_name ?? '-' }}</td>
+            <td>
+              {{ t.deadline ? (t.deadline | date: 'HH:mm dd/MM') : '-' }}
+              @if (t.is_overdue) {
+                <nz-tag nzColor="error">Quá hạn</nz-tag>
+              }
+              @if (t.is_late_submission) {
+                <nz-tag nzColor="warning">Nộp muộn</nz-tag>
+              }
+            </td>
+            <td>{{ t.priority ?? '-' }}</td>
+            <td>
+              <nz-tag [nzColor]="statusColor(t.status)">{{ statusLabel(t.status) }}</nz-tag>
+            </td>
+            <td class="actions-col">
+              <button nz-button nzType="link" (click)="openDetail(t.id)">Xem</button>
+              @if (isMentorSide() && t.status !== 'COMPLETED' && t.status !== 'CANCELLED') {
+                <button nz-button nzType="link" (click)="openEdit(t)">Sửa</button>
+                <button
+                  nz-button
+                  nzType="link"
+                  nzDanger
+                  nz-popconfirm
+                  nzPopconfirmTitle="Hủy task này?"
+                  (nzOnConfirm)="cancelTask(t)"
+                >
+                  Hủy
+                </button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </nz-table>
+  }
+</nz-card>
+
+<!-- Create / Edit modal -->
+<nz-modal
+  [nzVisible]="isFormOpen()"
+  [nzTitle]="editingTask() ? 'Sửa task' : 'Giao task mới'"
+  [nzOkText]="editingTask() ? 'Lưu' : 'Giao task'"
+  nzCancelText="Đóng"
+  [nzOkLoading]="isSaving()"
+  (nzOnOk)="saveForm()"
+  (nzOnCancel)="isFormOpen.set(false)"
+>
+  <ng-container *nzModalContent>
+    @if (!editingTask()) {
+      <div class="field-label">Intern nhận task</div>
+      <nz-select
+        style="width: 100%; margin-bottom: 12px"
+        nzPlaceHolder="Chọn intern"
+        nzShowSearch
+        [ngModel]="form().internship_member_id"
+        (ngModelChange)="form.set({ ...form(), internship_member_id: $event })"
+      >
+        @for (m of interns(); track m.id) {
+          <nz-option
+            [nzValue]="m.id"
+            [nzLabel]="m.intern_name + ' — ' + m.internship_name"
+          ></nz-option>
+        }
+      </nz-select>
+    }
+    <div class="field-label">Tiêu đề</div>
+    <input
+      nz-input
+      style="margin-bottom: 12px"
+      placeholder="VD: Xây dựng API đăng nhập"
+      [ngModel]="form().title"
+      (ngModelChange)="form.set({ ...form(), title: $event })"
+    />
+    <div class="field-label">Mô tả / tiêu chí</div>
+    <textarea
+      nz-input
+      rows="4"
+      style="margin-bottom: 12px"
+      placeholder="Yêu cầu chi tiết..."
+      [ngModel]="form().description"
+      (ngModelChange)="form.set({ ...form(), description: $event })"
+    ></textarea>
+    <div class="field-label">Tài liệu đính kèm</div>
+    <div class="attach-box">
+      <input
+        type="file"
+        [disabled]="isUploading()"
+        (change)="onTaskFileSelected($event)"
+        aria-label="Chọn tệp đính kèm task"
+      />
+      @if (isUploading()) {
+        <small class="muted">Đang tải lên...</small>
+      }
+      @if (form().attachment_url) {
+        <div class="attach-item">
+          <span nz-icon nzType="paper-clip"></span>
+          <span class="attach-name">{{ form().attachment_name || form().attachment_url }}</span>
+          <button nz-button nzType="link" nzDanger (click)="clearAttachment()">Xóa</button>
+        </div>
+      }
+    </div>
+    <div class="form-row">
+      <div>
+        <div class="field-label">Deadline</div>
+        <input
+          nz-input
+          type="datetime-local"
+          [ngModel]="form().deadline"
+          (ngModelChange)="form.set({ ...form(), deadline: $event })"
+        />
+      </div>
+      <div>
+        <div class="field-label">Ưu tiên</div>
+        <nz-select
+          style="width: 100%"
+          [ngModel]="form().priority"
+          (ngModelChange)="form.set({ ...form(), priority: $event })"
+        >
+          <nz-option nzValue="LOW" nzLabel="LOW"></nz-option>
+          <nz-option nzValue="MEDIUM" nzLabel="MEDIUM"></nz-option>
+          <nz-option nzValue="HIGH" nzLabel="HIGH"></nz-option>
+        </nz-select>
+      </div>
+    </div>
+  </ng-container>
+</nz-modal>
+
+<!-- Detail drawer -->
+<nz-drawer
+  [nzVisible]="isDetailOpen()"
+  nzTitle="Chi tiết Task"
+  nzPlacement="right"
+  [nzWidth]="560"
+  (nzOnClose)="closeDetail()"
+>
+  <ng-container *nzDrawerContent>
+    @if (isDetailLoading()) {
+      <div class="loading"><nz-spin nzSimple></nz-spin></div>
+    } @else if (detail(); as d) {
+      <h3>{{ d.title }}</h3>
+      <p class="muted">{{ d.description || 'Không có mô tả' }}</p>
+      <p>
+        <nz-tag [nzColor]="statusColor(d.status)">{{ statusLabel(d.status) }}</nz-tag>
+        <span class="muted"
+          >Hạn: {{ d.deadline ? (d.deadline | date: 'HH:mm dd/MM/yyyy') : '-' }}</span
+        >
+        @if (d.is_overdue) {
+          <nz-tag nzColor="error">Quá hạn</nz-tag>
+        }
+      </p>
+
+      @if (d.attachment_url) {
+        <p>
+          <span nz-icon nzType="paper-clip"></span>
+          <a [href]="d.attachment_url" target="_blank" rel="noopener">Tài liệu đính kèm</a>
+        </p>
+      }
+
+      <h4>Bài nộp</h4>
+      @if (!d.submissions.length) {
+        <p class="muted">Chưa có bài nộp.</p>
+      } @else {
+        @for (s of d.submissions; track s.id) {
+          <div class="submission">
+            <nz-tag
+              [nzColor]="
+                s.status === 'ACCEPTED'
+                  ? 'success'
+                  : s.status === 'REVISION_REQUIRED'
+                    ? 'error'
+                    : 'warning'
+              "
+            >
+              {{ s.status }}
+            </nz-tag>
+            @if (s.is_late) {
+              <nz-tag nzColor="warning">Nộp muộn</nz-tag>
+            }
+            <p>{{ s.content }}</p>
+            @if (s.file_url) {
+              <p class="muted">Link/file: {{ s.file_url }}</p>
+            }
+            @if (s.review_comment) {
+              <p class="review">Nhận xét Mentor: {{ s.review_comment }}</p>
+            }
+            <div class="submission-footer">
+              <small class="muted">Nộp lúc {{ s.submitted_at | date: 'HH:mm dd/MM/yyyy' }}</small>
+              @if (
+                !isMentorSide() &&
+                d.status !== 'COMPLETED' &&
+                d.status !== 'CANCELLED' &&
+                !isEditingSubmission()
+              ) {
+                <div class="submission-actions">
+                  <button nz-button nzType="link" (click)="editSubmission(s)">
+                    <span nz-icon nzType="edit"></span>Sửa bài nộp
+                  </button>
+                  <button
+                    nz-button
+                    nzType="link"
+                    nzDanger
+                    nz-popconfirm
+                    nzPopconfirmTitle="Bạn chắc chắn muốn xóa bài nộp này?"
+                    [nzLoading]="isDeletingSubmission()"
+                    (nzOnConfirm)="deleteSubmission()"
+                  >
+                    <span nz-icon nzType="delete"></span>Xóa
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      }
+
+      @if (
+        !isMentorSide() &&
+        d.status !== 'COMPLETED' &&
+        d.status !== 'CANCELLED' &&
+        (!d.submissions.length || isEditingSubmission())
+      ) {
+        <h4>{{ isEditingSubmission() ? 'Sửa bài nộp' : 'Nộp bài' }}</h4>
+        <textarea
+          nz-input
+          rows="3"
+          placeholder="Nội dung bài làm..."
+          [ngModel]="submitContent()"
+          (ngModelChange)="submitContent.set($event)"
+        ></textarea>
+        <input
+          nz-input
+          style="margin: 8px 0"
+          placeholder="Link sản phẩm (nếu có)"
+          [ngModel]="submitLink()"
+          (ngModelChange)="submitLink.set($event)"
+        />
+        <div class="attach-box">
+          <input
+            type="file"
+            [disabled]="isUploading()"
+            (change)="onSubmitFileSelected($event)"
+            aria-label="Chọn tệp bài nộp"
+          />
+          @if (isUploading()) {
+            <small class="muted">Đang tải lên...</small>
+          }
+          @if (submitFileUrl()) {
+            <div class="attach-item">
+              <span nz-icon nzType="paper-clip"></span>
+              <span class="attach-name">{{ submitFileName() }}</span>
+              <button
+                nz-button
+                nzType="link"
+                nzDanger
+                (click)="submitFileUrl.set(''); submitFileName.set('')"
+              >
+                Xóa
+              </button>
+            </div>
+          }
+        </div>
+        <div class="submission-form-actions">
+          <button nz-button nzType="primary" [nzLoading]="isSubmitting()" (click)="submitWork()">
+            {{ isEditingSubmission() ? 'Lưu thay đổi' : 'Nộp bài' }}
+          </button>
+          @if (isEditingSubmission()) {
+            <button nz-button [disabled]="isSubmitting()" (click)="cancelEditSubmission()">
+              Hủy
+            </button>
+          }
+        </div>
+      }
+
+      @if (
+        isMentorSide() &&
+        d.submissions.length &&
+        d.status !== 'COMPLETED' &&
+        d.status !== 'CANCELLED'
+      ) {
+        <h4>Review bài nộp</h4>
+        <nz-select
+          style="width: 100%; margin-bottom: 8px"
+          [ngModel]="reviewDecision()"
+          (ngModelChange)="reviewDecision.set($event)"
+        >
+          <nz-option nzValue="COMPLETED" nzLabel="Xác nhận hoàn thành"></nz-option>
+          <nz-option nzValue="REVISION_REQUIRED" nzLabel="Yêu cầu làm lại"></nz-option>
+        </nz-select>
+        <textarea
+          nz-input
+          rows="3"
+          placeholder="Nhận xét cho intern..."
+          [ngModel]="reviewComment()"
+          (ngModelChange)="reviewComment.set($event)"
+        ></textarea>
+        <div style="margin-top: 8px">
+          <button nz-button nzType="primary" [nzLoading]="isSubmitting()" (click)="reviewWork()">
+            Gửi review
+          </button>
+        </div>
+      }
+
+      <h4>Trao đổi ({{ d.comments.length }})</h4>
+      @for (c of d.comments; track c.id) {
+        <div class="comment">
+          <b>{{ c.author_name }}</b>
+          <nz-tag>{{ c.author_role }}</nz-tag>
+          <p>{{ c.content }}</p>
+          <small class="muted">{{ c.created_at | date: 'HH:mm dd/MM' }}</small>
+        </div>
+      }
+      <div class="comment-box">
+        <input
+          nz-input
+          placeholder="Nhập bình luận..."
+          [ngModel]="commentContent()"
+          (ngModelChange)="commentContent.set($event)"
+          (keyup.enter)="sendComment()"
+        />
+        <button nz-button nzType="primary" (click)="sendComment()">Gửi</button>
+      </div>
+    }
+  </ng-container>
+</nz-drawer>

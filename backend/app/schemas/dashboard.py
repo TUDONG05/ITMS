@@ -14,7 +14,6 @@ class DashboardMetricRead(BaseSchema):
 
 class DashboardTaskBreakdownRead(BaseSchema):
     todo: int = 0
-    in_progress: int = 0
     submitted: int = 0
     revision_required: int = 0
     completed: int = 0
