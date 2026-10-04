@@ -325,12 +325,12 @@ def main() -> None:
             )
 
         task_specs = (
-            ("intern_1", "Tìm hiểu quy trình SDLC", "HIGH", "IN_PROGRESS", 25),
+            ("intern_1", "Tìm hiểu quy trình SDLC", "HIGH", "TODO", 25),
             ("intern_1", "Viết báo cáo phân tích yêu cầu", "MEDIUM", "SUBMITTED", 28),
             ("intern_2", "Thiết kế database mẫu", "HIGH", "REVISION_REQUIRED", 30),
             ("intern_3", "Xây dựng giao diện đăng nhập", "HIGH", "COMPLETED", 20),
             ("intern_4", "Chuẩn bị demo sprint 1", "MEDIUM", "TODO", 27),
-            ("intern_5", "Tích hợp API đăng nhập", "HIGH", "IN_PROGRESS", 29),
+            ("intern_5", "Tích hợp API đăng nhập", "HIGH", "TODO", 29),
         )
         tasks: dict[str, Task] = {}
         for intern_key, title, priority, status, deadline_day in task_specs:
@@ -356,7 +356,7 @@ def main() -> None:
         upsert_by(
             db,
             TaskSubmission,
-            {"task_id": submitted_task.id, "version": 1},
+            {"task_id": submitted_task.id},
             {
                 "content": "Báo cáo phân tích yêu cầu phiên bản 1.",
                 "file_url": "https://files.itms.local/submissions/requirement-analysis-v1.pdf",
@@ -370,7 +370,7 @@ def main() -> None:
         upsert_by(
             db,
             TaskSubmission,
-            {"task_id": revision_task.id, "version": 1},
+            {"task_id": revision_task.id},
             {
                 "content": "Sơ đồ dữ liệu phiên bản 1.",
                 "file_url": "https://files.itms.local/submissions/database-design-v1.pdf",

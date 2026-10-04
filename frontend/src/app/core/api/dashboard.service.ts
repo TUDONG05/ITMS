@@ -12,7 +12,6 @@ export interface DashboardMetric {
 
 export interface DashboardTaskBreakdown {
   todo: number;
-  in_progress: number;
   submitted: number;
   revision_required: number;
   completed: number;
