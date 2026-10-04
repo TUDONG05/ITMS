@@ -17,6 +17,8 @@ AVATAR_UPLOAD_DIR = UPLOAD_DIR / "avatars"
 AVATAR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TRAINING_UPLOAD_DIR = UPLOAD_DIR / "training"
 TRAINING_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+TASK_UPLOAD_DIR = UPLOAD_DIR / "tasks"
+TASK_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _load_env_file() -> None:

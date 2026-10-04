@@ -1,0 +1,128 @@
+.task-card {
+  border-radius: 12px;
+}
+
+.task-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.task-toolbar__filters {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  width: 240px;
+}
+
+.filter-select {
+  width: 180px;
+}
+
+.overdue-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #1677ff;
+  text-align: left;
+}
+
+.sub {
+  display: block;
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.actions-col {
+  white-space: nowrap;
+}
+
+.field-label {
+  font-weight: 600;
+  font-size: 13px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 160px;
+  gap: 12px;
+}
+
+.submission,
+.comment {
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: #fafafa;
+}
+
+.review {
+  color: #531dab;
+}
+
+.submission-footer,
+.submission-form-actions,
+.submission-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.submission-footer {
+  justify-content: space-between;
+}
+
+.muted {
+  color: #8c8c8c;
+}
+
+.comment-box {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.attach-box {
+  border: 1px dashed #d9d9d9;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: #fafafa;
+}
+
+.attach-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.attach-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

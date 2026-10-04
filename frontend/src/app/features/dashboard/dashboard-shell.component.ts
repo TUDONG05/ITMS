@@ -29,6 +29,7 @@ import { AuthService } from '../../core/api/auth.service';
 import { InternshipManagementComponent } from '../internships/internship-management.component';
 import { MentorInternManagementComponent } from '../mentor/mentor-intern-management.component';
 import { ProfileComponent } from '../profile/profile.component';
+import { TaskManagementComponent } from '../tasks/task-management.component';
 import { TrainingManagementComponent } from '../training/training-management.component';
 import { UserManagementComponent } from '../users/user-management.component';
 
@@ -158,7 +159,6 @@ const dashboards: Record<Role, Dashboard> = {
       { id: 'users', label: 'Quản lý người dùng', icon: 'team' },
       { id: 'internships', label: 'Quản lý thực tập', icon: 'solution' },
       { id: 'training', label: 'Quản lý đào tạo (LMS)', icon: 'book' },
-      { id: 'tasks', label: 'Quản lý Task', icon: 'check-square' },
       { id: 'evaluations', label: 'Quản lý đánh giá', icon: 'star' },
       { id: 'requests', label: 'Quản lý yêu cầu', icon: 'audit' },
       { id: 'reports', label: 'Báo cáo & thống kê', icon: 'bar-chart' },
@@ -220,6 +220,7 @@ const dashboards: Record<Role, Dashboard> = {
     InternshipManagementComponent,
     MentorInternManagementComponent,
     ProfileComponent,
+    TaskManagementComponent,
     TrainingManagementComponent,
     UserManagementComponent,
   ],
@@ -554,10 +555,6 @@ const dashboards: Record<Role, Dashboard> = {
                           <b>{{ dashboardData()?.task_breakdown?.completed }}</b>
                         </li>
                         <li>
-                          <i class="dot dot--blue"></i>Đang thực hiện
-                          <b>{{ dashboardData()?.task_breakdown?.in_progress }}</b>
-                        </li>
-                        <li>
                           <i class="dot dot--orange"></i>Chờ review
                           <b>{{ dashboardData()?.task_breakdown?.submitted }}</b>
                         </li>
@@ -570,7 +567,7 @@ const dashboards: Record<Role, Dashboard> = {
                           <b>{{ dashboardData()?.task_breakdown?.revision_required }}</b>
                         </li>
                         <li>
-                          <i class="dot dot--gray"></i>Chưa làm
+                          <i class="dot dot--gray"></i>Chưa nộp
                           <b>{{ dashboardData()?.task_breakdown?.todo }}</b>
                         </li>
                       </ul>
@@ -592,6 +589,9 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'training' && role() === 'ADMIN') {
               <!-- UC-16: Quản lý đào tạo (LMS) -->
               <app-training-management />
+            } @else if (section() === 'tasks' && (role() === 'MENTOR' || role() === 'INTERN')) {
+              <!-- UC-7: Quản lý Task — Mentor giao/review, Intern nộp (Sprint 2) -->
+              <app-task-management />
             } @else {
               <section class="feature-placeholder">
                 <span nz-icon [nzType]="activeIcon()"></span>
@@ -668,7 +668,7 @@ export class DashboardShellComponent implements OnInit {
     cohort_tasks: { tone: 'green', icon: 'check-square' },
     assigned_tasks: { tone: 'orange', icon: 'check-square' },
     active_memberships: { tone: 'blue', icon: 'calendar' },
-    in_progress_tasks: { tone: 'green', icon: 'check-square' },
+    unsubmitted_tasks: { tone: 'green', icon: 'check-square' },
     tasks_needing_action: { tone: 'pink', icon: 'warning' },
     completed_quizzes: { tone: 'purple', icon: 'form' },
     latest_evaluation_score: { tone: 'orange', icon: 'star' },
