@@ -1,16 +1,18 @@
 import uuid
+from datetime import UTC, date, datetime, time
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.enums import InternshipStatus, UserRole
-from app.models.internship import Internship, InternshipMember
+from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole
+from app.models.internship import Internship, InternshipMember, InternshipRequest
 from app.models.user import User
 from app.schemas.internship import (
     InternshipCreate,
     InternshipMemberCreate,
     InternshipMemberUpdate,
+    InternshipRequestReview,
     InternshipUpdate,
 )
 
@@ -305,3 +307,69 @@ class InternshipService:
         db.commit()
         db.refresh(member)
         return InternshipService.get_member_by_id(db, member_id)
+
+    @staticmethod
+    def get_requests(
+        db: Session,
+        status_filter: str | None = None,
+        type_filter: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[InternshipRequest]:
+        stmt = select(InternshipRequest).order_by(InternshipRequest.created_at.desc())
+
+        if status_filter:
+            stmt = stmt.where(InternshipRequest.status == status_filter)
+        if type_filter:
+            stmt = stmt.where(InternshipRequest.type == type_filter)
+        if start_date:
+            stmt = stmt.where(
+                InternshipRequest.created_at >= datetime.combine(start_date, time.min)
+            )
+        if end_date:
+            stmt = stmt.where(InternshipRequest.created_at <= datetime.combine(end_date, time.max))
+
+        return list(db.scalars(stmt).all())
+
+    @staticmethod
+    def review_request(
+        db: Session,
+        request_id: uuid.UUID,
+        payload: InternshipRequestReview,
+        reviewer_id: uuid.UUID,
+    ) -> InternshipRequest:
+        stmt = select(InternshipRequest).where(InternshipRequest.id == request_id)
+        req = db.scalar(stmt)
+        if not req:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
+        if req.status != "PENDING":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Request has already been processed",
+            )
+
+        req.status = payload.status
+        req.review_note = payload.review_note
+        req.reviewed_by = reviewer_id
+        req.reviewed_at = datetime.now(UTC)
+
+        # Cập nhật trạng thái thành viên nếu APPROVED
+        if payload.status == "APPROVED":
+            member_stmt = select(InternshipMember).where(
+                InternshipMember.id == req.internship_member_id
+            )
+            member = db.scalar(member_stmt)
+            if member:
+                if req.type == "EXTEND":
+                    member.status = InternshipMemberStatus.EXTENDED
+                    if req.requested_end_date:
+                        member.end_date = req.requested_end_date
+                elif req.type == "STOP":
+                    member.status = InternshipMemberStatus.STOPPED
+                elif req.type == "COMPLETE":
+                    member.status = InternshipMemberStatus.COMPLETED
+                member.updated_at = datetime.now(UTC)
+
+        db.commit()
+        db.refresh(req)
+        return req
