@@ -31,3 +31,9 @@ class InternshipMemberStatus(StrEnum):
 class EvaluationStatus(StrEnum):
     DRAFT = "DRAFT"
     PUBLISHED = "PUBLISHED"
+
+
+class RequestType(StrEnum):
+    EXTEND = "EXTEND"
+    STOP = "STOP"
+    COMPLETE = "COMPLETE"

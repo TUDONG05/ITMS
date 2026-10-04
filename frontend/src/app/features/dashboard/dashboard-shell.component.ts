@@ -3,11 +3,14 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzResultModule } from 'ng-zorro-antd/result';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzSelectModule } from 'ng-zorro-antd/select';
+// 👉 Thêm Import NzDatePickerModule
+import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
 import { FormsModule } from '@angular/forms';
 import { Internship, InternshipService } from '../../core/api/internship.service';
 import { DashboardService, DashboardResponse } from '../../core/api/dashboard.service';
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   computed,
   inject,
@@ -32,6 +35,7 @@ import { ProfileComponent } from '../profile/profile.component';
 import { TaskManagementComponent } from '../tasks/task-management.component';
 import { TrainingManagementComponent } from '../training/training-management.component';
 import { UserManagementComponent } from '../users/user-management.component';
+import { RequestManagementComponent } from '../requests/request-management.component';
 
 enum Role {
   Intern = 'INTERN',
@@ -206,6 +210,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzResultModule,
     NzEmptyModule,
     NzSelectModule,
+    NzDatePickerModule,
     FormsModule,
     NzAvatarModule,
     NzBadgeModule,
@@ -223,7 +228,9 @@ const dashboards: Record<Role, Dashboard> = {
     TaskManagementComponent,
     TrainingManagementComponent,
     UserManagementComponent,
+    RequestManagementComponent,
   ],
+
   styles: [
     `
       :host ::ng-deep {
@@ -578,15 +585,20 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'profile') {
               <!-- UC-5: Hồ sơ cá nhân -->
               <app-profile />
-            } @else if (section() === 'internships' && role() === 'ADMIN') {
+            } @else if (
+              section() === 'internships' && (role() === 'ADMIN' || role() === 'MENTOR')
+            ) {
               <app-internship-management />
-            } @else if (section() === 'users' && role() === 'ADMIN') {
+            } @else if (section() === 'users' && (role() === 'ADMIN' || role() === 'MENTOR')) {
               <!-- UC-14: Quản lý người dùng -->
               <app-user-management />
+            } @else if (section() === 'requests') {
+              <!-- UC-17: Quản lý yêu cầu thực tập -->
+              <app-request-management />
             } @else if (section() === 'interns' && (role() === 'MENTOR' || role() === 'ADMIN')) {
               <!-- UC-11: Mentor quản lý Intern -->
               <app-mentor-intern-management />
-            } @else if (section() === 'training' && role() === 'ADMIN') {
+            } @else if (section() === 'training' && (role() === 'ADMIN' || role() === 'MENTOR')) {
               <!-- UC-16: Quản lý đào tạo (LMS) -->
               <app-training-management />
             } @else if (section() === 'tasks' && (role() === 'MENTOR' || role() === 'INTERN')) {
@@ -644,6 +656,7 @@ export class DashboardShellComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly dashboardService = inject(DashboardService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   protected readonly dashboardData = signal<DashboardResponse | null>(null);
   protected readonly isLoading = signal(true);
@@ -675,7 +688,7 @@ export class DashboardShellComponent implements OnInit {
     pending_reviews: { tone: 'pink', icon: 'file-text' },
     draft_evaluations: { tone: 'orange', icon: 'star' },
   };
-  protected readonly role = signal<Role>(Role.Intern);
+  protected readonly role = signal<Role>(Role.Admin);
   protected readonly section = signal('overview');
   protected readonly isMenuOpen = signal(false);
   protected readonly isAiChatOpen = signal(false);
@@ -705,16 +718,8 @@ export class DashboardShellComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    // Fetch latest user profile to ensure avatar and details are up to date
     this.authService.getProfile().subscribe({ error: () => undefined });
     this.loadDashboard();
-
-    if (this.role() === Role.Admin) {
-      this.internshipService.getInternships().subscribe({
-        next: (internships) => this.internships.set(internships),
-        error: () => undefined,
-      });
-    }
   }
 
   protected loadDashboard(): void {
@@ -725,15 +730,24 @@ export class DashboardShellComponent implements OnInit {
         this.dashboardData.set(res);
         if (Object.values(Role).includes(res.role as Role)) {
           this.role.set(res.role as Role);
+          if (res.role === Role.Admin) {
+            this.internshipService.getInternships().subscribe({
+              next: (internships) => this.internships.set(internships),
+              error: () => undefined,
+            });
+          }
         }
         this.isLoading.set(false);
+        this.cdr.markForCheck();
       },
       error: () => {
         this.hasError.set(true);
         this.isLoading.set(false);
+        this.cdr.markForCheck();
       },
     });
   }
+
   protected readonly activeLabel = computed(() =>
     this.section() === 'overview'
       ? 'Tổng quan'
@@ -765,6 +779,7 @@ export class DashboardShellComponent implements OnInit {
   protected choose(section: string): void {
     this.section.set(section);
     this.isMenuOpen.set(false);
+    this.cdr.markForCheck();
   }
 
   protected openSection(section: string): void {
@@ -777,6 +792,7 @@ export class DashboardShellComponent implements OnInit {
 
   protected toggleMenu(): void {
     this.isMenuOpen.update((open) => !open);
+    this.cdr.markForCheck();
   }
 
   protected logout(): void {
@@ -788,10 +804,12 @@ export class DashboardShellComponent implements OnInit {
 
   protected openAiChat(): void {
     this.isAiChatOpen.set(true);
+    this.cdr.markForCheck();
   }
 
   protected closeAiChat(): void {
     this.isAiChatOpen.set(false);
+    this.cdr.markForCheck();
   }
 
   private finishLogout(): void {

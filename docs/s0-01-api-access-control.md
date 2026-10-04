@@ -1,10 +1,10 @@
 # S0-01 — Quy ước API và lớp kiểm soát quyền
 
-| Thuộc tính | Giá trị |
-|---|---|
-| Trạng thái | Đã chốt cho S0-01 |
-| Phạm vi áp dụng | Web Client, Backend API, M01–M07 |
-| Nguồn yêu cầu | `ITMS-SRS.md` mục 2.1, 3.1–3.2, 4.1–4.7, 5, 6, 7.2, 8 và 9 |
+| Thuộc tính         | Giá trị                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| Trạng thái         | Đã chốt cho S0-01                                                                           |
+| Phạm vi áp dụng    | Web Client, Backend API, M01–M07                                                            |
+| Nguồn yêu cầu      | `ITMS-SRS.md` mục 2.1, 3.1–3.2, 4.1–4.7, 5, 6, 7.2, 8 và 9                                  |
 | Quyết định bổ sung | `ADMIN` kế thừa quyền nghiệp vụ của `MANAGER`; `MANAGER` xem toàn bộ các đợt trong bản demo |
 
 ## 1. Mục tiêu
@@ -39,16 +39,16 @@ Tài liệu này thống nhất ranh giới API và cách kiểm soát quyền �
 
 ### 3.1 Giao thức và định dạng
 
-| Quy ước | Quyết định |
-|---|---|
-| Public base path | `/api/v1` |
-| Giao thức | REST/JSON; HTTPS khi triển khai |
-| Tên JSON | `snake_case` |
-| Định danh | UUID biểu diễn bằng chuỗi |
-| Thời gian | ISO 8601/RFC 3339, lưu và trả theo UTC |
-| Xác thực | `Authorization: Bearer <access_token>` |
-| Correlation | Mỗi request có `request_id`; server sinh nếu client không gửi |
-| Content type | `application/json`; upload dùng cơ chế riêng của endpoint file |
+| Quy ước          | Quyết định                                                     |
+| ---------------- | -------------------------------------------------------------- |
+| Public base path | `/api/v1`                                                      |
+| Giao thức        | REST/JSON; HTTPS khi triển khai                                |
+| Tên JSON         | `snake_case`                                                   |
+| Định danh        | UUID biểu diễn bằng chuỗi                                      |
+| Thời gian        | ISO 8601/RFC 3339, lưu và trả theo UTC                         |
+| Xác thực         | `Authorization: Bearer <access_token>`                         |
+| Correlation      | Mỗi request có `request_id`; server sinh nếu client không gửi  |
+| Content type     | `application/json`; upload dùng cơ chế riêng của endpoint file |
 
 Tên resource dùng danh từ số nhiều và kebab-case. Hành động nghiệp vụ ưu tiên sub-resource thay vì động từ tùy ý, ví dụ:
 
@@ -62,15 +62,15 @@ POST /api/v1/internships/{internship_id}/lifecycle-requests
 
 Bảng này chỉ chốt ownership và prefix, chưa phải danh sách endpoint hoàn chỉnh.
 
-| Module | Namespace dự kiến | Ownership |
-|---|---|---|
-| M01 | `/auth`, `/me`, `/users` | Đăng nhập, phiên, hồ sơ, tài khoản và vai trò |
-| M02 | `/internship-periods`, `/internships`, `/mentor-assignments` | Đợt, quá trình thực tập và phân mentor |
-| M03 | `/roadmaps`, `/learning-contents`, `/questions`, `/exams` | LMS, tiến độ và bài kiểm tra |
-| M04 | `/tasks`; submission/comment là resource con của task | Task, bài nộp, review và trao đổi |
-| M05 | `/evaluation-criteria`, `/evaluations`, `/lifecycle-requests` | Đánh giá và vòng đời thực tập |
-| M06 | `/notifications`, `/announcements`, `/feedback`, `/dashboard`, `/reports`, `/audit-logs`, `/settings` | Điều hành, báo cáo và audit |
-| M07 | `/documents`, `/ai/conversations`, `/ai/queries` | Kho tri thức, lịch sử và hỏi đáp AI |
+| Module | Namespace dự kiến                                                                                     | Ownership                                     |
+| ------ | ----------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| M01    | `/auth`, `/me`, `/users`                                                                              | Đăng nhập, phiên, hồ sơ, tài khoản và vai trò |
+| M02    | `/internship-periods`, `/internships`, `/mentor-assignments`                                          | Đợt, quá trình thực tập và phân mentor        |
+| M03    | `/roadmaps`, `/learning-contents`, `/questions`, `/exams`                                             | LMS, tiến độ và bài kiểm tra                  |
+| M04    | `/tasks`; submission/comment là resource con của task                                                 | Task, bài nộp, review và trao đổi             |
+| M05    | `/evaluation-criteria`, `/evaluations`, `/lifecycle-requests`                                         | Đánh giá và vòng đời thực tập                 |
+| M06    | `/notifications`, `/announcements`, `/feedback`, `/dashboard`, `/reports`, `/audit-logs`, `/settings` | Điều hành, báo cáo và audit                   |
+| M07    | `/documents`, `/ai/conversations`, `/ai/queries`                                                      | Kho tri thức, lịch sử và hỏi đáp AI           |
 
 ### 3.3 Danh sách, lọc và phân trang
 
@@ -100,15 +100,15 @@ Filter của client chỉ được thu hẹp kết quả. Backend luôn giao fil
 }
 ```
 
-| HTTP status | Khi sử dụng |
-|---|---|
-| `401` | Thiếu access token; token/session hết hạn, sai hoặc đã bị thu hồi. Account bị khóa đã thu hồi session cũng đi theo nhánh này |
-| `403` | Token/session còn hợp lệ nhưng account không `ACTIVE`, hoặc principal không có permission cho hành động |
-| `404` | Resource không tồn tại hoặc nằm ngoài data scope, tránh làm lộ ID |
-| `409` | Xung đột trạng thái hoặc vi phạm quy tắc nghiệp vụ |
-| `422` | Request không đạt validation |
-| `429` | Vượt rate limit của endpoint được giới hạn |
-| `503` | AI/provider tạm lỗi; không biến lỗi M07 thành lỗi của M01–M06 |
+| HTTP status | Khi sử dụng                                                                                                                  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `401`       | Thiếu access token; token/session hết hạn, sai hoặc đã bị thu hồi. Account bị khóa đã thu hồi session cũng đi theo nhánh này |
+| `403`       | Token/session còn hợp lệ nhưng account không `ACTIVE`, hoặc principal không có permission cho hành động                      |
+| `404`       | Resource không tồn tại hoặc nằm ngoài data scope, tránh làm lộ ID                                                            |
+| `409`       | Xung đột trạng thái hoặc vi phạm quy tắc nghiệp vụ                                                                           |
+| `422`       | Request không đạt validation                                                                                                 |
+| `429`       | Vượt rate limit của endpoint được giới hạn                                                                                   |
+| `503`       | AI/provider tạm lỗi; không biến lỗi M07 thành lỗi của M01–M06                                                                |
 
 `message` phục vụ người dùng; client xử lý ổn định bằng `error.code`, không parse nội dung `message`.
 
@@ -197,24 +197,24 @@ Không đặt role trong tên permission vì cùng một action còn phụ thu�
 
 Ký hiệu “trong scope” luôn bao gồm kiểm tra ownership/assignment và business rule của module.
 
-| Module | INTERN | MENTOR | MANAGER | ADMIN |
-|---|---|---|---|---|
-| M01 | Xem/sửa trường hồ sơ của mình; quản lý phiên của mình | Như Intern | Như Intern | Kế thừa Manager; tạo/sửa/khóa/mở khóa tài khoản, gán role, thu hồi phiên |
-| M02 | Xem quá trình thực tập của mình | Xem intern đang được phân công | Quản lý đợt, intern và phân công; xem toàn bộ đợt demo | Kế thừa Manager |
-| M03 | Xem nội dung được giao; làm bài; xem kết quả được công bố/cấu hình cho phép. Tiến độ do hệ thống cập nhật từ sự kiện học/thi, không có quyền tự sửa | Xem tiến độ và kết quả của intern được phân công | Quản lý roadmap, nội dung, câu hỏi, exam; xem thống kê | Kế thừa Manager |
-| M04 | Xem task của mình; nộp/nộp lại; bình luận trong task của mình | Tạo/giao/review task và bình luận cho intern được phân công | Đọc toàn bộ dữ liệu task trong đợt demo phục vụ điều hành | Kế thừa Manager |
-| M05 | Xem evaluation đã `PUBLISHED`; gửi yêu cầu gia hạn của mình | Tạo/sửa nháp/công bố evaluation cho intern được phân công; đề xuất gia hạn/dừng/kết thúc | Quản lý tiêu chí; chỉ xem evaluation đã công bố và dữ liệu được phép dùng khi quyết định lifecycle; phê duyệt/từ chối lifecycle | Kế thừa Manager; được xem evaluation nháp để giám sát nhưng không mặc nhiên được sửa/công bố nếu không có policy evaluator |
-| M06 | Xem notification của mình; gửi feedback của mình | Chỉ xem notification của chính mình; xem dashboard theo intern được phân công | Gửi thông báo chung; xử lý feedback; xem dashboard/report toàn bộ đợt demo | Kế thừa Manager; xem audit và quản lý settings |
-| M07 | Hỏi AI, xem lịch sử của mình trong scope được cấp | Hỏi AI theo scope intern được phân công | Hỏi AI theo toàn bộ đợt demo | Kế thừa Manager; quản lý, kích hoạt và archive tài liệu RAG |
+| Module | INTERN                                                                                                                                              | MENTOR                                                                                   | MANAGER                                                                                                                         | ADMIN                                                                                                                      |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| M01    | Xem/sửa trường hồ sơ của mình; quản lý phiên của mình                                                                                               | Như Intern                                                                               | Như Intern                                                                                                                      | Kế thừa Manager; tạo/sửa/khóa/mở khóa tài khoản, gán role, thu hồi phiên                                                   |
+| M02    | Xem quá trình thực tập của mình                                                                                                                     | Xem intern đang được phân công                                                           | Quản lý đợt, intern và phân công; xem toàn bộ đợt demo                                                                          | Kế thừa Manager                                                                                                            |
+| M03    | Xem nội dung được giao; làm bài; xem kết quả được công bố/cấu hình cho phép. Tiến độ do hệ thống cập nhật từ sự kiện học/thi, không có quyền tự sửa | Xem tiến độ và kết quả của intern được phân công                                         | Quản lý roadmap, nội dung, câu hỏi, exam; xem thống kê                                                                          | Kế thừa Manager                                                                                                            |
+| M04    | Xem task của mình; nộp/nộp lại; bình luận trong task của mình                                                                                       | Tạo/giao/review task và bình luận cho intern được phân công                              | Đọc toàn bộ dữ liệu task trong đợt demo phục vụ điều hành                                                                       | Kế thừa Manager                                                                                                            |
+| M05    | Xem evaluation đã `PUBLISHED`; gửi yêu cầu gia hạn của mình                                                                                         | Tạo/sửa nháp/công bố evaluation cho intern được phân công; đề xuất gia hạn/dừng/kết thúc | Quản lý tiêu chí; chỉ xem evaluation đã công bố và dữ liệu được phép dùng khi quyết định lifecycle; phê duyệt/từ chối lifecycle | Kế thừa Manager; được xem evaluation nháp để giám sát nhưng không mặc nhiên được sửa/công bố nếu không có policy evaluator |
+| M06    | Xem notification của mình; gửi feedback của mình                                                                                                    | Chỉ xem notification của chính mình; xem dashboard theo intern được phân công            | Gửi thông báo chung; xử lý feedback; xem dashboard/report toàn bộ đợt demo                                                      | Kế thừa Manager; xem audit và quản lý settings                                                                             |
+| M07    | Hỏi AI, xem lịch sử của mình trong scope được cấp                                                                                                   | Hỏi AI theo scope intern được phân công                                                  | Hỏi AI theo toàn bộ đợt demo                                                                                                    | Kế thừa Manager; quản lý, kích hoạt và archive tài liệu RAG                                                                |
 
 ### 6.1 Quy tắc phạm vi dữ liệu
 
-| Role | Data scope do server suy ra |
-|---|---|
-| `INTERN` | `Users.id = principal.user_id`; internship hiện tại; roadmap/tài liệu được giao; task/submission của mình; evaluation đã công bố; notification, feedback và conversation của mình |
-| `MENTOR` | Internship có `MentorAssignments` còn hiệu lực với `mentor_id = principal.user_id`; task/progress/evaluation liên quan |
-| `MANAGER` | Toàn bộ các đợt trong phạm vi bản demo; khi hệ thống bổ sung phân công Manager–đợt thì policy phải thu hẹp theo quan hệ đó |
-| `ADMIN` | Toàn hệ thống; kế thừa quyền nghiệp vụ Manager và có thêm quyền quản trị |
+| Role      | Data scope do server suy ra                                                                                                                                                       |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INTERN`  | `Users.id = principal.user_id`; internship hiện tại; roadmap/tài liệu được giao; task/submission của mình; evaluation đã công bố; notification, feedback và conversation của mình |
+| `MENTOR`  | Internship có `MentorAssignments` còn hiệu lực với `mentor_id = principal.user_id`; task/progress/evaluation liên quan                                                            |
+| `MANAGER` | Toàn bộ các đợt trong phạm vi bản demo; khi hệ thống bổ sung phân công Manager–đợt thì policy phải thu hẹp theo quan hệ đó                                                        |
+| `ADMIN`   | Toàn hệ thống; kế thừa quyền nghiệp vụ Manager và có thêm quyền quản trị                                                                                                          |
 
 ### 6.2 Các rule bắt buộc
 
@@ -304,22 +304,22 @@ Audit của mutation thành công được ghi cùng transaction nghiệp vụ �
 
 ## 10. Truy vết SRS
 
-| Quyết định trong tài liệu | Xem chi tiết trong SRS |
-|---|---|
-| Web client–server; Backend API xử lý RBAC | Mục 2.1, dòng 83–92 |
-| Bốn vai trò và bảy module | Mục 3.1–3.2, dòng 112–134 |
-| Xác thực, phiên, RBAC, khóa tài khoản | Mục 4.1, FR-01–FR-04, dòng 138–145 |
-| Scope Mentor và Manager | Mục 4.2, FR-07–FR-08, dòng 147–154 |
-| Quyền LMS và kết quả thi | Mục 4.3, FR-09–FR-15, dòng 156–170 |
-| Ownership task, submission và review | Mục 4.4, FR-16–FR-20, dòng 172–188 |
-| Evaluation nháp/công bố và lifecycle approval | Mục 4.5, FR-21–FR-26, dòng 190–203 |
-| Notification, dashboard, report và audit | Mục 4.6, FR-27–FR-32, dòng 205–218 |
-| M07, internal API, citation và giới hạn an toàn | Mục 4.7, FR-33–FR-37, dòng 220–242 |
-| Quy tắc ownership, scope và backend enforcement | Mục 5, BR-02–BR-12, dòng 244–261 |
-| User role/status, assignment, task, evaluation, document scope, audit/chat | Mục 6.1–6.3, dòng 267–539 |
-| Bảo mật, timeout và cô lập lỗi AI | Mục 7.2, NFR-02–NFR-06, dòng 732–742 |
-| REST/JSON/HTTPS và AI dùng cùng lớp kiểm soát quyền | Mục 8.1, dòng 744–754 |
-| Kiểm thử RBAC, AI/RAG và tiêu chí nghiệm thu | Mục 8.2–8.3 và 9, dòng 756–787 |
+| Quyết định trong tài liệu                                                  | Xem chi tiết trong SRS               |
+| -------------------------------------------------------------------------- | ------------------------------------ |
+| Web client–server; Backend API xử lý RBAC                                  | Mục 2.1, dòng 83–92                  |
+| Bốn vai trò và bảy module                                                  | Mục 3.1–3.2, dòng 112–134            |
+| Xác thực, phiên, RBAC, khóa tài khoản                                      | Mục 4.1, FR-01–FR-04, dòng 138–145   |
+| Scope Mentor và Manager                                                    | Mục 4.2, FR-07–FR-08, dòng 147–154   |
+| Quyền LMS và kết quả thi                                                   | Mục 4.3, FR-09–FR-15, dòng 156–170   |
+| Ownership task, submission và review                                       | Mục 4.4, FR-16–FR-20, dòng 172–188   |
+| Evaluation nháp/công bố và lifecycle approval                              | Mục 4.5, FR-21–FR-26, dòng 190–203   |
+| Notification, dashboard, report và audit                                   | Mục 4.6, FR-27–FR-32, dòng 205–218   |
+| M07, internal API, citation và giới hạn an toàn                            | Mục 4.7, FR-33–FR-37, dòng 220–242   |
+| Quy tắc ownership, scope và backend enforcement                            | Mục 5, BR-02–BR-12, dòng 244–261     |
+| User role/status, assignment, task, evaluation, document scope, audit/chat | Mục 6.1–6.3, dòng 267–539            |
+| Bảo mật, timeout và cô lập lỗi AI                                          | Mục 7.2, NFR-02–NFR-06, dòng 732–742 |
+| REST/JSON/HTTPS và AI dùng cùng lớp kiểm soát quyền                        | Mục 8.1, dòng 744–754                |
+| Kiểm thử RBAC, AI/RAG và tiêu chí nghiệm thu                               | Mục 8.2–8.3 và 9, dòng 756–787       |
 
 ## 11. Bàn giao sang task sau
 

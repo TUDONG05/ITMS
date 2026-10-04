@@ -57,18 +57,18 @@ Project sử dụng `uv` để quản lý dependency.
 
 backend/
 ├── app/
-│   ├── main.py
-│   ├── api/
-│   │   └── v1/
-│   │       ├── health.py
-│   │       ├── router.py
-│   │       └── __init__.py
-│   ├── core/
-│   │   ├── settings.py
-│   │   └── __init__.py
-│   └── __init__.py
+│ ├── main.py
+│ ├── api/
+│ │ └── v1/
+│ │ ├── health.py
+│ │ ├── router.py
+│ │ └── **init**.py
+│ ├── core/
+│ │ ├── settings.py
+│ │ └── **init**.py
+│ └── **init**.py
 ├── tests/
-│   └── test_health.py
+│ └── test_health.py
 ├── pyproject.toml
 └── uv.lock
 

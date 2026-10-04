@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 
 export type InternshipStatus = 'DRAFT' | 'OPEN' | 'ONGOING' | 'COMPLETED' | 'CANCELLED';
 export type MemberStatus = 'ACTIVE' | 'EXTENDED' | 'STOPPED' | 'COMPLETED';
+export type RequestType = 'EXTEND' | 'STOP' | 'COMPLETE';
+export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface UserSummary {
   id: string;
@@ -39,6 +41,20 @@ export interface InternshipMember {
   updated_at: string;
   intern?: UserSummary | null;
   mentor?: UserSummary | null;
+}
+
+export interface InternshipRequest {
+  id: string;
+  internship_member_id: string;
+  requested_by: string;
+  type: RequestType;
+  reason: string;
+  requested_end_date?: string | null;
+  status: RequestStatus;
+  reviewed_by?: string | null;
+  review_note?: string | null;
+  created_at: string;
+  reviewed_at?: string | null;
 }
 
 export interface CreateInternshipPayload {
@@ -77,6 +93,11 @@ export interface UpdateMemberPayload {
   start_date?: string | null;
   end_date?: string | null;
   status?: MemberStatus;
+}
+
+export interface ReviewRequestPayload {
+  status: 'APPROVED' | 'REJECTED';
+  review_note?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -177,5 +198,34 @@ export class InternshipService {
       headers: this.getHeaders(),
       params,
     });
+  }
+
+  getRequests(
+    status?: string,
+    type?: string,
+    startDate?: string,
+    endDate?: string,
+  ): Observable<InternshipRequest[]> {
+    let params = new HttpParams();
+    if (status) params = params.set('status', status);
+    if (type) params = params.set('type', type);
+    if (startDate) params = params.set('start_date', startDate);
+    if (endDate) params = params.set('end_date', endDate);
+
+    return this.http.get<InternshipRequest[]>('/api/v1/internships/requests', {
+      headers: this.getHeaders(),
+      params,
+    });
+  }
+
+  reviewRequest(requestId: string, payload: ReviewRequestPayload): Observable<InternshipRequest> {
+    // Sửa URL từ /api/v1/internship-members/requests/... sang /api/v1/internships/requests/...
+    return this.http.patch<InternshipRequest>(
+      `/api/v1/internships/requests/${requestId}/review`,
+      payload,
+      {
+        headers: this.getHeaders(),
+      },
+    );
   }
 }
