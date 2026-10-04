@@ -36,6 +36,9 @@ import { TaskManagementComponent } from '../tasks/task-management.component';
 import { TrainingManagementComponent } from '../training/training-management.component';
 import { UserManagementComponent } from '../users/user-management.component';
 import { RequestManagementComponent } from '../requests/request-management.component';
+import { NotificationManagementComponent } from '../notifications/notification-management.component';
+import { NotificationService } from '../../core/api/notification.service';
+import { AsyncPipe } from '@angular/common';
 
 enum Role {
   Intern = 'INTERN',
@@ -206,6 +209,7 @@ const dashboards: Record<Role, Dashboard> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
+    AsyncPipe,
     NzSpinModule,
     NzResultModule,
     NzEmptyModule,
@@ -229,6 +233,7 @@ const dashboards: Record<Role, Dashboard> = {
     TrainingManagementComponent,
     UserManagementComponent,
     RequestManagementComponent,
+    NotificationManagementComponent,
   ],
 
   styles: [
@@ -386,8 +391,8 @@ const dashboards: Record<Role, Dashboard> = {
               <span nz-icon nzType="menu"></span>
             </button>
             <div class="topbar__right">
-              <nz-badge [nzCount]="3"
-                ><button nz-button nzType="text" class="notification">
+              <nz-badge [nzCount]="(unreadCount$ | async) ?? 0" [nzOverflowCount]="99"
+                ><button nz-button nzType="text" class="notification" (click)="choose('notifications')">
                   <span nz-icon nzType="bell"></span></button
               ></nz-badge>
               <nz-avatar
@@ -604,6 +609,9 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'tasks' && (role() === 'MENTOR' || role() === 'INTERN')) {
               <!-- UC-7: Quản lý Task — Mentor giao/review, Intern nộp (Sprint 2) -->
               <app-task-management />
+            } @else if (section() === 'notifications') {
+              <!-- UC-9: Quản lý thông báo -->
+              <app-notification-management />
             } @else {
               <section class="feature-placeholder">
                 <span nz-icon [nzType]="activeIcon()"></span>
@@ -657,6 +665,8 @@ export class DashboardShellComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly dashboardService = inject(DashboardService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly notifService = inject(NotificationService);
+  protected readonly unreadCount$ = this.notifService.unreadCount$;
 
   protected readonly dashboardData = signal<DashboardResponse | null>(null);
   protected readonly isLoading = signal(true);
@@ -721,6 +731,7 @@ export class DashboardShellComponent implements OnInit {
   ngOnInit(): void {
     this.authService.getProfile().subscribe({ error: () => undefined });
     this.loadDashboard();
+    this.notifService.refreshUnreadCount();
   }
 
   protected loadDashboard(): void {
