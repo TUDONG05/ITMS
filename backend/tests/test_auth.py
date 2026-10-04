@@ -19,6 +19,7 @@ from app.core import security
 from app.core.errors import ApiError
 from app.core.security import hash_password, verify_password
 from app.core.settings import get_settings
+from app.models.auth import AuthSession
 from app.models.enums import UserRole, UserStatus
 from app.models.user import User
 
@@ -34,6 +35,7 @@ def auth_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     database_url = f"sqlite:///{database_path}"
     engine = create_engine(database_url)
     User.__table__.create(engine)
+    AuthSession.__table__.create(engine)
     with Session(engine) as db:
         db.add(
             User(
@@ -54,6 +56,23 @@ def auth_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ITMS_SMTP_USERNAME", "")
     monkeypatch.setenv("ITMS_SMTP_PASSWORD", "")
     monkeypatch.setenv("ITMS_SMTP_FROM_EMAIL", "")
+    get_settings.cache_clear()
+
+
+@pytest.fixture
+def db() -> Session:
+    settings = get_settings()
+    engine = create_engine(settings.database_url)
+    with Session(engine) as session:
+        yield session
+    engine.dispose()
+
+
+@pytest.fixture
+def active_user(db: Session) -> User:
+    user = db.get(User, DEMO_USER_UUID)
+    assert user is not None
+    return user
 
 
 def _available_port() -> int:
@@ -166,6 +185,58 @@ def test_refresh_settings_have_secure_defaults(monkeypatch: pytest.MonkeyPatch) 
     assert settings.refresh_cookie_name == "itms_refresh_token"
 
 
+def test_persisted_session_survives_service_recreation(db: Session, active_user: User) -> None:
+    settings = get_settings()
+
+    login = AuthService().login(db, active_user.email, "Intern@12345", settings, remember_me=False)
+    account = AuthService().get_account_from_access_token(db, login.access_token, settings)
+
+    assert account.id == active_user.id
+
+
+def test_refresh_rotates_token_and_rejects_reuse(db: Session, active_user: User) -> None:
+    settings = get_settings()
+    service = AuthService()
+    login = service.login(db, active_user.email, "Intern@12345", settings, remember_me=True)
+
+    refreshed = AuthService().refresh(db, login.refresh_token, settings)
+
+    assert refreshed.refresh_token != login.refresh_token
+    with pytest.raises(ApiError) as error:
+        AuthService().refresh(db, login.refresh_token, settings)
+    assert error.value.code == "INVALID_REFRESH_TOKEN"
+
+
+def test_logout_revokes_only_current_session(db: Session, active_user: User) -> None:
+    settings = get_settings()
+    service = AuthService()
+    first = service.login(db, active_user.email, "Intern@12345", settings, remember_me=False)
+    second = service.login(db, active_user.email, "Intern@12345", settings, remember_me=False)
+
+    service.logout(db, first.refresh_token, settings)
+
+    with pytest.raises(ApiError):
+        service.get_account_from_access_token(db, first.access_token, settings)
+    assert (
+        service.get_account_from_access_token(db, second.access_token, settings).id
+        == active_user.id
+    )
+
+
+def test_password_change_revokes_every_session(db: Session, active_user: User) -> None:
+    settings = get_settings()
+    service = AuthService()
+    first = service.login(db, active_user.email, "Intern@12345", settings, remember_me=False)
+    second = service.login(db, active_user.email, "Intern@12345", settings, remember_me=True)
+    account = service.get_account_from_access_token(db, first.access_token, settings)
+
+    service.change_password(db, account, "Intern@12345", "Changed@12345")
+
+    for token in (first.access_token, second.access_token):
+        with pytest.raises(ApiError):
+            service.get_account_from_access_token(db, token, settings)
+
+
 def test_login_rejects_invalid_credentials_without_disclosing_account() -> None:
     with _running_server() as base_url:
         status, body = _request_json(
@@ -253,6 +324,7 @@ def test_password_reset_otp_is_one_time_and_hashed(tmp_path: Path) -> None:
     database_url = f"sqlite:///{tmp_path / 'otp.db'}"
     engine = create_engine(database_url)
     User.__table__.create(engine)
+    AuthSession.__table__.create(engine)
     service = AuthService()
     with Session(engine) as db:
         user = User(
