@@ -72,6 +72,7 @@ def list_internship_requests(
     )
     return [InternshipRequestRead.model_validate(r) for r in requests]
 
+
 @router.patch("/requests/{request_id}/review", response_model=InternshipRequestRead)
 def review_internship_request(
     request_id: uuid.UUID,

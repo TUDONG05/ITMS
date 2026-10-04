@@ -327,9 +327,7 @@ class InternshipService:
                 InternshipRequest.created_at >= datetime.combine(start_date, time.min)
             )
         if end_date:
-            stmt = stmt.where(
-                InternshipRequest.created_at <= datetime.combine(end_date, time.max)
-            )
+            stmt = stmt.where(InternshipRequest.created_at <= datetime.combine(end_date, time.max))
 
         return list(db.scalars(stmt).all())
 
