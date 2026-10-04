@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.auth.service import AuthService
+from app.core import security
 from app.core.errors import ApiError
 from app.core.security import hash_password, verify_password
 from app.core.settings import get_settings
@@ -137,6 +138,32 @@ def test_login_issues_access_token_and_allows_me_request() -> None:
 
     assert me_status == 200
     assert me_body == login_body["user"]
+
+
+def test_refresh_token_contains_session_id_and_only_hash_is_stable() -> None:
+    session_id = uuid4()
+
+    token = security.create_refresh_token(session_id)
+
+    assert token.startswith(f"{session_id}.")
+    assert security.hash_refresh_token(token) == security.hash_refresh_token(token)
+    assert token != security.hash_refresh_token(token)
+
+
+def test_refresh_settings_have_secure_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    for variable in (
+        "ITMS_SESSION_REFRESH_TTL_SECONDS",
+        "ITMS_REMEMBERED_REFRESH_TTL_SECONDS",
+        "ITMS_REFRESH_COOKIE_NAME",
+    ):
+        monkeypatch.delenv(variable, raising=False)
+    get_settings.cache_clear()
+
+    settings = get_settings()
+
+    assert settings.session_refresh_ttl_seconds == 43_200
+    assert settings.remembered_refresh_ttl_seconds == 2_592_000
+    assert settings.refresh_cookie_name == "itms_refresh_token"
 
 
 def test_login_rejects_invalid_credentials_without_disclosing_account() -> None:

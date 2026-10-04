@@ -35,7 +35,7 @@
 
 **Files:**
 - Create: `backend/app/models/auth.py`
-- Create: `backend/migrations/versions/0003_auth_sessions.py`
+- Create: `backend/migrations/versions/0007_auth_sessions.py`
 - Modify: `backend/app/models/__init__.py`
 - Modify: `backend/app/core/settings.py`
 - Modify: `backend/app/core/security.py`
@@ -88,12 +88,12 @@ Expected: PASS.
 
 Run: `cd backend; .venv/Scripts/alembic upgrade head`
 
-Expected: database nâng lên revision `0003_auth_sessions`.
+Expected: database nâng lên revision `0007_auth_sessions`.
 
 - [ ] **Bước 5: Commit**
 
 ```bash
-git add backend/app/models/auth.py backend/app/models/__init__.py backend/app/core/settings.py backend/app/core/security.py backend/migrations/versions/0003_auth_sessions.py backend/tests/test_auth.py environment.local.example
+git add backend/app/models/auth.py backend/app/models/__init__.py backend/app/core/settings.py backend/app/core/security.py backend/migrations/versions/0007_auth_sessions.py backend/tests/test_auth.py environment.local.example
 git commit -m "feat(auth): add persistent session model"
 ```
 
