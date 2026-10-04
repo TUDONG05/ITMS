@@ -2,15 +2,16 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
-from app.auth.service import Account, get_auth_service
+from app.auth.service import Account, LoginResult, get_auth_service
+from app.core.deps import get_current_user
 from app.core.errors import ApiError
 from app.core.mail import send_password_reset_otp
-from app.core.settings import get_settings
+from app.core.settings import Settings, get_settings
 from app.db.session import get_db
+from app.models.user import User
 from app.schemas.auth import (
     AuthenticatedUser,
     ChangePasswordRequest,
@@ -25,69 +26,70 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
-    """Authenticate an active account and issue a short-lived access token."""
+def login(
+    payload: LoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> LoginResponse:
+    """Xác thực tài khoản, tạo session DB và đặt refresh cookie."""
     settings = get_settings()
-    access_token, account = get_auth_service().login(db, payload.email, payload.password, settings)
-    return LoginResponse(
-        access_token=access_token,
-        token_type="bearer",
-        expires_in=settings.access_token_ttl_seconds,
-        user=_serialize_account(account),
+    result = get_auth_service().login(
+        db,
+        payload.email,
+        payload.password,
+        settings,
+        remember_me=payload.remember_me,
     )
-
-
-bearer_scheme = HTTPBearer(auto_error=False)
-
-
-def get_current_account(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
-    db: Annotated[Session, Depends(get_db)],
-) -> Account:
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise ApiError(401, "MISSING_ACCESS_TOKEN", "Cần đăng nhập để truy cập tài nguyên này.")
-    return get_auth_service().get_account_from_access_token(
-        db, credentials.credentials, get_settings()
-    )
-
-
-def _bearer_token(credentials: HTTPAuthorizationCredentials | None) -> str:
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise ApiError(401, "MISSING_ACCESS_TOKEN", "Cần đăng nhập để truy cập tài nguyên này.")
-    return credentials.credentials
+    _set_refresh_cookie(response, result, settings)
+    return _login_response(result, settings)
 
 
 @router.post("/refresh", response_model=LoginResponse)
 def refresh(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
     settings = get_settings()
-    access_token, account = get_auth_service().refresh(db, _bearer_token(credentials), settings)
-    return LoginResponse(
-        access_token=access_token,
-        token_type="bearer",
-        expires_in=settings.access_token_ttl_seconds,
-        user=_serialize_account(account),
-    )
+    refresh_token = request.cookies.get(settings.refresh_cookie_name)
+    if not refresh_token:
+        raise ApiError(401, "MISSING_REFRESH_TOKEN", "Thiếu cookie làm mới phiên đăng nhập.")
+    result = get_auth_service().refresh(db, refresh_token, settings)
+    _set_refresh_cookie(response, result, settings)
+    return _login_response(result, settings)
 
 
 @router.post("/logout", response_model=MessageResponse)
 def logout(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> MessageResponse:
-    get_auth_service().logout(db, _bearer_token(credentials), get_settings())
+    settings = get_settings()
+    refresh_token = request.cookies.get(settings.refresh_cookie_name)
+    if refresh_token:
+        try:
+            get_auth_service().logout(db, refresh_token, settings)
+        except ApiError:
+            db.rollback()
+    response.delete_cookie(
+        settings.refresh_cookie_name,
+        path="/api/v1/auth",
+        secure=settings.environment == "production",
+        httponly=True,
+        samesite="lax",
+    )
+    response.headers["Cache-Control"] = "no-store"
     return MessageResponse(message="Đã đăng xuất.")
 
 
 @router.post("/change-password", response_model=MessageResponse)
 def change_password(
     payload: ChangePasswordRequest,
-    account: Annotated[Account, Depends(get_current_account)],
+    user: Annotated[User, Depends(get_current_user)],
     db: Session = Depends(get_db),
 ) -> MessageResponse:
-    get_auth_service().change_password(db, account, payload.current_password, payload.new_password)
+    get_auth_service().change_password(db, user, payload.current_password, payload.new_password)
     return MessageResponse(message="Đổi mật khẩu thành công. Vui lòng đăng nhập lại.")
 
 
@@ -111,6 +113,29 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     return MessageResponse(message="Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.")
 
 
+def _set_refresh_cookie(response: Response, result: LoginResult, settings: Settings) -> None:
+    max_age = settings.remembered_refresh_ttl_seconds if result.remember_me else None
+    response.set_cookie(
+        key=settings.refresh_cookie_name,
+        value=result.refresh_token,
+        max_age=max_age,
+        httponly=True,
+        secure=settings.environment == "production",
+        samesite="lax",
+        path="/api/v1/auth",
+    )
+    response.headers["Cache-Control"] = "no-store"
+
+
+def _login_response(result: LoginResult, settings: Settings) -> LoginResponse:
+    return LoginResponse(
+        access_token=result.access_token,
+        token_type="bearer",
+        expires_in=settings.access_token_ttl_seconds,
+        user=_serialize_account(result.account),
+    )
+
+
 def _normalize_avatar_url(url: str | None) -> str | None:
     if not url:
         return None
@@ -119,7 +144,7 @@ def _normalize_avatar_url(url: str | None) -> str | None:
     return url
 
 
-def _serialize_account(account: Account) -> AuthenticatedUser:
+def _serialize_account(account: Account | User) -> AuthenticatedUser:
     return AuthenticatedUser(
         id=str(account.id),
         email=account.email,

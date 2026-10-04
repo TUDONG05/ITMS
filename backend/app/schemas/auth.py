@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 class LoginRequest(BaseModel):
     email: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=1, max_length=256)
+    remember_me: bool = False
 
     @field_validator("email")
     @classmethod

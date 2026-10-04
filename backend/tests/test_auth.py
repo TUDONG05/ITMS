@@ -3,11 +3,13 @@ import socket
 import subprocess
 import sys
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager, suppress
+from http.cookiejar import CookieJar
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPCookieProcessor, OpenerDirector, Request, build_opener, urlopen
 from uuid import UUID, uuid4
 
 import pytest
@@ -29,7 +31,7 @@ DEMO_USER_UUID = UUID(DEMO_USER_ID)
 
 
 @pytest.fixture(autouse=True)
-def auth_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def auth_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Give the Uvicorn process a persisted database containing a real user."""
     database_path = tmp_path / "auth.db"
     database_url = f"sqlite:///{database_path}"
@@ -56,6 +58,8 @@ def auth_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ITMS_SMTP_USERNAME", "")
     monkeypatch.setenv("ITMS_SMTP_PASSWORD", "")
     monkeypatch.setenv("ITMS_SMTP_FROM_EMAIL", "")
+    get_settings.cache_clear()
+    yield
     get_settings.cache_clear()
 
 
@@ -128,6 +132,78 @@ def _request_json(
         except (URLError, TimeoutError):
             time.sleep(0.1)
     raise AssertionError("Uvicorn did not expose the authentication endpoint within five seconds.")
+
+
+def _request_with_headers(
+    method: str,
+    url: str,
+    payload: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    opener: OpenerDirector | None = None,
+) -> tuple[int, dict[str, Any], Any]:
+    body = json.dumps(payload).encode() if payload is not None else None
+    request_headers = {"Content-Type": "application/json", **(headers or {})}
+    request = Request(url, data=body, headers=request_headers, method=method)
+    open_request = opener.open if opener is not None else urlopen
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            with open_request(request, timeout=2.0) as response:
+                return response.status, json.loads(response.read()), response.headers
+        except HTTPError as error:
+            return error.code, json.loads(error.read()), error.headers
+        except (URLError, TimeoutError):
+            time.sleep(0.1)
+    raise AssertionError("Uvicorn did not expose the endpoint within five seconds.")
+
+
+def test_login_sets_httponly_cookie_and_refresh_rotates_it() -> None:
+    cookie_jar = CookieJar()
+    opener = build_opener(HTTPCookieProcessor(cookie_jar))
+    with _running_server() as base_url:
+        login_status, login_body, login_headers = _request_with_headers(
+            "POST",
+            f"{base_url}/api/v1/auth/login",
+            {
+                "email": "intern@itms.local",
+                "password": "Intern@12345",
+                "remember_me": False,
+            },
+            opener=opener,
+        )
+        set_cookie = login_headers.get("Set-Cookie", "")
+
+        refresh_status, refresh_body, refresh_headers = _request_with_headers(
+            "POST", f"{base_url}/api/v1/auth/refresh", opener=opener
+        )
+
+    assert login_status == 200
+    assert "HttpOnly" in set_cookie
+    assert "Max-Age" not in set_cookie
+    assert refresh_status == 200
+    assert refresh_body["access_token"] != login_body["access_token"]
+    assert "HttpOnly" in refresh_headers.get("Set-Cookie", "")
+
+
+def test_production_rejects_x_user_id_and_bearer_uuid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ITMS_ENVIRONMENT", "production")
+    get_settings.cache_clear()
+    with _running_server() as base_url:
+        header_status, _, _ = _request_with_headers(
+            "GET",
+            f"{base_url}/api/v1/users",
+            headers={"X-User-Id": DEMO_USER_ID},
+        )
+        bearer_status, _, _ = _request_with_headers(
+            "GET",
+            f"{base_url}/api/v1/users",
+            headers={"Authorization": f"Bearer {DEMO_USER_ID}"},
+        )
+
+    assert header_status == 401
+    assert bearer_status == 401
 
 
 def test_login_issues_access_token_and_allows_me_request() -> None:
@@ -251,21 +327,23 @@ def test_login_rejects_invalid_credentials_without_disclosing_account() -> None:
 
 
 def test_password_lifecycle_refresh_and_logout() -> None:
+    cookie_jar = CookieJar()
+    opener = build_opener(HTTPCookieProcessor(cookie_jar))
     with _running_server() as base_url:
-        login_status, login_body = _request_json(
+        login_status, login_body, _ = _request_with_headers(
             "POST",
             f"{base_url}/api/v1/auth/login",
             {"email": "intern@itms.local", "password": "Intern@12345"},
+            opener=opener,
         )
         assert login_status == 200
-        access_token = login_body["access_token"]
-        authorization = {"Authorization": f"Bearer {access_token}"}
 
-        refresh_status, refresh_body = _request_json(
-            "POST", f"{base_url}/api/v1/auth/refresh", headers=authorization
+        refresh_status, refresh_body, _ = _request_with_headers(
+            "POST", f"{base_url}/api/v1/auth/refresh", opener=opener
         )
         assert refresh_status == 200
         assert refresh_body["user"]["email"] == "intern@itms.local"
+        authorization = {"Authorization": f"Bearer {refresh_body['access_token']}"}
 
         change_status, change_body = _request_json(
             "POST",
@@ -282,16 +360,17 @@ def test_password_lifecycle_refresh_and_logout() -> None:
         assert revoked_status == 401
         assert revoked_body["error"]["code"] == "INVALID_ACCESS_TOKEN"
 
-        relogin_status, relogin_body = _request_json(
+        relogin_status, relogin_body, _ = _request_with_headers(
             "POST",
             f"{base_url}/api/v1/auth/login",
             {"email": "intern@itms.local", "password": "Changed@12345"},
+            opener=opener,
         )
         assert relogin_status == 200
         fresh_authorization = {"Authorization": f"Bearer {relogin_body['access_token']}"}
 
-        logout_status, logout_body = _request_json(
-            "POST", f"{base_url}/api/v1/auth/logout", headers=fresh_authorization
+        logout_status, logout_body, _ = _request_with_headers(
+            "POST", f"{base_url}/api/v1/auth/logout", opener=opener
         )
         assert logout_status == 200
         assert logout_body == {"message": "Đã đăng xuất."}

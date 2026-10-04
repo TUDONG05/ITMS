@@ -12,8 +12,8 @@ from app.schemas.internship import InternshipBase, InternshipMemberBase, Interns
 from app.schemas.user import UserCreate, UserRead
 
 
-def test_all_20_entities_registered():
-    """Verify the 20 business entities of the agreed MVP schema are registered."""
+def test_all_entities_registered():
+    """Verify business entities and the persistent auth-session table are registered."""
     expected_tables = {
         "nguoi_dung",
         "dot_thuc_tap",
@@ -35,9 +35,10 @@ def test_all_20_entities_registered():
         "luot_doc_thong_bao",
         "hoi_thoai_ai",
         "tin_nhan_ai",
+        "phien_dang_nhap",
     }
     actual_tables = set(Base.metadata.tables.keys())
-    assert len(actual_tables) == 20
+    assert len(actual_tables) == 21
     assert actual_tables == expected_tables
 
 

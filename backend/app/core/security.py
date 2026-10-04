@@ -45,6 +45,7 @@ def hash_refresh_token(token: str) -> str:
     """Băm refresh token để giá trị gốc không bao giờ được lưu trong DB."""
     return hashlib.sha256(token.encode()).hexdigest()
 
+
 def create_access_token(
     *,
     subject: str,
@@ -65,6 +66,7 @@ def create_access_token(
         "exp": now + expires_in_seconds,
         "iss": issuer,
         "aud": audience,
+        "jti": secrets.token_urlsafe(16),
     }
     header_segment = _encode_json(header)
     payload_segment = _encode_json(payload)
