@@ -1,119 +1,105 @@
-# Vercel-Safe Authentication Sessions
+# Thiết kế phiên xác thực phù hợp với Vercel
 
-**Date:** 2026-10-04
-**Status:** Approved for implementation planning
-**Branch:** `fix/vercel-auth-session`
+**Ngày:** 04/10/2026
+**Trạng thái:** Đã phê duyệt để lập kế hoạch triển khai
+**Nhánh:** `fix/vercel-auth-session`
 
-## 1. Purpose
+## 1. Mục đích
 
-Replace the process-local authentication session registry with persistent,
-database-backed sessions that remain valid across Vercel cold starts and
-function instances. Add secure refresh-token rotation and make the Angular
-client recover transparently when its short-lived access token expires.
+Thay thế cơ chế lưu phiên xác thực trong bộ nhớ tiến trình bằng phiên được lưu bền vững trong cơ sở dữ liệu. Phiên đăng nhập phải tiếp tục hoạt động khi Vercel cold start hoặc chuyển yêu cầu sang một Function instance khác. Hệ thống đồng thời bổ sung cơ chế xoay vòng refresh token an toàn để ứng dụng Angular tự khôi phục khi access token ngắn hạn hết hiệu lực.
 
-The completed flow must:
+Sau khi hoàn thành, luồng xác thực phải đáp ứng các yêu cầu sau:
 
-- keep a signed-in user active across page reloads and Vercel instance changes;
-- use a 15-minute access token and a refresh token that JavaScript cannot read;
-- revoke one device session on logout and every session after a password change;
-- reject test-only identity headers in production;
-- prevent stale browser state from presenting an authenticated dashboard;
-- preserve the existing user roles and authenticated API response shapes where
-  compatibility is possible.
+- duy trì đăng nhập khi tải lại trang hoặc Vercel thay đổi Function instance;
+- sử dụng access token có thời hạn 15 phút và refresh token mà JavaScript không thể đọc;
+- thu hồi đúng một phiên thiết bị khi đăng xuất và thu hồi toàn bộ phiên sau khi đổi mật khẩu;
+- từ chối header định danh chỉ dành cho kiểm thử trên môi trường production;
+- không hiển thị dashboard đã xác thực chỉ dựa trên trạng thái cũ trong trình duyệt;
+- giữ nguyên vai trò người dùng và cấu trúc phản hồi API hiện có trong phạm vi tương thích.
 
-## 2. Scope
+## 2. Phạm vi
 
-### In scope
+### 2.1. Trong phạm vi
 
-- A new persistent authentication-session table and Alembic migration.
-- Login, refresh, logout, password-change, and current-user authentication.
-- One shared FastAPI authentication dependency for protected endpoints.
-- Angular authentication bootstrap, in-memory access-token storage, route
-  guarding, an HTTP interceptor, and explicit authentication errors.
-- Backend and frontend regression tests for session lifecycle and retry logic.
+- Thêm bảng phiên xác thực và migration Alembic tương ứng.
+- Điều chỉnh luồng đăng nhập, làm mới token, đăng xuất, đổi mật khẩu và lấy người dùng hiện tại.
+- Thống nhất dependency xác thực dùng chung cho các endpoint được bảo vệ.
+- Bổ sung khởi tạo trạng thái xác thực, lưu access token trong bộ nhớ, route guard, HTTP interceptor và thông báo lỗi xác thực cho Angular.
+- Bổ sung kiểm thử hồi quy backend và frontend cho toàn bộ vòng đời phiên.
 
-### Out of scope
+### 2.2. Ngoài phạm vi
 
-- OAuth or third-party identity providers.
-- A user-facing screen for listing or remotely revoking devices.
-- Changing user roles, password rules, or password-reset delivery.
-- Moving authentication to an external identity service.
-- Cross-domain frontend/API hosting; the current same-origin `/api` routing is
-  retained.
+- OAuth hoặc đăng nhập qua nhà cung cấp danh tính bên thứ ba.
+- Màn hình cho phép người dùng xem và thu hồi phiên trên thiết bị khác.
+- Thay đổi vai trò, quy tắc mật khẩu hoặc phương thức gửi mã đặt lại mật khẩu.
+- Chuyển xác thực sang một dịch vụ danh tính bên ngoài.
+- Tách frontend và API sang hai tên miền khác nhau; hệ thống tiếp tục sử dụng định tuyến cùng nguồn qua `/api`.
 
-## 3. Chosen Architecture
+## 3. Kiến trúc được lựa chọn
 
-Authentication uses two credentials with different responsibilities:
+Hệ thống sử dụng hai loại thông tin xác thực với trách nhiệm khác nhau:
 
-1. A short-lived signed JWT access token authorizes normal API requests.
-2. A high-entropy opaque refresh token identifies a persistent database
-   session and is sent only as an HttpOnly cookie.
+1. Access token dạng JWT, có thời hạn ngắn, dùng để cấp quyền cho các yêu cầu API thông thường.
+2. Refresh token dạng chuỗi ngẫu nhiên, không chứa thông tin nghiệp vụ, dùng để nhận diện một phiên trong cơ sở dữ liệu và chỉ được truyền bằng cookie HttpOnly.
 
-The database, not a Python process, is the source of truth for active sessions.
-Every protected request validates the JWT and confirms that its session and user
-are still active. This makes logout immediately effective while remaining safe
-when Vercel routes consecutive requests to different function instances.
+Cơ sở dữ liệu là nguồn sự thật về trạng thái phiên thay vì bộ nhớ của tiến trình Python. Mỗi yêu cầu được bảo vệ phải xác minh JWT, người dùng và phiên trong cơ sở dữ liệu. Cách này giúp đăng xuất có hiệu lực ngay và không phụ thuộc việc các yêu cầu liên tiếp có chạy trên cùng Vercel Function instance hay không.
 
-## 4. Data Model
+## 4. Mô hình dữ liệu
 
-Add model `AuthSession` mapped to table `phien_dang_nhap`:
+Thêm model `AuthSession`, ánh xạ tới bảng `phien_dang_nhap`:
 
-| Column | Type | Rules |
+| Cột | Kiểu dữ liệu | Quy tắc |
 | --- | --- | --- |
-| `id` | UUID | Primary key; also used as JWT `sid` |
-| `user_id` | UUID | FK to `nguoi_dung.id`, `ON DELETE CASCADE`, indexed |
-| `refresh_token_hash` | String(64) | SHA-256 hexadecimal hash, unique and indexed |
-| `remember_me` | Boolean | Determines persistent-cookie behavior |
-| `expires_at` | Timestamp with timezone | Server-side refresh-session expiry |
-| `last_used_at` | Timestamp with timezone | Updated after successful rotation |
-| `revoked_at` | Timestamp with timezone, nullable | Non-null sessions are invalid |
-| `created_at` | Timestamp with timezone | Creation time |
+| `id` | UUID | Khóa chính, đồng thời là claim `sid` của JWT |
+| `user_id` | UUID | Khóa ngoại tới `nguoi_dung.id`, `ON DELETE CASCADE`, có chỉ mục |
+| `refresh_token_hash` | String(64) | Giá trị băm SHA-256 dạng hexadecimal, duy nhất và có chỉ mục |
+| `remember_me` | Boolean | Quyết định cookie tồn tại theo phiên hay có thời hạn dài |
+| `expires_at` | Timestamp có múi giờ | Thời điểm phiên refresh hết hạn trên máy chủ |
+| `last_used_at` | Timestamp có múi giờ | Cập nhật sau mỗi lần xoay vòng thành công |
+| `revoked_at` | Timestamp có múi giờ, nullable | Phiên không hợp lệ khi trường này khác null |
+| `created_at` | Timestamp có múi giờ | Thời điểm tạo phiên |
 
-No existing data requires backfilling. Tokens issued before deployment have no
-database session and will require one new login after rollout.
+Không cần chuyển đổi dữ liệu hiện có. Các token được cấp trước thời điểm triển khai không có phiên tương ứng trong cơ sở dữ liệu, vì vậy người dùng cần đăng nhập lại một lần sau khi phát hành phiên bản mới.
 
-### Refresh-token representation
+### 4.1. Biểu diễn refresh token
 
-The browser receives `<session-uuid>.<secret>`, where `secret` contains at least
-32 random bytes encoded with URL-safe Base64. Only `SHA-256(full-token)` is
-stored. The UUID permits reuse detection: if the session exists but the hash no
-longer matches after rotation, the session is revoked and the request is denied.
+Trình duyệt nhận chuỗi `<session-uuid>.<secret>`. Trong đó, `secret` chứa tối thiểu 32 byte ngẫu nhiên và được mã hóa Base64 an toàn cho URL. Cơ sở dữ liệu chỉ lưu `SHA-256(full-token)`.
 
-## 5. Token and Cookie Policy
+UUID trong token hỗ trợ phát hiện hành vi tái sử dụng. Nếu phiên vẫn tồn tại nhưng giá trị băm không còn khớp sau khi token đã được xoay vòng, hệ thống thu hồi phiên và từ chối yêu cầu.
 
-### Access token
+## 5. Chính sách token và cookie
 
-- Lifetime: `ITMS_ACCESS_TOKEN_TTL_SECONDS`, default 900 seconds.
-- Claims: `sub`, `sid`, `tv`, `iat`, `exp`, `iss`, and `aud`.
-- Stored only in Angular memory.
-- Sent as `Authorization: Bearer <token>`.
+### 5.1. Access token
 
-### Refresh session
+- Thời hạn được cấu hình bởi `ITMS_ACCESS_TOKEN_TTL_SECONDS`, mặc định 900 giây.
+- Các claim gồm `sub`, `sid`, `tv`, `iat`, `exp`, `iss` và `aud`.
+- Chỉ được lưu trong bộ nhớ Angular.
+- Được gửi qua header `Authorization: Bearer <token>`.
 
-- Without â€œRemember meâ€: server expiry defaults to 12 hours and the cookie has
-  no `Max-Age` or `Expires`, making it a browser-session cookie.
-- With â€œRemember meâ€: server and cookie expiry default to 30 days.
-- New settings:
-  - `ITMS_SESSION_REFRESH_TTL_SECONDS=43200`
-  - `ITMS_REMEMBERED_REFRESH_TTL_SECONDS=2592000`
+### 5.2. Phiên refresh
 
-### Cookie
+- Khi không chọn “Ghi nhớ đăng nhập”: phiên trên máy chủ mặc định tồn tại 12 giờ; cookie không có `Max-Age` hoặc `Expires`, vì vậy là session cookie của trình duyệt.
+- Khi chọn “Ghi nhớ đăng nhập”: phiên và cookie mặc định tồn tại 30 ngày.
+- Bổ sung các biến môi trường:
+  - `ITMS_SESSION_REFRESH_TTL_SECONDS=43200`;
+  - `ITMS_REMEMBERED_REFRESH_TTL_SECONDS=2592000`.
 
-- Name: `itms_refresh_token`.
+### 5.3. Cookie
+
+- Tên cookie: `itms_refresh_token`.
 - `HttpOnly=true`.
 - `SameSite=Lax`.
-- `Secure=true` in production and false for local HTTP development/tests.
+- `Secure=true` trên production và `false` khi phát triển/kiểm thử bằng HTTP cục bộ.
 - `Path=/api/v1/auth`.
-- The server clears the cookie using the same path and attributes.
+- Khi xóa cookie, máy chủ sử dụng cùng path và thuộc tính đã dùng khi tạo.
 
-Browser session restoration can restore a session cookie in some browsers. The
-12-hour server expiry therefore provides an independent upper bound.
+Một số trình duyệt có thể khôi phục session cookie khi người dùng bật chức năng khôi phục phiên. Thời hạn 12 giờ phía máy chủ tạo giới hạn độc lập cho trường hợp này.
 
-## 6. API Contract
+## 6. Hợp đồng API
 
-### `POST /api/v1/auth/login`
+### 6.1. `POST /api/v1/auth/login`
 
-Request:
+Yêu cầu:
 
 ```json
 {
@@ -123,166 +109,143 @@ Request:
 }
 ```
 
-`remember_me` defaults to `false` for backward compatibility. A successful
-response retains the existing `LoginResponse` body and also sets the refresh
-cookie. Invalid credentials remain `401 INVALID_CREDENTIALS`.
+`remember_me` mặc định là `false` để tương thích ngược. Khi đăng nhập thành công, body tiếp tục sử dụng `LoginResponse` hiện có và phản hồi đồng thời thiết lập refresh cookie. Thông tin không hợp lệ tiếp tục trả về `401 INVALID_CREDENTIALS`.
 
-### `POST /api/v1/auth/refresh`
+### 6.2. `POST /api/v1/auth/refresh`
 
-- Requires the refresh cookie; no bearer token is required.
-- Validates the session, user status, expiry, token hash, and `token_version`.
-- Rotates the refresh secret in the same transaction.
-- Returns the existing `LoginResponse` shape and replaces the cookie.
-- Missing, expired, revoked, or reused credentials return
-  `401 INVALID_REFRESH_TOKEN` and clear the cookie.
+- Yêu cầu refresh cookie và không yêu cầu bearer token.
+- Kiểm tra phiên, trạng thái người dùng, thời hạn, giá trị băm token và `token_version`.
+- Xoay vòng refresh secret trong cùng một transaction.
+- Trả về cấu trúc `LoginResponse` hiện có và thay thế cookie.
+- Cookie bị thiếu, hết hạn, đã thu hồi hoặc bị tái sử dụng sẽ trả về `401 INVALID_REFRESH_TOKEN` và xóa cookie.
 
-### `POST /api/v1/auth/logout`
+### 6.3. `POST /api/v1/auth/logout`
 
-- Idempotent.
-- Revokes the session named by the refresh cookie.
-- If the cookie is missing, a valid bearer token may identify the session.
-- Always clears the cookie and returns the existing success message.
+- Có tính idempotent.
+- Thu hồi phiên được xác định bởi refresh cookie.
+- Nếu thiếu cookie, bearer token hợp lệ có thể được dùng để xác định phiên.
+- Luôn xóa cookie và trả về thông báo thành công hiện có.
 
-### `POST /api/v1/auth/change-password`
+### 6.4. `POST /api/v1/auth/change-password`
 
-- Requires a valid access token and active session.
-- Updates the password and increments `token_version`.
-- Revokes every active session for the user.
-- Clears the current refresh cookie.
-- The user must sign in again.
+- Yêu cầu access token hợp lệ và phiên đang hoạt động.
+- Cập nhật mật khẩu và tăng `token_version`.
+- Thu hồi toàn bộ phiên đang hoạt động của người dùng.
+- Xóa refresh cookie hiện tại.
+- Người dùng phải đăng nhập lại.
 
-### Protected API endpoints
+### 6.5. Các endpoint được bảo vệ
 
-All protected endpoints use one shared authentication dependency that:
+Mọi endpoint được bảo vệ sử dụng một dependency xác thực dùng chung, thực hiện:
 
-1. requires a Bearer JWT;
-2. validates signature, issuer, audience, and expiry;
-3. loads the user and session from PostgreSQL;
-4. checks user status, session status/expiry, session ownership, and
-   `token_version`.
+1. yêu cầu Bearer JWT;
+2. kiểm tra chữ ký, issuer, audience và thời hạn;
+3. truy vấn người dùng và phiên từ PostgreSQL;
+4. kiểm tra trạng thái người dùng, trạng thái/thời hạn phiên, quyền sở hữu phiên và `token_version`.
 
-Bearer UUID credentials are removed in every environment. `X-User-Id` is
-accepted only when `ITMS_ENVIRONMENT` is `development` or `test`; production
-always rejects it.
+Bearer UUID bị loại bỏ trong mọi môi trường. `X-User-Id` chỉ được chấp nhận khi `ITMS_ENVIRONMENT` là `development` hoặc `test`; production luôn từ chối header này.
 
-## 7. Backend Components
+## 7. Thành phần backend
 
-- `app/models/auth.py`: `AuthSession` model.
-- Alembic revision `0003_auth_sessions`: creates/drops the table and indexes.
-- `app/core/settings.py`: refresh TTL and cookie settings.
-- `app/core/security.py`: access-token and opaque refresh-token primitives.
-- `app/auth/service.py`: persistent session creation, rotation, validation,
-  revocation, and password-wide revocation.
-- `app/api/v1/auth.py`: cookie transport and the revised endpoint contracts.
-- `app/core/deps.py`: the single protected-resource dependency, delegating to
-  the authentication service.
+- `app/models/auth.py`: model `AuthSession`.
+- Alembic revision `0003_auth_sessions`: tạo hoặc xóa bảng cùng các chỉ mục.
+- `app/core/settings.py`: cấu hình thời hạn refresh và cookie.
+- `app/core/security.py`: hàm xử lý access token và refresh token ngẫu nhiên.
+- `app/auth/service.py`: tạo, xoay vòng, xác minh, thu hồi phiên và thu hồi toàn bộ phiên sau khi đổi mật khẩu.
+- `app/api/v1/auth.py`: vận chuyển token qua cookie và triển khai hợp đồng endpoint mới.
+- `app/core/deps.py`: dependency duy nhất cho tài nguyên được bảo vệ, ủy quyền việc xác thực cho authentication service.
 
-The service layer owns token and session policy. API routes only translate HTTP
-headers/cookies and set or clear cookies.
+Tầng service sở hữu chính sách token và phiên. API route chỉ xử lý header/cookie HTTP và thao tác thiết lập hoặc xóa cookie.
 
-## 8. Angular Components and Data Flow
+## 8. Thành phần Angular và luồng dữ liệu
 
-### State
+### 8.1. Trạng thái xác thực
 
-`AuthService` holds the access token and authenticated user in signals. It does
-not persist the access token or trust a serialized user in web storage.
+`AuthService` lưu access token và người dùng đã xác thực trong signal. Service không lưu access token và không tin dữ liệu người dùng được tuần tự hóa trong web storage.
 
-### Application bootstrap
+### 8.2. Khởi tạo ứng dụng
 
-A `provideAppInitializer` initializer calls `/auth/refresh` before protected
-routing settles. Success restores the in-memory access token and user. A 401 is
-treated as an anonymous session without presenting a global application error.
+Một initializer thông qua `provideAppInitializer` gọi `/auth/refresh` trước khi hoàn tất điều hướng tới route được bảo vệ. Nếu thành công, hệ thống khôi phục access token và người dùng trong bộ nhớ. Phản hồi 401 được xem là trạng thái chưa đăng nhập và không tạo lỗi ứng dụng toàn cục.
 
-### HTTP interceptor
+### 8.3. HTTP interceptor
 
-A functional interceptor:
+Functional interceptor thực hiện:
 
-- excludes login, refresh, forgot-password, and reset-password from bearer
-  injection;
-- attaches the in-memory access token to protected API requests;
-- on the first `401`, enters a shared single-flight refresh operation;
-- retries each queued request once with the new access token;
-- never retries the refresh request itself;
-- on refresh failure, clears authentication state and navigates to `/login`.
+- không gắn bearer token cho login, refresh, forgot-password và reset-password;
+- gắn access token trong bộ nhớ vào các yêu cầu API được bảo vệ;
+- khi gặp 401 lần đầu, chuyển vào một thao tác refresh dùng chung;
+- thử lại mỗi yêu cầu đang chờ đúng một lần bằng access token mới;
+- không bao giờ thử lại chính yêu cầu refresh;
+- khi refresh thất bại, xóa trạng thái xác thực và điều hướng về `/login`.
 
-The single-flight rule prevents several simultaneous dashboard requests from
-rotating the same refresh token concurrently.
+Quy tắc single-flight ngăn nhiều yêu cầu dashboard nhận 401 cùng lúc xoay vòng cùng một refresh token song song.
 
-### Routing and UI
+### 8.4. Điều hướng và giao diện
 
-- `dashboardRoleGuard` checks the initialized `currentUser` signal and role.
-- Login forwards the checkbox value as `remember_me`.
-- Logout calls the backend before clearing local state; local cleanup still
-  occurs if the network request fails.
-- Dashboard/profile distinguish `401`, `403`, connectivity, and server errors.
+- `dashboardRoleGuard` kiểm tra signal `currentUser` đã được khởi tạo cùng vai trò tương ứng.
+- Màn hình đăng nhập gửi giá trị checkbox qua trường `remember_me`.
+- Đăng xuất gọi backend trước khi xóa trạng thái cục bộ; trạng thái cục bộ vẫn được xóa nếu yêu cầu mạng thất bại.
+- Dashboard và hồ sơ phân biệt lỗi 401, 403, lỗi kết nối và lỗi máy chủ.
 
-## 9. Error Handling and Security
+## 9. Xử lý lỗi và bảo mật
 
-- Authentication responses use the existing structured `ApiError` envelope.
-- Refresh failures do not disclose whether a user or session exists.
-- Refresh secrets never appear in JSON, logs, local storage, or session storage.
-- Password changes revoke all sessions in one transaction.
-- Refresh rotation is transactional so a successful response corresponds to
-  exactly one current token hash.
-- Production rejects identity override headers before resolving a user.
-- Same-origin routing, `SameSite=Lax`, and POST-only refresh/logout limit CSRF;
-  CORS remains restricted to configured origins.
-- Login and refresh responses send `Cache-Control: no-store`.
+- Phản hồi xác thực tiếp tục sử dụng envelope `ApiError` hiện có.
+- Lỗi refresh không tiết lộ người dùng hoặc phiên có tồn tại hay không.
+- Refresh secret không xuất hiện trong JSON, log, local storage hoặc session storage.
+- Đổi mật khẩu thu hồi toàn bộ phiên trong cùng một transaction.
+- Xoay vòng refresh token có tính transaction để một phản hồi thành công chỉ tương ứng với một giá trị băm token hiện hành.
+- Production từ chối header ghi đè định danh trước khi truy vấn người dùng.
+- Định tuyến cùng nguồn, `SameSite=Lax` và chỉ cho phép refresh/logout bằng POST giúp hạn chế CSRF; CORS tiếp tục giới hạn theo danh sách origin cấu hình.
+- Phản hồi login và refresh gửi `Cache-Control: no-store`.
 
-## 10. Migration and Rollout
+## 10. Migration và phát hành
 
-1. Apply Alembic migration `0003_auth_sessions` to the production database.
-2. Deploy backend and frontend together because the refresh contract changes.
-3. Existing sessions become invalid once; users sign in again.
-4. Confirm production environment and cookie security settings.
-5. Verify login, dashboard load, reload recovery, expiry refresh, logout, and
-   password-change revocation on the production deployment.
+1. Áp dụng migration Alembic `0003_auth_sessions` trên cơ sở dữ liệu production.
+2. Triển khai backend và frontend cùng lúc vì hợp đồng refresh thay đổi.
+3. Các phiên cũ mất hiệu lực một lần; người dùng đăng nhập lại.
+4. Kiểm tra môi trường production và thuộc tính bảo mật cookie.
+5. Xác minh đăng nhập, tải dashboard, phục hồi sau tải lại trang, refresh khi hết hạn, đăng xuất và thu hồi phiên sau đổi mật khẩu trên bản triển khai production.
 
-No destructive data migration is required. Rollback drops only
-`phien_dang_nhap`; existing users and business data remain unchanged.
+Migration không xóa hoặc biến đổi dữ liệu nghiệp vụ. Khi rollback, hệ thống chỉ xóa bảng `phien_dang_nhap`; người dùng và dữ liệu nghiệp vụ được giữ nguyên.
 
-## 11. Testing Strategy
+## 11. Chiến lược kiểm thử
 
-### Backend
+### 11.1. Backend
 
-- Login creates a persisted session and correct cookie type.
-- Remembered login uses a 30-day persistent cookie.
-- Access JWT works from a new `AuthService` instance, simulating a Vercel cold
-  start.
-- Refresh rotates the secret and rejects reuse of the old token.
-- Expired and revoked sessions return `INVALID_REFRESH_TOKEN`.
-- Logout revokes only the current session.
-- Password change revokes all user sessions and increments `token_version`.
-- Deleted, locked, or inactive users cannot refresh or access resources.
-- Production rejects `X-User-Id` and every Bearer UUID.
-- Development/test permits `X-User-Id` only for test support.
+- Đăng nhập tạo phiên bền vững và đúng loại cookie.
+- “Ghi nhớ đăng nhập” tạo cookie tồn tại 30 ngày.
+- Access JWT tiếp tục hoạt động với một `AuthService` instance mới, mô phỏng Vercel cold start.
+- Refresh xoay vòng secret và từ chối token cũ bị sử dụng lại.
+- Phiên hết hạn hoặc bị thu hồi trả về `INVALID_REFRESH_TOKEN`.
+- Đăng xuất chỉ thu hồi phiên hiện tại.
+- Đổi mật khẩu thu hồi mọi phiên và tăng `token_version`.
+- Người dùng đã xóa, bị khóa hoặc không hoạt động không thể refresh hoặc truy cập tài nguyên.
+- Production từ chối `X-User-Id` và mọi Bearer UUID.
+- Development/test chỉ cho phép `X-User-Id` để hỗ trợ kiểm thử.
 
-### Frontend
+### 11.2. Frontend
 
-- Bootstrap restores an authenticated user from the cookie flow.
-- Login forwards `remember_me`.
-- Interceptor attaches access tokens.
-- One 401 triggers refresh and one retry.
-- Concurrent 401 responses share one refresh request.
-- Refresh failure clears state and redirects to login.
-- Guard rejects absent and role-mismatched users.
-- Logout clears local state even when its HTTP request fails.
+- Quá trình khởi tạo khôi phục người dùng đã xác thực thông qua cookie.
+- Login truyền đúng `remember_me`.
+- Interceptor gắn access token.
+- Một phản hồi 401 kích hoạt một lần refresh và một lần thử lại.
+- Nhiều phản hồi 401 đồng thời dùng chung một yêu cầu refresh.
+- Refresh thất bại sẽ xóa trạng thái và điều hướng về trang đăng nhập.
+- Guard từ chối người dùng không tồn tại hoặc không đúng vai trò.
+- Logout xóa trạng thái cục bộ kể cả khi yêu cầu HTTP thất bại.
 
-### Full verification
+### 11.3. Kiểm chứng toàn bộ
 
-- Run the complete backend pytest suite.
-- Run Angular unit tests, lint, and production build.
-- Exercise the API contract with login, refresh, protected request, and logout
-  requests without exposing token values in output.
+- Chạy toàn bộ bộ kiểm thử pytest của backend.
+- Chạy unit test, lint và production build của Angular.
+- Kiểm tra hợp đồng API theo chuỗi login, refresh, truy cập tài nguyên được bảo vệ và logout mà không hiển thị giá trị token trong đầu ra.
 
-## 12. Acceptance Criteria
+## 12. Tiêu chí nghiệm thu
 
-- A valid session survives process restart and Vercel instance changes.
-- An expired access token refreshes without visible interruption.
-- Closing a non-remembered browser session normally removes its refresh cookie;
-  remembered sessions survive for at most 30 days.
-- Logout and password change enforce the specified revocation behavior.
-- No production endpoint authenticates a raw user UUID or `X-User-Id`.
-- The Angular application never displays a protected dashboard solely from stale
-  browser storage.
-- All new and existing automated tests pass.
+- Phiên hợp lệ tồn tại qua lần khởi động lại tiến trình và thay đổi Vercel Function instance.
+- Access token hết hạn được làm mới mà không gây gián đoạn nhìn thấy được.
+- Đóng phiên trình duyệt không ghi nhớ thường loại bỏ refresh cookie; phiên ghi nhớ tồn tại tối đa 30 ngày.
+- Đăng xuất và đổi mật khẩu thực hiện đúng phạm vi thu hồi đã quy định.
+- Không endpoint production nào xác thực raw UUID hoặc `X-User-Id`.
+- Ứng dụng Angular không hiển thị dashboard được bảo vệ chỉ dựa vào dữ liệu cũ trong trình duyệt.
+- Toàn bộ kiểm thử mới và kiểm thử hiện có đều vượt qua.
