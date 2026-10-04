@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -66,11 +66,6 @@ export interface TaskFilters {
 export class TaskService {
   private readonly http = inject(HttpClient);
 
-  private getHeaders(): HttpHeaders {
-    const token = sessionStorage.getItem('itms_access_token');
-    return new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
-  }
-
   getTasks(filters: TaskFilters = {}): Observable<Task[]> {
     let params = new HttpParams();
     if (filters.member_id) params = params.set('member_id', filters.member_id);
@@ -79,11 +74,11 @@ export class TaskService {
     if (filters.overdue !== undefined) params = params.set('overdue', String(filters.overdue));
     if (filters.search?.trim()) params = params.set('search', filters.search.trim());
     if (filters.internship_id) params = params.set('internship_id', filters.internship_id);
-    return this.http.get<Task[]>('/api/v1/tasks', { headers: this.getHeaders(), params });
+    return this.http.get<Task[]>('/api/v1/tasks', { params });
   }
 
   getTask(id: string): Observable<TaskDetail> {
-    return this.http.get<TaskDetail>(`/api/v1/tasks/${id}`, { headers: this.getHeaders() });
+    return this.http.get<TaskDetail>(`/api/v1/tasks/${id}`);
   }
 
   createTask(payload: {
@@ -94,7 +89,7 @@ export class TaskService {
     priority?: TaskPriority;
     attachment_url?: string | null;
   }): Observable<Task> {
-    return this.http.post<Task>('/api/v1/tasks', payload, { headers: this.getHeaders() });
+    return this.http.post<Task>('/api/v1/tasks', payload);
   }
 
   updateTask(
@@ -108,43 +103,33 @@ export class TaskService {
       attachment_url?: string | null;
     },
   ): Observable<Task> {
-    return this.http.patch<Task>(`/api/v1/tasks/${id}`, payload, { headers: this.getHeaders() });
+    return this.http.patch<Task>(`/api/v1/tasks/${id}`, payload);
   }
 
   cancelTask(id: string): Observable<Task> {
-    return this.http.delete<Task>(`/api/v1/tasks/${id}`, { headers: this.getHeaders() });
+    return this.http.delete<Task>(`/api/v1/tasks/${id}`);
   }
 
   submitTask(
     id: string,
     payload: { content?: string | null; link?: string | null; attachment_url?: string | null },
   ): Observable<TaskSubmission> {
-    return this.http.post<TaskSubmission>(`/api/v1/tasks/${id}/submit`, payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.post<TaskSubmission>(`/api/v1/tasks/${id}/submit`, payload);
   }
 
   deleteSubmission(id: string): Observable<void> {
-    return this.http.delete<void>(`/api/v1/tasks/${id}/submission`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.delete<void>(`/api/v1/tasks/${id}/submission`);
   }
 
   reviewTask(
     id: string,
     payload: { decision: 'COMPLETED' | 'REVISION_REQUIRED'; review_comment?: string | null },
   ): Observable<TaskSubmission> {
-    return this.http.post<TaskSubmission>(`/api/v1/tasks/${id}/review`, payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.post<TaskSubmission>(`/api/v1/tasks/${id}/review`, payload);
   }
 
   addComment(id: string, content: string): Observable<TaskComment> {
-    return this.http.post<TaskComment>(
-      `/api/v1/tasks/${id}/comments`,
-      { content },
-      { headers: this.getHeaders() },
-    );
+    return this.http.post<TaskComment>(`/api/v1/tasks/${id}/comments`, { content });
   }
 
   uploadFiles(files: File[]): Observable<{ urls: string[] }> {
@@ -152,9 +137,6 @@ export class TaskService {
     for (const file of files) {
       formData.append('files', file, file.name);
     }
-    // Không set Content-Type — browser tự gắn boundary
-    const token = sessionStorage.getItem('itms_access_token');
-    const headers = new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
-    return this.http.post<{ urls: string[] }>('/api/v1/tasks/upload', formData, { headers });
+    return this.http.post<{ urls: string[] }>('/api/v1/tasks/upload', formData);
   }
 }

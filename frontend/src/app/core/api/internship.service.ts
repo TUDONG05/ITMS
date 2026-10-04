@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -104,11 +104,6 @@ export interface ReviewRequestPayload {
 export class InternshipService {
   private readonly http = inject(HttpClient);
 
-  private getHeaders(): HttpHeaders {
-    const token = sessionStorage.getItem('itms_access_token');
-    return new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
-  }
-
   getInternships(
     skip = 0,
     limit = 100,
@@ -123,27 +118,20 @@ export class InternshipService {
       params = params.set('status', status);
     }
     return this.http.get<Internship[]>('/api/v1/internships', {
-      headers: this.getHeaders(),
       params,
     });
   }
 
   createInternship(payload: CreateInternshipPayload): Observable<Internship> {
-    return this.http.post<Internship>('/api/v1/internships', payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.post<Internship>('/api/v1/internships', payload, {});
   }
 
   getInternship(id: string): Observable<Internship> {
-    return this.http.get<Internship>(`/api/v1/internships/${id}`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.get<Internship>(`/api/v1/internships/${id}`, {});
   }
 
   updateInternship(id: string, payload: UpdateInternshipPayload): Observable<Internship> {
-    return this.http.patch<Internship>(`/api/v1/internships/${id}`, payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.patch<Internship>(`/api/v1/internships/${id}`, payload, {});
   }
 
   getMembers(internshipId: string, search?: string): Observable<InternshipMember[]> {
@@ -152,7 +140,6 @@ export class InternshipService {
       params = params.set('search', search.trim());
     }
     return this.http.get<InternshipMember[]>(`/api/v1/internships/${internshipId}/members`, {
-      headers: this.getHeaders(),
       params,
     });
   }
@@ -161,32 +148,24 @@ export class InternshipService {
     return this.http.post<InternshipMember>(
       `/api/v1/internships/${internshipId}/members`,
       payload,
-      {
-        headers: this.getHeaders(),
-      },
+      {},
     );
   }
 
   getMember(memberId: string): Observable<InternshipMember> {
-    return this.http.get<InternshipMember>(`/api/v1/internship-members/${memberId}`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.get<InternshipMember>(`/api/v1/internship-members/${memberId}`, {});
   }
 
   assignMentor(memberId: string, mentorId: string | null): Observable<InternshipMember> {
     return this.http.patch<InternshipMember>(
       `/api/v1/internship-members/${memberId}/mentor`,
       { mentor_id: mentorId },
-      {
-        headers: this.getHeaders(),
-      },
+      {},
     );
   }
 
   updateMember(memberId: string, payload: UpdateMemberPayload): Observable<InternshipMember> {
-    return this.http.patch<InternshipMember>(`/api/v1/internship-members/${memberId}`, payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.patch<InternshipMember>(`/api/v1/internship-members/${memberId}`, payload, {});
   }
 
   getUsers(role?: string): Observable<UserSummary[]> {
@@ -195,7 +174,6 @@ export class InternshipService {
       params = params.set('role', role);
     }
     return this.http.get<UserSummary[]>('/api/v1/users', {
-      headers: this.getHeaders(),
       params,
     });
   }
@@ -213,7 +191,6 @@ export class InternshipService {
     if (endDate) params = params.set('end_date', endDate);
 
     return this.http.get<InternshipRequest[]>('/api/v1/internships/requests', {
-      headers: this.getHeaders(),
       params,
     });
   }
@@ -223,9 +200,6 @@ export class InternshipService {
     return this.http.patch<InternshipRequest>(
       `/api/v1/internships/requests/${requestId}/review`,
       payload,
-      {
-        headers: this.getHeaders(),
-      },
     );
   }
 }

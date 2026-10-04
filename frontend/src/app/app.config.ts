@@ -1,7 +1,12 @@
 import { registerLocaleData } from '@angular/common';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import vi from '@angular/common/locales/vi';
-import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import {
+  ApplicationConfig,
+  inject,
+  provideAppInitializer,
+  provideBrowserGlobalErrorListeners,
+} from '@angular/core';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 
@@ -53,6 +58,8 @@ import { provideNzI18n, vi_VN } from 'ng-zorro-antd/i18n';
 import { provideNzIcons } from 'ng-zorro-antd/icon';
 
 import { routes } from './app.routes';
+import { AuthService } from './core/api/auth.service';
+import { authInterceptor } from './core/auth/auth.interceptor';
 
 // Đăng ký locale tiếng Việt cho Angular
 registerLocaleData(vi);
@@ -62,7 +69,8 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideAnimations(),
     provideRouter(routes),
-    provideHttpClient(),
+    provideHttpClient(withInterceptors([authInterceptor])),
+    provideAppInitializer(() => inject(AuthService).initialize()),
 
     // 👉 Cấp Provider I18n & NzI18nService để giải quyết lỗi NG0201
     provideNzI18n(vi_VN),

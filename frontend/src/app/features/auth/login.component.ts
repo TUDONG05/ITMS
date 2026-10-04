@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
@@ -125,7 +125,7 @@ import { ApiErrorResponse, AuthenticatedUser, AuthService } from '../../core/api
     </main>
   `,
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly formBuilder = inject(FormBuilder).nonNullable;
@@ -133,12 +133,19 @@ export class LoginComponent {
   protected readonly form = this.formBuilder.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required]],
-    rememberMe: [false],
+    rememberMe: [true],
   });
   protected readonly authenticatedUser = signal<AuthenticatedUser | null>(null);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly isPasswordVisible = signal(false);
   protected readonly isSubmitting = signal(false);
+
+  ngOnInit(): void {
+    const user = this.authService.currentUser();
+    if (user) {
+      void this.router.navigate(['/dashboard', user.role.toLowerCase()]);
+    }
+  }
 
   protected submit(): void {
     if (this.form.invalid) {
@@ -146,13 +153,13 @@ export class LoginComponent {
       return;
     }
 
-    const { email, password } = this.form.getRawValue();
+    const { email, password, rememberMe } = this.form.getRawValue();
     this.errorMessage.set(null);
     this.authenticatedUser.set(null);
     this.isSubmitting.set(true);
 
     this.authService
-      .login({ email, password })
+      .login({ email, password, remember_me: rememberMe })
       .pipe(finalize(() => this.isSubmitting.set(false)))
       .subscribe({
         next: (response) => {

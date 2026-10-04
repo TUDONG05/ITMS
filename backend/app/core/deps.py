@@ -4,7 +4,8 @@ from collections.abc import Callable
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.security import decode_access_token
+from app.auth.service import get_auth_service
+from app.core.errors import ApiError
 from app.core.settings import get_settings
 from app.db.session import get_db
 from app.models.enums import UserRole, UserStatus
@@ -16,60 +17,35 @@ def get_current_user(
     authorization: str | None = Header(None, alias="Authorization"),
     db: Session = Depends(get_db),
 ) -> User:
-    """Minimal dependency to resolve current user.
-
-    Supports:
-    1. X-User-Id header containing user UUID (convenient for API testing & internal dispatch).
-    2. Authorization: Bearer <jwt_or_uuid> header.
-    """
-    user_id_str: str | None = None
-    if x_user_id:
-        user_id_str = x_user_id.strip()
-    elif authorization and authorization.startswith("Bearer "):
-        user_id_str = authorization[7:].strip()
-
-    if not user_id_str:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication credentials were not provided",
-        )
-
-    try:
-        user_uuid = uuid.UUID(user_id_str)
-    except ValueError:
+    """Xác minh danh tính bằng JWT; header test chỉ dùng ngoài production."""
+    settings = get_settings()
+    if x_user_id and settings.environment in {"development", "test"}:
         try:
-            settings = get_settings()
-            claims = decode_access_token(
-                user_id_str,
-                secret=settings.jwt_secret,
-                issuer=settings.jwt_issuer,
-                audience=settings.jwt_audience,
-            )
-            user_uuid = uuid.UUID(str(claims["sub"]))
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid user identifier format in credentials",
-            )
+            user_id = uuid.UUID(x_user_id.strip())
+        except ValueError:
+            raise _invalid_credentials() from None
+        user = db.get(User, user_id)
+        if user is None:
+            raise _invalid_credentials()
+        if user.status != UserStatus.ACTIVE:
+            raise ApiError(403, "ACCOUNT_LOCKED", "Tài khoản không hoạt động.")
+        return user
 
-    user = db.query(User).filter(User.id == user_uuid).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
+    if not authorization or not authorization.startswith("Bearer "):
+        raise ApiError(401, "MISSING_ACCESS_TOKEN", "Cần đăng nhập để truy cập tài nguyên này.")
+    token = authorization[7:].strip()
+    if not token:
+        raise ApiError(401, "MISSING_ACCESS_TOKEN", "Cần đăng nhập để truy cập tài nguyên này.")
 
-    if user.status != UserStatus.ACTIVE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is not active",
-        )
-
+    account = get_auth_service().get_account_from_access_token(db, token, settings)
+    user = db.get(User, account.id)
+    if user is None:
+        raise _invalid_credentials()
     return user
 
 
 def require_roles(allowed_roles: list[UserRole]) -> Callable[[User], User]:
-    """Dependency factory that validates current user's role against allowed roles."""
+    """Dependency factory kiểm tra vai trò của người dùng hiện tại."""
 
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in allowed_roles:
@@ -80,3 +56,7 @@ def require_roles(allowed_roles: list[UserRole]) -> Callable[[User], User]:
         return current_user
 
     return role_checker
+
+
+def _invalid_credentials() -> ApiError:
+    return ApiError(401, "INVALID_ACCESS_TOKEN", "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.")

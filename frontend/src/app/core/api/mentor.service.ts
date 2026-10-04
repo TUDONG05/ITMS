@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -133,15 +133,8 @@ export interface MentorOverviewMetrics {
 export class MentorService {
   private readonly http = inject(HttpClient);
 
-  private getHeaders(): HttpHeaders {
-    const token = sessionStorage.getItem('itms_access_token');
-    return new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
-  }
-
   getOverview(): Observable<MentorOverviewMetrics> {
-    return this.http.get<MentorOverviewMetrics>('/api/v1/mentor/overview', {
-      headers: this.getHeaders(),
-    });
+    return this.http.get<MentorOverviewMetrics>('/api/v1/mentor/overview', {});
   }
 
   getInterns(
@@ -161,35 +154,26 @@ export class MentorService {
     }
 
     return this.http.get<MentorInternListItem[]>('/api/v1/mentor/interns', {
-      headers: this.getHeaders(),
       params,
     });
   }
 
   getInternDetail(memberId: string): Observable<MentorInternDetail> {
-    return this.http.get<MentorInternDetail>(`/api/v1/mentor/interns/${memberId}`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.get<MentorInternDetail>(`/api/v1/mentor/interns/${memberId}`, {});
   }
 
   getInternRoadmap(memberId: string): Observable<InternRoadmapDetail> {
-    return this.http.get<InternRoadmapDetail>(`/api/v1/mentor/interns/${memberId}/roadmap`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.get<InternRoadmapDetail>(`/api/v1/mentor/interns/${memberId}/roadmap`, {});
   }
 
   getInternQuizzes(memberId: string): Observable<QuizAttemptDetail[]> {
-    return this.http.get<QuizAttemptDetail[]>(`/api/v1/mentor/interns/${memberId}/quizzes`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.get<QuizAttemptDetail[]>(`/api/v1/mentor/interns/${memberId}/quizzes`, {});
   }
 
   assignOrChangeMentor(
     payload: MentorAssignRequestPayload,
   ): Observable<MentorAssignmentHistoryItem> {
-    return this.http.post<MentorAssignmentHistoryItem>('/api/v1/mentor/assignments', payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.post<MentorAssignmentHistoryItem>('/api/v1/mentor/assignments', payload, {});
   }
 
   getAssignmentHistory(memberId?: string): Observable<MentorAssignmentHistoryItem[]> {
@@ -198,7 +182,6 @@ export class MentorService {
       params = params.set('member_id', memberId);
     }
     return this.http.get<MentorAssignmentHistoryItem[]>('/api/v1/mentor/assignments/history', {
-      headers: this.getHeaders(),
       params,
     });
   }

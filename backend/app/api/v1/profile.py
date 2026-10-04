@@ -8,11 +8,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.v1.auth import get_current_account
-from app.auth.service import Account
+from app.core.deps import get_current_user
 from app.core.errors import ApiError
 from app.core.settings import AVATAR_UPLOAD_DIR
 from app.db.session import get_db
+from app.models.user import User
 from app.schemas.profile import InternProfileRead, MentorSummarySchema, UpdateProfileRequest
 from app.services import profile as profile_service
 
@@ -62,7 +62,7 @@ def _serialize_profile(data: profile_service.ProfileRead) -> InternProfileRead:
 
 @router.get("", response_model=InternProfileRead, summary="Xem hồ sơ cá nhân")
 def get_profile(
-    account: Annotated[Account, Depends(get_current_account)],
+    account: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> InternProfileRead:
     """Trả về hồ sơ của người dùng hiện tại.
@@ -77,7 +77,7 @@ def get_profile(
 @router.patch("", response_model=InternProfileRead, summary="Cập nhật hồ sơ cá nhân")
 def update_profile(
     payload: UpdateProfileRequest,
-    account: Annotated[Account, Depends(get_current_account)],
+    account: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> InternProfileRead:
     """Cập nhật các trường được phép: ``phone``, ``avatar_url`` (và ``full_name`` nếu là ADMIN).
@@ -98,7 +98,7 @@ def update_profile(
 @router.post("/avatar", response_model=InternProfileRead, summary="Upload ảnh đại diện")
 async def upload_avatar(
     file: UploadFile,
-    account: Annotated[Account, Depends(get_current_account)],
+    account: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> InternProfileRead:
     """Nhận file ảnh (multipart/form-data, field name ``file``).

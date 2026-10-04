@@ -8,6 +8,7 @@ import secrets
 import time
 from collections.abc import Mapping
 from typing import Any
+from uuid import UUID
 
 
 class InvalidAccessTokenError(ValueError):
@@ -35,6 +36,16 @@ def verify_password(password: str, encoded_password: str) -> bool:
     return hmac.compare_digest(candidate_hash, expected_hash)
 
 
+def create_refresh_token(session_id: UUID) -> str:
+    """Tạo refresh token opaque mang định danh phiên và secret ngẫu nhiên."""
+    return f"{session_id}.{secrets.token_urlsafe(32)}"
+
+
+def hash_refresh_token(token: str) -> str:
+    """Băm refresh token để giá trị gốc không bao giờ được lưu trong DB."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 def create_access_token(
     *,
     subject: str,
@@ -55,6 +66,7 @@ def create_access_token(
         "exp": now + expires_in_seconds,
         "iss": issuer,
         "aud": audience,
+        "jti": secrets.token_urlsafe(16),
     }
     header_segment = _encode_json(header)
     payload_segment = _encode_json(payload)

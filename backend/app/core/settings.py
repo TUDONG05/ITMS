@@ -53,6 +53,9 @@ class Settings:
     jwt_issuer: str
     jwt_audience: str
     access_token_ttl_seconds: int
+    session_refresh_ttl_seconds: int
+    remembered_refresh_ttl_seconds: int
+    refresh_cookie_name: str
     database_url: str | None = None
     db_echo: bool = False
     smtp_host: str = "smtp.gmail.com"
@@ -74,6 +77,11 @@ def get_settings() -> Settings:
         jwt_issuer=os.getenv("ITMS_JWT_ISSUER", "itms-backend"),
         jwt_audience=os.getenv("ITMS_JWT_AUDIENCE", "itms-web-client"),
         access_token_ttl_seconds=int(os.getenv("ITMS_ACCESS_TOKEN_TTL_SECONDS", "900")),
+        session_refresh_ttl_seconds=int(os.getenv("ITMS_SESSION_REFRESH_TTL_SECONDS", "43200")),
+        remembered_refresh_ttl_seconds=int(
+            os.getenv("ITMS_REMEMBERED_REFRESH_TTL_SECONDS", "2592000")
+        ),
+        refresh_cookie_name=os.getenv("ITMS_REFRESH_COOKIE_NAME", "itms_refresh_token"),
         database_url=db_url,
         db_echo=db_echo_raw in ("true", "1", "yes"),
         smtp_host=os.getenv("ITMS_SMTP_HOST", "smtp.gmail.com"),

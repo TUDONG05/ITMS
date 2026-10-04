@@ -8,6 +8,9 @@ ITMS_JWT_SECRET=replace-with-a-long-random-development-secret
 ITMS_JWT_ISSUER=itms-backend
 ITMS_JWT_AUDIENCE=itms-web-client
 ITMS_ACCESS_TOKEN_TTL_SECONDS=900
+ITMS_SESSION_REFRESH_TTL_SECONDS=43200
+ITMS_REMEMBERED_REFRESH_TTL_SECONDS=2592000
+ITMS_REFRESH_COOKIE_NAME=itms_refresh_token
 
 # Gmail SMTP: create an App Password in your Google Account; never use your normal password.
 ITMS_SMTP_HOST=smtp.gmail.com

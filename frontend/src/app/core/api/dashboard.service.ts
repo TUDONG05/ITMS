@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -49,13 +49,7 @@ export class DashboardService {
       params = params.set('internship_id', internshipId);
     }
     return this.http.get<DashboardResponse>('/api/v1/dashboard', {
-      headers: this.getHeaders(),
       params,
     });
-  }
-
-  private getHeaders(): HttpHeaders {
-    const token = sessionStorage.getItem('itms_access_token');
-    return new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
   }
 }

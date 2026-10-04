@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.security import hash_password
 from app.db.session import get_db
 from app.main import app
+from app.models.auth import AuthSession
 from app.models.enums import UserRole, UserStatus
 from app.models.user import User
 
@@ -21,8 +22,10 @@ def test_db_session():
         poolclass=StaticPool,
     )
     User.__table__.create(bind=engine)
+    AuthSession.__table__.create(bind=engine)
     with Session(engine) as session:
         yield session
+    AuthSession.__table__.drop(bind=engine)
     User.__table__.drop(bind=engine)
     engine.dispose()
 

@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -40,11 +40,6 @@ export interface UpdateUserStatusPayload {
 export class UserManagementService {
   private readonly http = inject(HttpClient);
 
-  private getHeaders(): HttpHeaders {
-    const token = sessionStorage.getItem('itms_access_token');
-    return new HttpHeaders(token ? { Authorization: `Bearer ${token}` } : {});
-  }
-
   getUsers(filters?: {
     role?: UserRole;
     status?: UserStatus;
@@ -59,32 +54,23 @@ export class UserManagementService {
     if (filters?.skip != null) params = params.set('skip', filters.skip);
     if (filters?.limit != null) params = params.set('limit', filters.limit);
     return this.http.get<User[]>('/api/v1/users', {
-      headers: this.getHeaders(),
       params,
     });
   }
 
   createUser(payload: CreateUserPayload): Observable<User> {
-    return this.http.post<User>('/api/v1/users', payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.post<User>('/api/v1/users', payload, {});
   }
 
   getUser(userId: string): Observable<User> {
-    return this.http.get<User>(`/api/v1/users/${userId}`, {
-      headers: this.getHeaders(),
-    });
+    return this.http.get<User>(`/api/v1/users/${userId}`, {});
   }
 
   updateUser(userId: string, payload: UpdateUserPayload): Observable<User> {
-    return this.http.patch<User>(`/api/v1/users/${userId}`, payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.patch<User>(`/api/v1/users/${userId}`, payload, {});
   }
 
   updateUserStatus(userId: string, payload: UpdateUserStatusPayload): Observable<User> {
-    return this.http.patch<User>(`/api/v1/users/${userId}/status`, payload, {
-      headers: this.getHeaders(),
-    });
+    return this.http.patch<User>(`/api/v1/users/${userId}/status`, payload, {});
   }
 }
