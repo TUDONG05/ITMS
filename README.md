@@ -162,8 +162,11 @@ Tiền tố API cố định: `/api/v1`.
 - Refresh token dạng opaque lưu băm SHA-256 trong bảng `phien_dang_nhap`; giá trị gốc
   chỉ nằm trong cookie `itms_refresh_token` (`HttpOnly`, `SameSite=Lax`,
   path `/api/v1/auth`; `Secure` trên production).
-- Không chọn “Ghi nhớ đăng nhập”: session cookie, tối đa 12 giờ. Có chọn: persistent
-  cookie, tối đa 30 ngày. Mỗi lần refresh xoay token một lần; token cũ mất hiệu lực.
+- Ô “Ghi nhớ đăng nhập” mặc định bật: persistent cookie, tối đa 30 ngày. Bỏ chọn:
+  session cookie, tối đa 12 giờ (mất khi đóng trình duyệt). Mỗi lần refresh xoay token
+  một lần; token cũ mất hiệu lực.
+- Mở lại app khi session còn hiệu lực: tự khôi phục và chuyển về dashboard, không dừng
+  ở trang đăng nhập.
 - Đổi/đặt lại mật khẩu thu hồi toàn bộ session; đăng xuất thu hồi session hiện tại.
 - `X-User-Id` chỉ có tác dụng ở `development`/`test`; Bearer UUID luôn bị từ chối.
 
@@ -177,7 +180,7 @@ Tiền tố API cố định: `/api/v1`.
 
 ## Mô hình dữ liệu
 
-Migration hiện quản lý 21 bảng: 20 bảng nghiệp vụ với tên bảng/thuộc tính tiếng Việt, Chúng bao phủ:
+Migration hiện quản lý 21 bảng: 20 bảng nghiệp vụ với tên bảng/thuộc tính tiếng Việt. Chúng bao phủ:
 
 - phiên đăng nhập bền vững (`phien_dang_nhap`);
 
