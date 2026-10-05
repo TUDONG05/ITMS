@@ -3,10 +3,12 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  OnDestroy,
   OnInit,
   inject,
   signal,
 } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
@@ -88,12 +90,12 @@ import { Notification, NotificationService } from '../../core/api/notification.s
             >
               <thead>
                 <tr>
-                  <th nzWidth="35%">Tiêu đề</th>
-                  <th nzWidth="15%">Đối tượng</th>
-                  <th nzWidth="12%">Lượt đọc</th>
-                  <th nzWidth="18%">Ngày gửi</th>
+                  <th nzWidth="35%" nzAlign="left">Tiêu đề</th>
+                  <th nzWidth="15%" nzAlign="left">Đối tượng</th>
+                  <th nzWidth="12%" nzAlign="center">Lượt đọc</th>
+                  <th nzWidth="18%" nzAlign="center">Ngày gửi</th>
                   <th nzWidth="10%">Người tạo</th>
-                  <th nzWidth="10%">Thao tác</th>
+                  <th nzWidth="10%" nzAlign="center">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -106,14 +108,31 @@ import { Notification, NotificationService } from '../../core/api/notification.s
                       </div>
                     </td>
                     <td>
-                      <nz-tag [nzColor]="targetColor(n.target_type)">{{
-                        targetLabel(n.target_type)
-                      }}</nz-tag>
+                      <nz-tag
+                        [nzColor]="targetColor(n)"
+                        [nzTooltipTitle]="targetTooltip(n)"
+                        nz-tooltip
+                      >
+                        {{ targetLabel(n) }}
+                      </nz-tag>
                     </td>
-                    <td><span nz-icon nzType="eye"></span> {{ n.read_count ?? 0 }}</td>
-                    <td>{{ n.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+                    <td nzAlign="center">
+                      <span nz-icon nzType="eye"></span> {{ n.read_count ?? 0 }}
+                    </td>
+                    <td nzAlign="center">{{ n.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
                     <td>{{ n.creator_name ?? '-' }}</td>
-                    <td>
+                    <td nzAlign="center">
+                      <button
+                        nz-button
+                        nzType="text"
+                        (click)="openEditModal(n, $event)"
+                        nz-tooltip
+                        nzTooltipTitle="Chỉnh sửa"
+                        style="color: #1890ff; margin-right: 4px;"
+                      >
+                        <span nz-icon nzType="edit"></span>
+                        <span style="margin-left: 4px;">Sửa</span>
+                      </button>
                       <button
                         nz-button
                         nzType="text"
@@ -127,6 +146,7 @@ import { Notification, NotificationService } from '../../core/api/notification.s
                         nzTooltipTitle="Xóa"
                       >
                         <span nz-icon nzType="delete"></span>
+                        <span style="margin-left: 4px;">Xóa</span>
                       </button>
                     </td>
                   </tr>
@@ -136,10 +156,10 @@ import { Notification, NotificationService } from '../../core/api/notification.s
           }
         </nz-spin>
 
-        <!-- Create Modal -->
+        <!-- Create / Edit Modal -->
         <nz-modal
           [(nzVisible)]="isCreateModalOpen"
-          nzTitle="Tạo thông báo mới"
+          [nzTitle]="editingNotifId ? 'Chỉnh sửa thông báo' : 'Tạo thông báo mới'"
           [nzFooter]="null"
           (nzOnCancel)="closeCreateModal()"
           [nzWidth]="640"
@@ -189,6 +209,7 @@ import { Notification, NotificationService } from '../../core/api/notification.s
                     >
                       <nz-option nzValue="INTERN" nzLabel="Thực tập sinh (INTERN)"></nz-option>
                       <nz-option nzValue="MENTOR" nzLabel="Mentor"></nz-option>
+                      <nz-option nzValue="ADMIN" nzLabel="Quản trị viên (ADMIN)"></nz-option>
                     </nz-select>
                   </nz-form-control>
                 </nz-form-item>
@@ -228,7 +249,8 @@ import { Notification, NotificationService } from '../../core/api/notification.s
                   [nzLoading]="isSubmitting()"
                   [disabled]="createForm.invalid"
                 >
-                  <span nz-icon nzType="send"></span> Gửi thông báo
+                  <span nz-icon [nzType]="editingNotifId ? 'check' : 'send'"></span>
+                  {{ editingNotifId ? 'Lưu thay đổi' : 'Gửi thông báo' }}
                 </button>
               </div>
             </form>
@@ -284,10 +306,14 @@ import { Notification, NotificationService } from '../../core/api/notification.s
                       @if (!n.is_read) {
                         <span class="unread-dot"></span>
                       }
-                      <b class="notif-card__title">{{ n.title }}</b>
-                      <nz-tag [nzColor]="targetColor(n.target_type)" style="margin-left:auto;">{{
-                        targetLabel(n.target_type)
-                      }}</nz-tag>
+                      <nz-tag
+                        [nzColor]="targetColor(n)"
+                        [nzTooltipTitle]="targetTooltip(n)"
+                        nz-tooltip
+                        style="margin-left:auto;"
+                      >
+                        {{ targetLabel(n) }}
+                      </nz-tag>
                     </div>
                     <div class="notif-card__meta">
                       <span nz-icon nzType="clock-circle"></span>
@@ -324,9 +350,9 @@ import { Notification, NotificationService } from '../../core/api/notification.s
             @if (selectedNotif(); as n) {
               <div class="notif-detail">
                 <div class="notif-detail__meta">
-                  <nz-tag [nzColor]="targetColor(n.target_type)">{{
-                    targetLabel(n.target_type)
-                  }}</nz-tag>
+                  <nz-tag [nzColor]="targetColor(n)" [nzTooltipTitle]="targetTooltip(n)" nz-tooltip>
+                    {{ targetLabel(n) }}
+                  </nz-tag>
                   <span class="notif-detail__date">
                     <span nz-icon nzType="clock-circle"></span>
                     {{ n.created_at | date: 'dd/MM/yyyy HH:mm' }}
@@ -454,13 +480,14 @@ import { Notification, NotificationService } from '../../core/api/notification.s
     `,
   ],
 })
-export class NotificationManagementComponent implements OnInit {
+export class NotificationManagementComponent implements OnInit, OnDestroy {
   private readonly notifService = inject(NotificationService);
   private readonly authService = inject(AuthService);
   private readonly message = inject(NzMessageService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly userMgmtService = inject(UserManagementService);
   private readonly fb = inject(FormBuilder);
+  private notifChangedSub?: Subscription;
 
   protected readonly notifications = signal<Notification[]>([]);
   protected readonly isLoading = signal(false);
@@ -474,6 +501,7 @@ export class NotificationManagementComponent implements OnInit {
 
   protected isCreateModalOpen = false;
   protected isDetailModalOpen = false;
+  protected editingNotifId: string | null = null;
 
   protected role = 'INTERN';
 
@@ -491,10 +519,22 @@ export class NotificationManagementComponent implements OnInit {
     const user = this.authService.currentUser();
     this.role = user?.role ?? 'INTERN';
     this.loadNotifications();
+
+    this.notifChangedSub = this.notifService.notificationsChanged$.subscribe(() => {
+      if (!this.isSubmitting()) {
+        this.loadNotifications(false);
+      }
+    });
   }
 
-  private loadNotifications(): void {
-    this.isLoading.set(true);
+  ngOnDestroy(): void {
+    this.notifChangedSub?.unsubscribe();
+  }
+
+  private loadNotifications(showSpinner = true): void {
+    if (showSpinner && this.notifications().length === 0) {
+      this.isLoading.set(true);
+    }
     this.errorMsg.set(null);
     this.notifService.getNotifications().subscribe({
       next: (data) => {
@@ -532,7 +572,46 @@ export class NotificationManagementComponent implements OnInit {
   }
 
   protected openCreateModal(): void {
-    this.createForm.reset({ target_type: 'ALL', target_roles: [], target_users: [] });
+    this.editingNotifId = null;
+    this.createForm.reset({
+      title: '',
+      content: '',
+      target_type: 'ALL',
+      target_roles: [],
+      target_users: [],
+    });
+    this.isCreateModalOpen = true;
+    this.loadUsers();
+    this.cdr.markForCheck();
+  }
+
+  protected openEditModal(n: Notification, event: Event): void {
+    event.stopPropagation();
+    this.editingNotifId = n.id;
+    let target_roles: string[] = [];
+    let target_users: string[] = [];
+    if (n.target_type === 'ROLE' && n.target_data) {
+      target_roles = n.target_data;
+    } else if (n.target_type === 'USER' && n.target_data) {
+      target_users = (n.target_data as unknown[])
+        .map((item) => {
+          if (typeof item === 'string') return item;
+          if (item && typeof item === 'object') {
+            const obj = item as Record<string, string>;
+            return obj['intern_id'] || obj['new_mentor_id'] || obj['old_mentor_id'] || '';
+          }
+          return '';
+        })
+        .filter(Boolean);
+    }
+
+    this.createForm.setValue({
+      title: n.title,
+      content: n.content,
+      target_type: n.target_type,
+      target_roles,
+      target_users,
+    });
     this.isCreateModalOpen = true;
     this.loadUsers();
     this.cdr.markForCheck();
@@ -540,6 +619,7 @@ export class NotificationManagementComponent implements OnInit {
 
   protected closeCreateModal(): void {
     this.isCreateModalOpen = false;
+    this.editingNotifId = null;
     this.cdr.markForCheck();
   }
 
@@ -561,27 +641,58 @@ export class NotificationManagementComponent implements OnInit {
       target_data = (val.target_users as string[]) || [];
     }
     this.isSubmitting.set(true);
-    this.notifService
-      .createNotification({
-        title: val.title!.trim(),
-        content: val.content!.trim(),
-        target_type: val.target_type as 'ALL' | 'ROLE' | 'USER',
-        target_data,
-      })
-      .subscribe({
-        next: (created) => {
-          this.notifications.update((list) => [created, ...list]);
-          this.message.success('Thông báo đã được gửi thành công!');
-          this.isSubmitting.set(false);
-          this.closeCreateModal();
-          this.cdr.markForCheck();
-        },
-        error: (err: { error?: { detail?: string } }) => {
-          this.message.error(err?.error?.detail ?? 'Không thể gửi thông báo. Vui lòng thử lại.');
-          this.isSubmitting.set(false);
-          this.cdr.markForCheck();
-        },
-      });
+
+    if (this.editingNotifId) {
+      this.notifService
+        .updateNotification(this.editingNotifId, {
+          title: val.title!.trim(),
+          content: val.content!.trim(),
+          target_type: val.target_type as 'ALL' | 'ROLE' | 'USER',
+          target_data,
+        })
+        .subscribe({
+          next: (updated) => {
+            this.notifications.update((list) =>
+              list.map((item) =>
+                item.id === this.editingNotifId ? { ...item, ...updated } : item,
+              ),
+            );
+            this.message.success('Cập nhật thông báo thành công!');
+            this.isSubmitting.set(false);
+            this.closeCreateModal();
+            this.cdr.markForCheck();
+          },
+          error: (err: { error?: { detail?: string } }) => {
+            this.message.error(
+              err?.error?.detail ?? 'Không thể cập nhật thông báo. Vui lòng thử lại.',
+            );
+            this.isSubmitting.set(false);
+            this.cdr.markForCheck();
+          },
+        });
+    } else {
+      this.notifService
+        .createNotification({
+          title: val.title!.trim(),
+          content: val.content!.trim(),
+          target_type: val.target_type as 'ALL' | 'ROLE' | 'USER',
+          target_data,
+        })
+        .subscribe({
+          next: (created) => {
+            this.notifications.update((list) => [created, ...list]);
+            this.message.success('Thông báo đã được gửi thành công!');
+            this.isSubmitting.set(false);
+            this.closeCreateModal();
+            this.cdr.markForCheck();
+          },
+          error: (err: { error?: { detail?: string } }) => {
+            this.message.error(err?.error?.detail ?? 'Không thể gửi thông báo. Vui lòng thử lại.');
+            this.isSubmitting.set(false);
+            this.cdr.markForCheck();
+          },
+        });
+    }
   }
 
   protected deleteNotification(id: string): void {
@@ -646,17 +757,48 @@ export class NotificationManagementComponent implements OnInit {
     });
   }
 
-  protected targetColor(type: string): string {
-    if (type === 'ALL') return 'blue';
-    if (type === 'ROLE') return 'green';
-    if (type === 'USER') return 'orange';
+  protected targetColor(n: Notification): string {
+    if (n.target_type === 'ALL') return 'blue';
+    if (n.target_type === 'ROLE') return 'green';
+    if (n.target_type === 'USER') return 'orange';
     return 'default';
   }
 
-  protected targetLabel(type: string): string {
-    if (type === 'ALL') return 'Tất cả';
-    if (type === 'ROLE') return 'Theo vai trò';
-    if (type === 'USER') return 'Cụ thể';
-    return type;
+  protected targetLabel(n: Notification): string {
+    if (n.target_type === 'ALL') {
+      return 'Tất cả người dùng';
+    }
+    if (n.target_type === 'ROLE') {
+      if (n.recipient_names && n.recipient_names.length > 0) {
+        return n.recipient_names.join(', ');
+      }
+      if (n.target_data && n.target_data.length > 0) {
+        const roleMap: Record<string, string> = {
+          INTERN: 'Thực tập sinh',
+          MENTOR: 'Mentor',
+          ADMIN: 'Quản trị viên',
+        };
+        return n.target_data.map((r) => roleMap[r] || r).join(', ');
+      }
+      return 'Theo vai trò';
+    }
+    if (n.target_type === 'USER') {
+      if (n.recipient_names && n.recipient_names.length > 0) {
+        if (n.recipient_names.length === 1) {
+          return n.recipient_names[0];
+        }
+        return `${n.recipient_names[0]} (+${n.recipient_names.length - 1})`;
+      }
+      const count = n.target_data?.length || 1;
+      return `${count} người dùng`;
+    }
+    return n.target_type;
+  }
+
+  protected targetTooltip(n: Notification): string | null {
+    if (n.target_type === 'USER' && n.recipient_names && n.recipient_names.length > 0) {
+      return n.recipient_names.join(', ');
+    }
+    return null;
   }
 }

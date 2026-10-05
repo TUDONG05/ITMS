@@ -14,6 +14,7 @@ import {
   Component,
   computed,
   inject,
+  OnDestroy,
   OnInit,
   signal,
 } from '@angular/core';
@@ -26,6 +27,7 @@ import { NzDrawerModule } from 'ng-zorro-antd/drawer';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
+import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { AuthService } from '../../core/api/auth.service';
@@ -37,8 +39,9 @@ import { TrainingManagementComponent } from '../training/training-management.com
 import { UserManagementComponent } from '../users/user-management.component';
 import { RequestManagementComponent } from '../requests/request-management.component';
 import { NotificationManagementComponent } from '../notifications/notification-management.component';
-import { NotificationService } from '../../core/api/notification.service';
-import { AsyncPipe } from '@angular/common';
+import { Notification, NotificationService } from '../../core/api/notification.service';
+import { AsyncPipe, SlicePipe } from '@angular/common';
+import { Subscription, interval } from 'rxjs';
 
 enum Role {
   Intern = 'INTERN',
@@ -210,6 +213,7 @@ const dashboards: Record<Role, Dashboard> = {
   imports: [
     DatePipe,
     AsyncPipe,
+    SlicePipe,
     NzSpinModule,
     NzResultModule,
     NzEmptyModule,
@@ -224,6 +228,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzIconModule,
     NzLayoutModule,
     NzMenuModule,
+    NzPopoverModule,
     NzProgressModule,
     NzTagModule,
     InternshipManagementComponent,
@@ -391,15 +396,36 @@ const dashboards: Record<Role, Dashboard> = {
               <span nz-icon nzType="menu"></span>
             </button>
             <div class="topbar__right">
-              <nz-badge [nzCount]="(unreadCount$ | async) ?? 0" [nzOverflowCount]="99"
-                ><button
-                  nz-button
-                  nzType="text"
-                  class="notification"
-                  (click)="choose('notifications')"
-                >
-                  <span nz-icon nzType="bell"></span></button
-              ></nz-badge>
+              @if (role() === 'ADMIN') {
+                <nz-badge [nzCount]="(unreadCount$ | async) ?? 0" [nzOverflowCount]="99">
+                  <button
+                    nz-button
+                    nzType="text"
+                    class="notification"
+                    (click)="choose('notifications')"
+                    title="Quản lý thông báo"
+                  >
+                    <span nz-icon nzType="bell"></span>
+                  </button>
+                </nz-badge>
+              } @else {
+                <nz-badge [nzCount]="(unreadCount$ | async) ?? 0" [nzOverflowCount]="99">
+                  <button
+                    nz-button
+                    nzType="text"
+                    class="notification"
+                    nz-popover
+                    [nzPopoverContent]="notifPopoverTemplate"
+                    nzPopoverTrigger="click"
+                    nzPopoverPlacement="bottomRight"
+                    [(nzPopoverVisible)]="isNotifPopoverVisible"
+                    (nzPopoverVisibleChange)="onNotifPopoverVisibleChange($event)"
+                    title="Thông báo"
+                  >
+                    <span nz-icon nzType="bell"></span>
+                  </button>
+                </nz-badge>
+              }
               <nz-avatar
                 class="avatar avatar--clickable"
                 [nzSrc]="userAvatar() ?? undefined"
@@ -661,10 +687,68 @@ const dashboards: Record<Role, Dashboard> = {
           </div>
         </ng-container>
       </nz-drawer>
+
+      <!-- Notification Popover Template for Mentor/Intern -->
+      <ng-template #notifPopoverTemplate>
+        <div class="notif-popover">
+          <div class="notif-popover__header">
+            <h4>Thông báo</h4>
+            @if (popoverUnreadCount() > 0) {
+              <button
+                nz-button
+                nzType="link"
+                nzSize="small"
+                (click)="popoverMarkAllAsRead()"
+                [nzLoading]="isMarkingAllRead()"
+              >
+                Đánh dấu tất cả đã đọc
+              </button>
+            }
+          </div>
+          <nz-spin [nzSpinning]="isLoadingPopoverNotifs()">
+            <div class="notif-popover__body">
+              @if (popoverNotifs().length === 0 && !isLoadingPopoverNotifs()) {
+                <nz-empty nzNotFoundContent="Không có thông báo nào"></nz-empty>
+              } @else {
+                <div class="notif-popover__list">
+                  @for (n of popoverNotifs(); track n.id) {
+                    <div
+                      class="notif-popover__item"
+                      [class.notif-popover__item--unread]="!n.is_read"
+                      role="button"
+                      tabindex="0"
+                      (click)="onPopoverItemClick(n)"
+                      (keydown.enter)="onPopoverItemClick(n)"
+                    >
+                      <div class="notif-popover__item-title">
+                        @if (!n.is_read) {
+                          <span class="unread-dot"></span>
+                        }
+                        <b>{{ n.title }}</b>
+                      </div>
+                      <div class="notif-popover__item-desc">
+                        {{ n.content | slice: 0 : 80 }}{{ n.content.length > 80 ? '...' : '' }}
+                      </div>
+                      <div class="notif-popover__item-meta">
+                        {{ n.created_at | date: 'dd/MM/yyyy HH:mm' }}
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </nz-spin>
+          <div class="notif-popover__footer">
+            <button nz-button nzType="link" nzBlock (click)="viewAllNotifications()">
+              Xem tất cả thông báo →
+            </button>
+          </div>
+        </div>
+      </ng-template>
     </div>
   `,
 })
-export class DashboardShellComponent implements OnInit {
+export class DashboardShellComponent implements OnInit, OnDestroy {
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
@@ -672,6 +756,16 @@ export class DashboardShellComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly notifService = inject(NotificationService);
   protected readonly unreadCount$ = this.notifService.unreadCount$;
+  private notifChangedSub?: Subscription;
+  private popoverIntervalSub?: Subscription;
+
+  protected isNotifPopoverVisible = false;
+  protected readonly popoverNotifs = signal<Notification[]>([]);
+  protected readonly isLoadingPopoverNotifs = signal(false);
+  protected readonly isMarkingAllRead = signal(false);
+  protected readonly popoverUnreadCount = computed(
+    () => this.popoverNotifs().filter((n) => !n.is_read).length,
+  );
 
   protected readonly dashboardData = signal<DashboardResponse | null>(null);
   protected readonly isLoading = signal(true);
@@ -736,7 +830,24 @@ export class DashboardShellComponent implements OnInit {
   ngOnInit(): void {
     this.authService.getProfile().subscribe({ error: () => undefined });
     this.loadDashboard();
-    this.notifService.refreshUnreadCount();
+    this.notifService.startPolling(3000);
+    this.loadPopoverNotifs(false);
+
+    this.notifChangedSub = this.notifService.notificationsChanged$.subscribe(() => {
+      this.loadPopoverNotifs(false);
+    });
+
+    this.popoverIntervalSub = interval(3000).subscribe(() => {
+      if (this.isNotifPopoverVisible) {
+        this.loadPopoverNotifs(false);
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.notifService.stopPolling();
+    this.notifChangedSub?.unsubscribe();
+    this.popoverIntervalSub?.unsubscribe();
   }
 
   protected loadDashboard(): void {
@@ -784,12 +895,14 @@ export class DashboardShellComponent implements OnInit {
       const requestedRole = params.get('role')?.toUpperCase();
       if (Object.values(Role).includes(requestedRole as Role)) {
         this.role.set(requestedRole as Role);
+        this.notifService.refreshUnreadCount();
       }
     });
     this.activatedRoute.queryParamMap.subscribe((queryParams) => {
       const sec = queryParams.get('section') || queryParams.get('tab');
       if (sec) {
         this.section.set(sec);
+        this.notifService.refreshUnreadCount();
       }
     });
   }
@@ -797,6 +910,7 @@ export class DashboardShellComponent implements OnInit {
   protected choose(section: string): void {
     this.section.set(section);
     this.isMenuOpen.set(false);
+    this.notifService.refreshUnreadCount();
     this.cdr.markForCheck();
   }
 
@@ -831,6 +945,7 @@ export class DashboardShellComponent implements OnInit {
   }
 
   private finishLogout(): void {
+    this.notifService.clear();
     this.authService.clearSession();
     void this.router.navigate(['/login']);
   }
@@ -861,6 +976,71 @@ export class DashboardShellComponent implements OnInit {
   protected formatPercentNumber(val?: number | null): number {
     if (val == null) return 0;
     return Math.round(val * 100) / 100;
+  }
+
+  protected onNotifPopoverVisibleChange(visible: boolean): void {
+    this.isNotifPopoverVisible = visible;
+    if (visible) {
+      this.loadPopoverNotifs(true);
+      this.notifService.refreshUnreadCount();
+    }
+  }
+
+  protected loadPopoverNotifs(showSpinner = true): void {
+    if (showSpinner && this.popoverNotifs().length === 0) {
+      this.isLoadingPopoverNotifs.set(true);
+    }
+    this.notifService.getNotifications().subscribe({
+      next: (list) => {
+        this.popoverNotifs.set(list.slice(0, 8));
+        const unread = list.filter((n) => !n.is_read).length;
+        this.notifService.setUnreadCount(unread);
+        this.isLoadingPopoverNotifs.set(false);
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.isLoadingPopoverNotifs.set(false);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  protected popoverMarkAllAsRead(): void {
+    this.isMarkingAllRead.set(true);
+    this.notifService.markAllAsRead().subscribe({
+      next: () => {
+        this.popoverNotifs.update((list) => list.map((n) => ({ ...n, is_read: true })));
+        this.notifService.setUnreadCount(0);
+        this.isMarkingAllRead.set(false);
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.isMarkingAllRead.set(false);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  protected onPopoverItemClick(n: Notification): void {
+    if (!n.is_read) {
+      this.notifService.markAsRead(n.id).subscribe({
+        next: () => {
+          this.popoverNotifs.update((list) =>
+            list.map((item) => (item.id === n.id ? { ...item, is_read: true } : item)),
+          );
+          this.notifService.refreshUnreadCount();
+          this.cdr.markForCheck();
+        },
+        error: () => undefined,
+      });
+    }
+    this.isNotifPopoverVisible = false;
+    this.choose('notifications');
+  }
+
+  protected viewAllNotifications(): void {
+    this.isNotifPopoverVisible = false;
+    this.choose('notifications');
   }
 }
 

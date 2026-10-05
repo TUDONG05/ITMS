@@ -7,7 +7,12 @@ from app.core.deps import get_current_user, require_roles
 from app.db.session import get_db
 from app.models.enums import UserRole
 from app.models.user import User
-from app.schemas.notification import NotificationCreate, NotificationListItem, NotificationRead
+from app.schemas.notification import (
+    NotificationCreate,
+    NotificationListItem,
+    NotificationRead,
+    NotificationUpdate,
+)
 from app.services.notification import NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -75,6 +80,17 @@ def mark_as_read(
 ):
     """Intern/Mentor đánh dấu thông báo đã đọc."""
     return NotificationService.mark_as_read(db, current_user, notification_id)
+
+
+@router.put("/{notification_id}", response_model=NotificationRead)
+def update_notification(
+    notification_id: uuid.UUID,
+    payload: NotificationUpdate,
+    current_user: User = Depends(require_roles(ADMIN_ONLY)),
+    db: Session = Depends(get_db),
+):
+    """Admin chỉnh sửa thông báo (tiêu đề, nội dung, đối tượng nhận)."""
+    return NotificationService.update_notification(db, current_user, notification_id, payload)
 
 
 @router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
