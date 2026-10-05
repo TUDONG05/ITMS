@@ -44,7 +44,6 @@ class NotificationUpdate(BaseSchema):
         return v
 
 
-
 class NotificationRead(BaseSchema):
     id: uuid.UUID
     title: str
