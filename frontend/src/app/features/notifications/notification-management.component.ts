@@ -81,78 +81,145 @@ import { Notification, NotificationService } from '../../core/api/notification.s
           @if (notifications().length === 0 && !isLoading()) {
             <nz-empty nzNotFoundContent="Chưa có thông báo nào"></nz-empty>
           } @else {
-            <nz-table
-              #adminTable
-              [nzData]="notifications()"
-              [nzBordered]="true"
-              nzSize="middle"
-              [nzShowPagination]="notifications().length > 10"
-            >
-              <thead>
-                <tr>
-                  <th nzWidth="35%" nzAlign="left">Tiêu đề</th>
-                  <th nzWidth="15%" nzAlign="left">Đối tượng</th>
-                  <th nzWidth="12%" nzAlign="center">Lượt đọc</th>
-                  <th nzWidth="18%" nzAlign="center">Ngày gửi</th>
-                  <th nzWidth="10%">Người tạo</th>
-                  <th nzWidth="10%" nzAlign="center">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (n of adminTable.data; track n.id) {
-                  <tr class="notif-row" (click)="viewDetail(n)" style="cursor:pointer;">
-                    <td>
-                      <b>{{ n.title }}</b>
-                      <div class="notif-content-preview">
-                        {{ n.content | slice: 0 : 80 }}{{ n.content.length > 80 ? '...' : '' }}
-                      </div>
-                    </td>
-                    <td>
+            <!-- Desktop Table View: Fits 100% in viewport without horizontal scroll -->
+            <div class="admin-desktop-view">
+              <nz-table
+                #adminTable
+                [nzData]="notifications()"
+                [nzBordered]="true"
+                nzSize="middle"
+                [nzShowPagination]="notifications().length > 10"
+                style="table-layout: fixed; width: 100%;"
+              >
+                <thead>
+                  <tr>
+                    <th nzWidth="32%" nzAlign="left">Tiêu đề</th>
+                    <th nzWidth="18%" nzAlign="left">Đối tượng</th>
+                    <th nzWidth="10%" nzAlign="center">Lượt đọc</th>
+                    <th nzWidth="15%" nzAlign="center">Ngày gửi</th>
+                    <th nzWidth="12%" nzAlign="center">Người tạo</th>
+                    <th nzWidth="13%" nzAlign="center">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (n of adminTable.data; track n.id) {
+                    <tr class="notif-row" (click)="viewDetail(n)" style="cursor:pointer;">
+                      <td>
+                        <b class="notif-title-cell">{{ n.title }}</b>
+                        <div class="notif-content-preview">
+                          {{ n.content | slice: 0 : 80 }}{{ n.content.length > 80 ? '...' : '' }}
+                        </div>
+                      </td>
+                      <td>
+                        <nz-tag
+                          [nzColor]="targetColor(n)"
+                          [nzTooltipTitle]="targetTooltip(n) || targetLabel(n)"
+                          nz-tooltip
+                          class="target-tag"
+                        >
+                          {{ targetLabel(n) }}
+                        </nz-tag>
+                      </td>
+                      <td nzAlign="center">
+                        <span nz-icon nzType="eye"></span> {{ n.read_count ?? 0 }}
+                      </td>
+                      <td nzAlign="center">{{ n.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+                      <td>{{ n.creator_name ?? '-' }}</td>
+                      <td nzAlign="center" class="action-cell">
+                        <button
+                          nz-button
+                          nzType="text"
+                          (click)="openEditModal(n, $event)"
+                          nz-tooltip
+                          nzTooltipTitle="Chỉnh sửa"
+                          style="color: #1890ff; padding: 0 4px;"
+                        >
+                          <span nz-icon nzType="edit"></span>
+                          <span style="margin-left: 2px;">Sửa</span>
+                        </button>
+                        <button
+                          nz-button
+                          nzType="text"
+                          nzDanger
+                          nz-popconfirm
+                          nzPopconfirmTitle="Xóa thông báo này?"
+                          nzPopconfirmPlacement="left"
+                          (nzOnConfirm)="deleteNotification(n.id)"
+                          (click)="$event.stopPropagation()"
+                          nz-tooltip
+                          nzTooltipTitle="Xóa"
+                          style="padding: 0 4px;"
+                        >
+                          <span nz-icon nzType="delete"></span>
+                          <span style="margin-left: 2px;">Xóa</span>
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </nz-table>
+            </div>
+
+            <!-- Mobile Card View: Clean vertical cards for small screens <= 768px -->
+            <div class="admin-mobile-view">
+              @for (n of notifications(); track n.id) {
+                <nz-card
+                  class="notif-card"
+                  (click)="viewDetail(n)"
+                  style="cursor:pointer; margin-bottom:12px;"
+                  [nzBordered]="true"
+                >
+                  <div class="notif-card__header">
+                    <div class="notif-card__title-row">
+                      <b class="notif-card__title">{{ n.title }}</b>
                       <nz-tag
                         [nzColor]="targetColor(n)"
-                        [nzTooltipTitle]="targetTooltip(n)"
+                        [nzTooltipTitle]="targetTooltip(n) || targetLabel(n)"
                         nz-tooltip
+                        class="notif-card__tag"
                       >
                         {{ targetLabel(n) }}
                       </nz-tag>
-                    </td>
-                    <td nzAlign="center">
-                      <span nz-icon nzType="eye"></span> {{ n.read_count ?? 0 }}
-                    </td>
-                    <td nzAlign="center">{{ n.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
-                    <td>{{ n.creator_name ?? '-' }}</td>
-                    <td nzAlign="center">
-                      <button
-                        nz-button
-                        nzType="text"
-                        (click)="openEditModal(n, $event)"
-                        nz-tooltip
-                        nzTooltipTitle="Chỉnh sửa"
-                        style="color: #1890ff; margin-right: 4px;"
-                      >
-                        <span nz-icon nzType="edit"></span>
-                        <span style="margin-left: 4px;">Sửa</span>
-                      </button>
-                      <button
-                        nz-button
-                        nzType="text"
-                        nzDanger
-                        nz-popconfirm
-                        nzPopconfirmTitle="Xóa thông báo này?"
-                        nzPopconfirmPlacement="left"
-                        (nzOnConfirm)="deleteNotification(n.id)"
-                        (click)="$event.stopPropagation()"
-                        nz-tooltip
-                        nzTooltipTitle="Xóa"
-                      >
-                        <span nz-icon nzType="delete"></span>
-                        <span style="margin-left: 4px;">Xóa</span>
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </nz-table>
+                    </div>
+                    <div class="notif-card__meta">
+                      <span nz-icon nzType="clock-circle"></span>
+                      {{ n.created_at | date: 'dd/MM/yyyy HH:mm' }}
+                      @if (n.creator_name) {
+                        &nbsp;&bull;&nbsp;{{ n.creator_name }}
+                      }
+                      &nbsp;&bull;&nbsp;<span nz-icon nzType="eye"></span>
+                      {{ n.read_count ?? 0 }} lượt đọc
+                    </div>
+                  </div>
+                  <div class="notif-card__preview">
+                    {{ n.content | slice: 0 : 100 }}{{ n.content.length > 100 ? '...' : '' }}
+                  </div>
+                  <div class="notif-card__footer-actions">
+                    <button
+                      nz-button
+                      nzType="text"
+                      (click)="openEditModal(n, $event)"
+                      style="color: #1890ff; padding: 0 8px;"
+                    >
+                      <span nz-icon nzType="edit"></span> Sửa
+                    </button>
+                    <button
+                      nz-button
+                      nzType="text"
+                      nzDanger
+                      nz-popconfirm
+                      nzPopconfirmTitle="Xóa thông báo này?"
+                      nzPopconfirmPlacement="top"
+                      (nzOnConfirm)="deleteNotification(n.id)"
+                      (click)="$event.stopPropagation()"
+                      style="padding: 0 8px;"
+                    >
+                      <span nz-icon nzType="delete"></span> Xóa
+                    </button>
+                  </div>
+                </nz-card>
+              }
+            </div>
           }
         </nz-spin>
 
@@ -163,6 +230,7 @@ import { Notification, NotificationService } from '../../core/api/notification.s
           [nzFooter]="null"
           (nzOnCancel)="closeCreateModal()"
           [nzWidth]="640"
+          nzWrapClassName="notif-responsive-modal"
         >
           <ng-container *nzModalContent>
             <form nz-form [formGroup]="createForm" nzLayout="vertical" (ngSubmit)="submitCreate()">
@@ -238,7 +306,7 @@ import { Notification, NotificationService } from '../../core/api/notification.s
                   </nz-form-control>
                 </nz-form-item>
               }
-              <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+              <div class="modal-form-actions">
                 <button nz-button nzType="default" type="button" (click)="closeCreateModal()">
                   Hủy
                 </button>
@@ -306,11 +374,12 @@ import { Notification, NotificationService } from '../../core/api/notification.s
                       @if (!n.is_read) {
                         <span class="unread-dot"></span>
                       }
+                      <b class="notif-card__title">{{ n.title }}</b>
                       <nz-tag
                         [nzColor]="targetColor(n)"
                         [nzTooltipTitle]="targetTooltip(n)"
                         nz-tooltip
-                        style="margin-left:auto;"
+                        class="notif-card__tag"
                       >
                         {{ targetLabel(n) }}
                       </nz-tag>
@@ -337,61 +406,59 @@ import { Notification, NotificationService } from '../../core/api/notification.s
             </div>
           }
         </nz-spin>
+      }
 
-        <!-- Detail Modal for Intern/Mentor -->
-        <nz-modal
-          [(nzVisible)]="isDetailModalOpen"
-          [nzTitle]="selectedNotif()?.title ?? 'Chi tiết thông báo'"
-          [nzFooter]="null"
-          (nzOnCancel)="closeDetailModal()"
-          [nzWidth]="560"
-        >
-          <ng-container *nzModalContent>
-            @if (selectedNotif(); as n) {
-              <div class="notif-detail">
-                <div class="notif-detail__meta">
-                  <nz-tag [nzColor]="targetColor(n)" [nzTooltipTitle]="targetTooltip(n)" nz-tooltip>
-                    {{ targetLabel(n) }}
-                  </nz-tag>
-                  <span class="notif-detail__date">
-                    <span nz-icon nzType="clock-circle"></span>
-                    {{ n.created_at | date: 'dd/MM/yyyy HH:mm' }}
-                  </span>
-                  @if (n.creator_name) {
-                    <span> <span nz-icon nzType="user"></span> {{ n.creator_name }} </span>
-                  }
-                </div>
-                <nz-divider></nz-divider>
-                <div class="notif-detail__content">{{ n.content }}</div>
-                @if (n.is_read && n.read_at) {
-                  <div class="notif-detail__read-status">
-                    <span
-                      nz-icon
-                      nzType="check-circle"
-                      nzTheme="fill"
-                      style="color:#52c41a;"
-                    ></span>
-                    Đã đọc lúc {{ n.read_at | date: 'dd/MM/yyyy HH:mm' }}
-                  </div>
+      <!-- Detail Modal for all roles -->
+      <nz-modal
+        [(nzVisible)]="isDetailModalOpen"
+        [nzTitle]="selectedNotif()?.title ?? 'Chi tiết thông báo'"
+        [nzFooter]="null"
+        (nzOnCancel)="closeDetailModal()"
+        [nzWidth]="560"
+        nzWrapClassName="notif-responsive-modal"
+      >
+        <ng-container *nzModalContent>
+          @if (selectedNotif(); as n) {
+            <div class="notif-detail">
+              <div class="notif-detail__meta">
+                <nz-tag [nzColor]="targetColor(n)" [nzTooltipTitle]="targetTooltip(n)" nz-tooltip>
+                  {{ targetLabel(n) }}
+                </nz-tag>
+                <span class="notif-detail__date">
+                  <span nz-icon nzType="clock-circle"></span>
+                  {{ n.created_at | date: 'dd/MM/yyyy HH:mm' }}
+                </span>
+                @if (n.creator_name) {
+                  <span> <span nz-icon nzType="user"></span> {{ n.creator_name }} </span>
                 }
               </div>
-            }
-          </ng-container>
-        </nz-modal>
-      }
+              <nz-divider></nz-divider>
+              <div class="notif-detail__content">{{ n.content }}</div>
+              @if (n.is_read && n.read_at) {
+                <div class="notif-detail__read-status">
+                  <span nz-icon nzType="check-circle" nzTheme="fill" style="color:#52c41a;"></span>
+                  Đã đọc lúc {{ n.read_at | date: 'dd/MM/yyyy HH:mm' }}
+                </div>
+              }
+            </div>
+          }
+        </ng-container>
+      </nz-modal>
     </div>
   `,
   styles: [
     `
       .notif-page {
         padding: 24px;
-        max-width: 960px;
-        margin: 0 auto;
+        width: 100%;
+        box-sizing: border-box;
       }
       .page-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
         margin-bottom: 24px;
         h2 {
           font-size: 22px;
@@ -402,12 +469,51 @@ import { Notification, NotificationService } from '../../core/api/notification.s
           gap: 8px;
         }
       }
+      .notif-title-cell {
+        display: block;
+        word-break: break-word;
+      }
       .notif-content-preview {
         font-size: 12px;
         color: #888;
         margin-top: 2px;
         line-height: 1.4;
+        word-break: break-word;
       }
+      .target-tag {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: middle;
+        display: inline-block;
+        box-sizing: border-box;
+      }
+      .notif-row td {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .action-cell {
+        white-space: nowrap;
+      }
+
+      /* View switcher: Desktop Table vs Mobile Cards */
+      .admin-desktop-view {
+        display: block;
+        width: 100%;
+      }
+      .admin-mobile-view {
+        display: none;
+      }
+      .notif-card__footer-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px dashed #f0f0f0;
+      }
+
       .notif-card--unread {
         border-left: 4px solid #1890ff !important;
         background: #f0f7ff !important;
@@ -418,23 +524,31 @@ import { Notification, NotificationService } from '../../core/api/notification.s
       .notif-card__title-row {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 8px;
         margin-bottom: 4px;
       }
       .notif-card__title {
         font-size: 15px;
+        word-break: break-word;
+        flex: 1 1 auto;
+      }
+      .notif-card__tag {
+        margin-left: auto;
       }
       .notif-card__meta {
         font-size: 12px;
         color: #888;
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 4px;
       }
       .notif-card__preview {
         color: #555;
         font-size: 13px;
         line-height: 1.5;
+        word-break: break-word;
       }
       .unread-dot {
         display: inline-block;
@@ -466,6 +580,7 @@ import { Notification, NotificationService } from '../../core/api/notification.s
         line-height: 1.7;
         color: #333;
         margin-bottom: 16px;
+        word-break: break-word;
       }
       .notif-detail__read-status {
         color: #52c41a;
@@ -476,6 +591,58 @@ import { Notification, NotificationService } from '../../core/api/notification.s
       }
       .notif-row:hover td {
         background: #f5f5f5;
+      }
+      .modal-form-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 16px;
+      }
+
+      /* Responsive breakpoints */
+      @media (max-width: 768px) {
+        .admin-desktop-view {
+          display: none !important;
+        }
+        .admin-mobile-view {
+          display: flex !important;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .notif-page {
+          padding: 16px;
+        }
+        .page-header h2 {
+          font-size: 20px;
+        }
+      }
+
+      @media (max-width: 576px) {
+        .notif-page {
+          padding: 12px 8px;
+        }
+        .page-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 10px;
+          margin-bottom: 16px;
+
+          button {
+            width: 100%;
+          }
+        }
+        .notif-card__title-row {
+          justify-content: space-between;
+        }
+        .notif-card__tag {
+          margin-left: 0;
+        }
+        .modal-form-actions {
+          flex-direction: column-reverse;
+          button {
+            width: 100%;
+          }
+        }
       }
     `,
   ],

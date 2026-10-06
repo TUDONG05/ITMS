@@ -418,6 +418,7 @@ const dashboards: Record<Role, Dashboard> = {
                     [nzPopoverContent]="notifPopoverTemplate"
                     nzPopoverTrigger="click"
                     nzPopoverPlacement="bottomRight"
+                    nzPopoverOverlayClassName="notif-popover-overlay"
                     [(nzPopoverVisible)]="isNotifPopoverVisible"
                     (nzPopoverVisibleChange)="onNotifPopoverVisibleChange($event)"
                     title="Thông báo"
