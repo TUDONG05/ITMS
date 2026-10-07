@@ -1,0 +1,508 @@
+@if (isLoading()) {
+  <div class="loading"><nz-spin nzSimple nzSize="large"></nz-spin></div>
+} @else if (loadError()) {
+  <nz-card class="learning-card" [nzBordered]="false">
+    <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="loadError()"></nz-empty>
+    <div class="center">
+      <button nz-button nzType="primary" (click)="loadRoadmap()">Thử lại</button>
+    </div>
+  </nz-card>
+} @else if (roadmap(); as rm) {
+  @switch (view()) {
+    @case ('documents') {
+      <nz-card class="learning-card" [nzBordered]="false">
+        <div class="toolbar">
+          <div>
+            <h2 class="title">Tài liệu học tập</h2>
+            <p class="muted">Toàn bộ nội dung trong lộ trình {{ rm.name }}.</p>
+          </div>
+          <nz-select
+            class="filter-select"
+            nzAllowClear
+            nzPlaceHolder="Lọc theo loại"
+            [ngModel]="typeFilter()"
+            (ngModelChange)="typeFilter.set($event ?? '')"
+          >
+            @for (option of typeOptions; track option.value) {
+              <nz-option [nzValue]="option.value" [nzLabel]="option.label"></nz-option>
+            }
+          </nz-select>
+        </div>
+        <nz-table
+          #documentTable
+          [nzData]="filteredContents()"
+          [nzPageSize]="10"
+          nzSize="middle"
+          [nzNoResult]="noDocuments"
+        >
+          <thead>
+            <tr>
+              <th>Nội dung</th>
+              <th>Giai đoạn</th>
+              <th>Loại</th>
+              <th>Trạng thái</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (content of documentTable.data; track content.id) {
+              <tr>
+                <td>
+                  <button type="button" class="link-btn" (click)="openContent(content.id)">
+                    {{ content.title }}
+                  </button>
+                  @if (content.description) {
+                    <span class="sub">{{ content.description }}</span>
+                  }
+                </td>
+                <td>{{ content.phase_name }}</td>
+                <td>
+                  <nz-tag>{{ typeLabel(content.type) }}</nz-tag>
+                </td>
+                <td>
+                  <nz-tag [nzColor]="statusColor(content.status)">
+                    {{ statusLabel(content.status) }}
+                  </nz-tag>
+                </td>
+                <td class="actions-col">
+                  @if (safeUrl(content.resource_url); as url) {
+                    <a [href]="url" target="_blank" rel="noopener noreferrer">Mở tài liệu</a>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </nz-table>
+        <ng-template #noDocuments>
+          <nz-empty
+            nzNotFoundImage="simple"
+            nzNotFoundContent="Chưa có nội dung phù hợp"
+          ></nz-empty>
+        </ng-template>
+      </nz-card>
+    }
+    @case ('quizzes') {
+      <nz-card class="learning-card" [nzBordered]="false">
+        <div class="toolbar">
+          <div>
+            <h2 class="title">Bài kiểm tra</h2>
+            <p class="muted">
+              Điểm tính theo thang 100. Bài chỉ được tính khi bạn nộp trước giờ hết hạn.
+            </p>
+          </div>
+        </div>
+        <nz-table
+          #quizTable
+          [nzData]="allQuizzes()"
+          [nzShowPagination]="false"
+          nzSize="middle"
+          [nzNoResult]="noQuizzes"
+        >
+          <thead>
+            <tr>
+              <th>Bài kiểm tra</th>
+              <th>Giai đoạn</th>
+              <th>Thời gian</th>
+              <th>Điểm đạt</th>
+              <th>Lượt làm</th>
+              <th>Điểm cao nhất</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (quiz of quizTable.data; track quiz.id) {
+              <tr>
+                <td>
+                  <strong>{{ quiz.title }}</strong>
+                  <span class="sub">{{ quiz.question_count }} câu hỏi</span>
+                </td>
+                <td>{{ quiz.phase_name }}</td>
+                <td>{{ quiz.duration_minutes }} phút</td>
+                <td>{{ quiz.pass_score }}</td>
+                <td>{{ quiz.attempts_used }}/{{ quiz.max_attempts }}</td>
+                <td>
+                  @if (quiz.best_score !== null) {
+                    <nz-tag [nzColor]="quiz.passed ? 'success' : 'error'">
+                      {{ quiz.best_score }}
+                    </nz-tag>
+                  } @else {
+                    <span class="muted">Chưa có</span>
+                  }
+                </td>
+                <td class="actions-col">
+                  @if (quiz.status === 'PUBLISHED') {
+                    <button
+                      nz-button
+                      nzType="primary"
+                      nzSize="small"
+                      [nzLoading]="isStartingQuiz()"
+                      (click)="confirmStartQuiz(quiz)"
+                    >
+                      Làm bài
+                    </button>
+                  } @else {
+                    <nz-tag>Đã đóng</nz-tag>
+                  }
+                  @if (quiz.attempts_used > 0) {
+                    <button nz-button nzSize="small" (click)="openResults(quiz)">Kết quả</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </nz-table>
+        <ng-template #noQuizzes>
+          <nz-empty nzNotFoundImage="simple" nzNotFoundContent="Chưa có bài kiểm tra"></nz-empty>
+        </ng-template>
+      </nz-card>
+    }
+    @default {
+      <nz-card class="learning-card summary" [nzBordered]="false">
+        <div class="summary__text">
+          <h2 class="title">{{ rm.name }}</h2>
+          @if (rm.description) {
+            <p class="muted">{{ rm.description }}</p>
+          }
+          <p class="summary__count">
+            Đã hoàn thành {{ rm.completed_contents }} trên {{ rm.total_contents }} nội dung
+          </p>
+        </div>
+        <nz-progress
+          nzType="circle"
+          [nzPercent]="rm.progress_percent"
+          [nzWidth]="92"
+          nzStrokeColor="#52c41a"
+        ></nz-progress>
+      </nz-card>
+
+      @for (phase of rm.phases; track phase.id) {
+        <nz-card class="learning-card" [nzBordered]="false">
+          <div class="phase-head">
+            <div>
+              <h3 class="phase-title">{{ phase.name }}</h3>
+              @if (phase.description) {
+                <p class="muted">{{ phase.description }}</p>
+              }
+            </div>
+            <div class="phase-progress">
+              <nz-progress
+                [nzPercent]="phase.progress_percent"
+                nzSize="small"
+                [nzStrokeColor]="phase.progress_percent >= 100 ? '#52c41a' : '#1677ff'"
+              ></nz-progress>
+              <span class="muted">
+                {{ phase.completed_contents }}/{{ phase.total_contents }} nội dung
+              </span>
+            </div>
+          </div>
+
+          @if (phase.contents.length) {
+            <ul class="rows">
+              @for (content of phase.contents; track content.id) {
+                <li class="row">
+                  <span
+                    nz-icon
+                    [nzType]="content.status === 'COMPLETED' ? 'check-circle' : 'read'"
+                    class="row__icon"
+                    [class.row__icon--done]="content.status === 'COMPLETED'"
+                  ></span>
+                  <div class="row__main">
+                    <button type="button" class="link-btn" (click)="openContent(content.id)">
+                      {{ content.title }}
+                    </button>
+                    <span class="sub">{{ typeLabel(content.type) }}</span>
+                  </div>
+                  <nz-tag [nzColor]="statusColor(content.status)">
+                    {{ statusLabel(content.status) }}
+                  </nz-tag>
+                  <button nz-button nzSize="small" (click)="openContent(content.id)">
+                    {{ content.status === 'COMPLETED' ? 'Xem lại' : 'Học' }}
+                  </button>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="muted">Giai đoạn này chưa có nội dung.</p>
+          }
+
+          @if (phase.quizzes.length) {
+            <ul class="rows rows--quiz">
+              @for (quiz of phase.quizzes; track quiz.id) {
+                <li class="row">
+                  <span nz-icon nzType="form" class="row__icon"></span>
+                  <div class="row__main">
+                    <strong>{{ quiz.title }}</strong>
+                    <span class="sub">
+                      {{ quiz.duration_minutes }} phút, đạt từ {{ quiz.pass_score }} điểm, đã làm
+                      {{ quiz.attempts_used }}/{{ quiz.max_attempts }} lượt
+                    </span>
+                  </div>
+                  @if (quiz.best_score !== null) {
+                    <nz-tag [nzColor]="quiz.passed ? 'success' : 'error'">
+                      Cao nhất {{ quiz.best_score }}
+                    </nz-tag>
+                  }
+                  @if (quiz.attempts_used > 0) {
+                    <button nz-button nzSize="small" (click)="openResults(quiz)">Kết quả</button>
+                  }
+                  @if (quiz.status === 'PUBLISHED') {
+                    <button
+                      nz-button
+                      nzType="primary"
+                      nzSize="small"
+                      [nzLoading]="isStartingQuiz()"
+                      (click)="confirmStartQuiz(quiz)"
+                    >
+                      Làm bài
+                    </button>
+                  } @else {
+                    <nz-tag>Đã đóng</nz-tag>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </nz-card>
+      } @empty {
+        <nz-card class="learning-card" [nzBordered]="false">
+          <nz-empty
+            nzNotFoundImage="simple"
+            nzNotFoundContent="Lộ trình chưa có giai đoạn nào"
+          ></nz-empty>
+        </nz-card>
+      }
+    }
+  }
+}
+
+<!-- Chi tiết nội dung đào tạo -->
+<nz-drawer
+  [nzVisible]="isContentOpen()"
+  [nzTitle]="selectedContent()?.title ?? 'Nội dung đào tạo'"
+  nzPlacement="right"
+  [nzWidth]="560"
+  (nzOnClose)="closeContent()"
+>
+  <ng-container *nzDrawerContent>
+    @if (isContentLoading()) {
+      <div class="loading"><nz-spin nzSimple></nz-spin></div>
+    } @else if (selectedContent(); as detail) {
+      <div class="content-meta">
+        <nz-tag>{{ typeLabel(detail.type) }}</nz-tag>
+        <nz-tag [nzColor]="statusColor(detail.status)">{{ statusLabel(detail.status) }}</nz-tag>
+        <span class="muted">{{ detail.phase_name }}</span>
+      </div>
+      @if (detail.description) {
+        <p>{{ detail.description }}</p>
+      }
+      @if (detail.content) {
+        <div class="content-body">{{ detail.content }}</div>
+      }
+      @if (safeUrl(detail.resource_url); as url) {
+        <p>
+          <a [href]="url" target="_blank" rel="noopener noreferrer">Mở tài liệu đính kèm</a>
+        </p>
+      }
+      @if (detail.completed_at) {
+        <p class="muted">Hoàn thành lúc {{ detail.completed_at | date: 'dd/MM/yyyy HH:mm' }}</p>
+      }
+      @if (detail.status !== 'COMPLETED') {
+        <button
+          nz-button
+          nzType="primary"
+          nzBlock
+          [nzLoading]="isCompleting()"
+          (click)="completeContent()"
+        >
+          Đánh dấu đã hoàn thành
+        </button>
+      }
+    }
+  </ng-container>
+</nz-drawer>
+
+<!-- Làm bài kiểm tra -->
+<nz-modal
+  [nzVisible]="isQuizOpen()"
+  [nzTitle]="attempt()?.quiz_title ?? 'Bài kiểm tra'"
+  [nzWidth]="780"
+  [nzMaskClosable]="false"
+  [nzFooter]="null"
+  (nzOnCancel)="closeQuiz()"
+>
+  <ng-container *nzModalContent>
+    @if (attemptResult(); as result) {
+      <div
+        class="result"
+        [class.result--pass]="result.passed"
+        [class.result--fail]="!result.passed"
+      >
+        <span nz-icon [nzType]="result.passed ? 'trophy' : 'warning'" class="result__icon"></span>
+        <div>
+          <h3 class="result__title">{{ result.passed ? 'Bạn đã đạt' : 'Chưa đạt' }}</h3>
+          <p class="result__score">
+            {{ result.score }} điểm ({{ result.earned_points }}/{{ result.total_points }})
+          </p>
+          @if (result.ungraded_questions > 0) {
+            <p class="muted">
+              {{ result.ungraded_questions }} câu chưa chấm tự động nên không tính vào điểm.
+            </p>
+          }
+        </div>
+      </div>
+      @if (attempt(); as current) {
+        <ol class="questions">
+          @for (question of current.questions; track question.id) {
+            <li class="question">
+              <p class="question__text">{{ question.content }}</p>
+              @if (resultFor(question.id); as outcome) {
+                @if (outcome.is_correct === true) {
+                  <nz-tag nzColor="success">Đúng</nz-tag>
+                } @else if (outcome.is_correct === false) {
+                  <nz-tag nzColor="error">Chưa đúng</nz-tag>
+                } @else {
+                  <nz-tag>Chưa chấm</nz-tag>
+                }
+              }
+            </li>
+          }
+        </ol>
+      }
+      <div class="center">
+        <button nz-button nzType="primary" (click)="closeQuiz()">Đóng</button>
+      </div>
+    } @else if (attempt(); as current) {
+      <div class="quiz-bar">
+        <span
+          >Lượt {{ current.attempt_no }}, đã trả lời {{ answeredCount() }}/{{
+            current.questions.length
+          }}
+          câu</span
+        >
+        <span class="timer" [class.timer--low]="remainingSeconds() <= 60">
+          Còn lại {{ timeLabel() }}
+        </span>
+      </div>
+      <p class="muted">
+        Bạn có thể đóng cửa sổ và quay lại làm tiếp, nhưng đồng hồ vẫn chạy cho đến hết giờ.
+      </p>
+      <ol class="questions">
+        @for (question of current.questions; track question.id) {
+          <li class="question">
+            <p class="question__text">{{ question.content }}</p>
+            <span class="sub">
+              {{ questionTypeLabel(question.type) }}, {{ question.score }} điểm
+            </span>
+            @switch (question.type) {
+              @case ('MULTIPLE_CHOICE') {
+                <div class="options">
+                  @for (option of question.options; track option.key) {
+                    <!-- eslint-disable-next-line @angular-eslint/template/label-has-associated-control -->
+                    <label
+                      nz-checkbox
+                      [ngModel]="isChecked(question.id, option.key)"
+                      (ngModelChange)="toggleKey(question.id, option.key, $event)"
+                    >
+                      {{ option.text }}
+                    </label>
+                  }
+                </div>
+              }
+              @case ('TEXT') {
+                <textarea
+                  nz-input
+                  rows="3"
+                  maxlength="2000"
+                  placeholder="Nhập câu trả lời"
+                  [ngModel]="textValue(question.id)"
+                  (ngModelChange)="setText(question.id, $event)"
+                ></textarea>
+              }
+              @default {
+                <nz-radio-group
+                  class="options"
+                  [ngModel]="selectedKey(question.id)"
+                  (ngModelChange)="setSingle(question.id, $event)"
+                >
+                  @for (option of question.options; track option.key) {
+                    <!-- eslint-disable-next-line @angular-eslint/template/label-has-associated-control -->
+                    <label nz-radio [nzValue]="option.key">{{ option.text }}</label>
+                  }
+                </nz-radio-group>
+              }
+            }
+          </li>
+        }
+      </ol>
+      <div class="center">
+        <button
+          nz-button
+          nzType="primary"
+          [nzLoading]="isSubmittingQuiz()"
+          nz-popconfirm
+          nzPopconfirmTitle="Nộp bài ngay? Bạn không thể sửa sau khi nộp."
+          nzPopconfirmPlacement="top"
+          (nzOnConfirm)="submitAttempt()"
+        >
+          Nộp bài
+        </button>
+      </div>
+    }
+  </ng-container>
+</nz-modal>
+
+<!-- Kết quả các lần làm bài -->
+<nz-modal
+  [nzVisible]="isResultsOpen()"
+  [nzTitle]="quizResults()?.title ?? 'Kết quả bài kiểm tra'"
+  [nzWidth]="640"
+  [nzFooter]="null"
+  (nzOnCancel)="closeResults()"
+>
+  <ng-container *nzModalContent>
+    @if (isResultsLoading()) {
+      <div class="loading"><nz-spin nzSimple></nz-spin></div>
+    } @else if (quizResults(); as data) {
+      <p class="muted">
+        Điểm đạt từ {{ data.pass_score }}, đã làm {{ data.attempts_used }}/{{ data.max_attempts }}
+        lượt.
+      </p>
+      <nz-table [nzData]="data.attempts" [nzShowPagination]="false" nzSize="small">
+        <thead>
+          <tr>
+            <th>Lượt</th>
+            <th>Bắt đầu</th>
+            <th>Nộp bài</th>
+            <th>Điểm</th>
+            <th>Kết quả</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of data.attempts; track item.attempt_id) {
+            <tr>
+              <td>{{ item.attempt_no }}</td>
+              <td>{{ item.started_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                @if (item.submitted_at) {
+                  {{ item.submitted_at | date: 'dd/MM/yyyy HH:mm' }}
+                } @else {
+                  <span class="muted">Đang làm dở</span>
+                }
+              </td>
+              <td>{{ item.score ?? '-' }}</td>
+              <td>
+                @if (item.status === 'IN_PROGRESS') {
+                  <nz-tag nzColor="processing">Đang làm</nz-tag>
+                } @else if (item.passed) {
+                  <nz-tag nzColor="success">Đạt</nz-tag>
+                } @else {
+                  <nz-tag nzColor="error">Chưa đạt</nz-tag>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </nz-table>
+    }
+  </ng-container>
+</nz-modal>
