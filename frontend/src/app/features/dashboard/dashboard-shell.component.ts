@@ -30,6 +30,7 @@ import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { AuthService } from '../../core/api/auth.service';
 import { InternshipManagementComponent } from '../internships/internship-management.component';
+import { LearningComponent } from '../learning/learning.component';
 import { MentorInternManagementComponent } from '../mentor/mentor-intern-management.component';
 import { ProfileComponent } from '../profile/profile.component';
 import { TaskManagementComponent } from '../tasks/task-management.component';
@@ -223,6 +224,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzProgressModule,
     NzTagModule,
     InternshipManagementComponent,
+    LearningComponent,
     MentorInternManagementComponent,
     ProfileComponent,
     TaskManagementComponent,
@@ -604,6 +606,12 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'tasks' && (role() === 'MENTOR' || role() === 'INTERN')) {
               <!-- UC-7: Quản lý Task — Mentor giao/review, Intern nộp (Sprint 2) -->
               <app-task-management />
+            } @else if (
+              role() === 'INTERN' &&
+              (section() === 'roadmap' || section() === 'documents' || section() === 'quizzes')
+            ) {
+              <!-- UC-6: Học tập và đào tạo — Intern xem lộ trình, tài liệu, làm Quiz -->
+              <app-learning [view]="section()" />
             } @else {
               <section class="feature-placeholder">
                 <span nz-icon [nzType]="activeIcon()"></span>
