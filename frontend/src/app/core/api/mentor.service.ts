@@ -185,4 +185,66 @@ export class MentorService {
       params,
     });
   }
+
+  createProposal(payload: InternshipProposalCreatePayload): Observable<InternshipProposalItem> {
+    return this.http.post<InternshipProposalItem>('/api/v1/mentor/proposals', payload, {});
+  }
+
+  getMentorProposals(status?: string): Observable<InternshipProposalItem[]> {
+    let params = new HttpParams();
+    if (status && status.trim()) {
+      params = params.set('status', status.trim());
+    }
+    return this.http.get<InternshipProposalItem[]>('/api/v1/mentor/proposals', {
+      params,
+    });
+  }
+
+  getInternStatusHistory(memberId: string): Observable<InternshipStatusHistoryItem[]> {
+    return this.http.get<InternshipStatusHistoryItem[]>(
+      `/api/v1/mentor/interns/${memberId}/status-history`,
+      {},
+    );
+  }
+}
+
+export interface InternshipProposalCreatePayload {
+  member_id: string;
+  type: 'EXTEND' | 'STOP' | 'COMPLETE' | 'TERMINATE';
+  reason: string;
+  requested_end_date?: string | null;
+}
+
+export interface InternshipStatusHistoryItem {
+  id: string;
+  action: string;
+  from_status?: string | null;
+  to_status: string;
+  requested_by_name?: string | null;
+  reviewed_by_name?: string | null;
+  changed_at: string;
+  reason?: string | null;
+  review_note?: string | null;
+  proposal_status?: string | null;
+  requested_end_date?: string | null;
+}
+
+export interface InternshipProposalItem {
+  id: string;
+  internship_member_id: string;
+  requested_by: string;
+  type: string;
+  reason: string;
+  requested_end_date?: string | null;
+  status: string;
+  reviewed_by?: string | null;
+  review_note?: string | null;
+  created_at: string;
+  reviewed_at?: string | null;
+  intern_id?: string | null;
+  intern_name?: string | null;
+  intern_email?: string | null;
+  mentor_name?: string | null;
+  internship_id?: string | null;
+  internship_name?: string | null;
 }

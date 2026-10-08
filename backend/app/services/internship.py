@@ -12,7 +12,10 @@ from app.schemas.internship import (
     InternshipCreate,
     InternshipMemberCreate,
     InternshipMemberUpdate,
+    InternshipProposalCreate,
+    InternshipRequestRead,
     InternshipRequestReview,
+    InternshipStatusHistoryItem,
     InternshipUpdate,
 )
 
@@ -309,13 +312,32 @@ class InternshipService:
         return InternshipService.get_member_by_id(db, member_id)
 
     @staticmethod
+    def enrich_request(db: Session, req: InternshipRequest) -> InternshipRequestRead:
+        data = InternshipRequestRead.model_validate(req)
+        member = db.get(InternshipMember, req.internship_member_id)
+        if member:
+            intern = db.get(User, member.intern_id)
+            if intern:
+                data.intern_id = intern.id
+                data.intern_name = intern.full_name
+                data.intern_email = intern.email
+            internship = db.get(Internship, member.internship_id)
+            if internship:
+                data.internship_id = internship.id
+                data.internship_name = internship.name
+            mentor = db.get(User, req.requested_by)
+            if mentor:
+                data.mentor_name = mentor.full_name
+        return data
+
+    @staticmethod
     def get_requests(
         db: Session,
         status_filter: str | None = None,
         type_filter: str | None = None,
         start_date: date | None = None,
         end_date: date | None = None,
-    ) -> list[InternshipRequest]:
+    ) -> list[InternshipRequestRead]:
         stmt = select(InternshipRequest).order_by(InternshipRequest.created_at.desc())
 
         if status_filter:
@@ -329,7 +351,232 @@ class InternshipService:
         if end_date:
             stmt = stmt.where(InternshipRequest.created_at <= datetime.combine(end_date, time.max))
 
-        return list(db.scalars(stmt).all())
+        requests = list(db.scalars(stmt).all())
+        return [InternshipService.enrich_request(db, r) for r in requests]
+
+    @staticmethod
+    def create_proposal(
+        db: Session,
+        payload: InternshipProposalCreate,
+        current_user: User,
+    ) -> InternshipRequestRead:
+        member = InternshipService.get_member_by_id(db, payload.member_id)
+
+        if current_user.role not in (UserRole.MENTOR, UserRole.ADMIN) and str(
+            current_user.role
+        ) not in ("MENTOR", "ADMIN"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Không có quyền tạo đề xuất cho thực tập sinh",
+            )
+
+        # Mentor permission assertion
+        if current_user.role == UserRole.MENTOR or str(current_user.role) == "MENTOR":
+            if member.mentor_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Mentor không phụ trách thực tập sinh này",
+                )
+
+        prop_type = str(payload.type).upper()
+        if prop_type == "TERMINATE":
+            prop_type = "STOP"
+
+        # BR-10: Chỉ một yêu cầu gia hạn đang chờ
+        if prop_type == "EXTEND":
+            existing_pending_extend = db.scalar(
+                select(InternshipRequest).where(
+                    InternshipRequest.internship_member_id == member.id,
+                    InternshipRequest.type == "EXTEND",
+                    InternshipRequest.status == "PENDING",
+                )
+            )
+            if existing_pending_extend is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Đã có yêu cầu gia hạn đang chờ xử lý.",
+                )
+            # Date validation
+            if payload.requested_end_date:
+                if member.start_date and payload.requested_end_date <= member.start_date:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Ngày gia hạn đề xuất phải sau ngày bắt đầu thực tập",
+                    )
+                if member.end_date and payload.requested_end_date <= member.end_date:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Ngày gia hạn đề xuất phải sau ngày kết thúc hiện tại",
+                    )
+        else:
+            existing_same_pending = db.scalar(
+                select(InternshipRequest).where(
+                    InternshipRequest.internship_member_id == member.id,
+                    InternshipRequest.type == prop_type,
+                    InternshipRequest.status == "PENDING",
+                )
+            )
+            if existing_same_pending is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Đã có yêu cầu {prop_type} đang chờ xử lý.",
+                )
+
+        req = InternshipRequest(
+            internship_member_id=member.id,
+            requested_by=current_user.id,
+            type=prop_type,
+            reason=payload.reason,
+            requested_end_date=payload.requested_end_date if prop_type == "EXTEND" else None,
+            status="PENDING",
+            created_at=datetime.now(UTC),
+        )
+        db.add(req)
+        db.commit()
+        db.refresh(req)
+        return InternshipService.enrich_request(db, req)
+
+    @staticmethod
+    def get_member_status_history(
+        db: Session,
+        member_id: uuid.UUID,
+        current_user: User,
+    ) -> list[InternshipStatusHistoryItem]:
+        member = InternshipService.get_member_by_id(db, member_id)
+
+        # Permission check: Mentor must be assigned mentor or user is Admin
+        if current_user.role not in (UserRole.MENTOR, UserRole.ADMIN) and str(
+            current_user.role
+        ) not in ("MENTOR", "ADMIN"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Không có quyền xem lịch sử của Intern này",
+            )
+
+        if current_user.role == UserRole.MENTOR or str(current_user.role) == "MENTOR":
+            if member.mentor_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Mentor không có quyền xem lịch sử của Intern này",
+                )
+
+        # Initial creation event
+        items: list[InternshipStatusHistoryItem] = [
+            InternshipStatusHistoryItem(
+                id=member.id,
+                action="INITIAL",
+                from_status=None,
+                to_status="ACTIVE",
+                requested_by_name="Hệ thống",
+                reviewed_by_name=None,
+                changed_at=member.created_at,
+                reason="Bắt đầu thực tập",
+                review_note=None,
+                proposal_status=None,
+                requested_end_date=member.end_date,
+            )
+        ]
+
+        requests = list(
+            db.scalars(
+                select(InternshipRequest)
+                .where(InternshipRequest.internship_member_id == member.id)
+                .order_by(InternshipRequest.created_at.asc())
+            ).all()
+        )
+
+        current_hist_status = "ACTIVE"
+        for r in requests:
+            requester = db.get(User, r.requested_by)
+            reviewer = db.get(User, r.reviewed_by) if r.reviewed_by else None
+
+            if r.status == "APPROVED":
+                next_status = (
+                    InternshipMemberStatus.EXTENDED
+                    if r.type == "EXTEND"
+                    else (
+                        InternshipMemberStatus.STOPPED
+                        if r.type == "STOP"
+                        else InternshipMemberStatus.COMPLETED
+                    )
+                )
+                items.append(
+                    InternshipStatusHistoryItem(
+                        id=r.id,
+                        action=r.type,
+                        from_status=current_hist_status,
+                        to_status=next_status,
+                        requested_by_name=requester.full_name if requester else "Mentor",
+                        reviewed_by_name=reviewer.full_name if reviewer else "Manager",
+                        changed_at=r.reviewed_at or r.created_at,
+                        reason=r.reason,
+                        review_note=r.review_note,
+                        proposal_status="APPROVED",
+                        requested_end_date=r.requested_end_date,
+                    )
+                )
+                current_hist_status = next_status
+            elif r.status == "REJECTED":
+                items.append(
+                    InternshipStatusHistoryItem(
+                        id=r.id,
+                        action=r.type,
+                        from_status=current_hist_status,
+                        to_status=current_hist_status,
+                        requested_by_name=requester.full_name if requester else "Mentor",
+                        reviewed_by_name=reviewer.full_name if reviewer else "Manager",
+                        changed_at=r.reviewed_at or r.created_at,
+                        reason=r.reason,
+                        review_note=r.review_note,
+                        proposal_status="REJECTED",
+                        requested_end_date=r.requested_end_date,
+                    )
+                )
+            else:  # PENDING
+                items.append(
+                    InternshipStatusHistoryItem(
+                        id=r.id,
+                        action=r.type,
+                        from_status=current_hist_status,
+                        to_status=current_hist_status,
+                        requested_by_name=requester.full_name if requester else "Mentor",
+                        reviewed_by_name=None,
+                        changed_at=r.created_at,
+                        reason=r.reason,
+                        review_note=None,
+                        proposal_status="PENDING",
+                        requested_end_date=r.requested_end_date,
+                    )
+                )
+
+        items.sort(key=lambda x: x.changed_at, reverse=True)
+        return items
+
+    @staticmethod
+    def get_mentor_proposals(
+        db: Session,
+        current_user: User,
+        status_filter: str | None = None,
+    ) -> list[InternshipRequestRead]:
+        if current_user.role == UserRole.ADMIN or str(current_user.role) == "ADMIN":
+            stmt = select(InternshipRequest).order_by(InternshipRequest.created_at.desc())
+        else:
+            stmt = (
+                select(InternshipRequest)
+                .join(
+                    InternshipMember,
+                    InternshipRequest.internship_member_id == InternshipMember.id,
+                )
+                .where(
+                    (InternshipRequest.requested_by == current_user.id)
+                    | (InternshipMember.mentor_id == current_user.id)
+                )
+                .order_by(InternshipRequest.created_at.desc())
+            )
+        if status_filter:
+            stmt = stmt.where(InternshipRequest.status == status_filter)
+        requests = list(db.scalars(stmt).all())
+        return [InternshipService.enrich_request(db, r) for r in requests]
 
     @staticmethod
     def review_request(
@@ -337,7 +584,7 @@ class InternshipService:
         request_id: uuid.UUID,
         payload: InternshipRequestReview,
         reviewer_id: uuid.UUID,
-    ) -> InternshipRequest:
+    ) -> InternshipRequestRead:
         stmt = select(InternshipRequest).where(InternshipRequest.id == request_id)
         req = db.scalar(stmt)
         if not req:
@@ -346,6 +593,11 @@ class InternshipService:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Request has already been processed",
+            )
+        if payload.status not in ("APPROVED", "REJECTED"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Status must be APPROVED or REJECTED",
             )
 
         req.status = payload.status
@@ -372,4 +624,4 @@ class InternshipService:
 
         db.commit()
         db.refresh(req)
-        return req
+        return InternshipService.enrich_request(db, req)
