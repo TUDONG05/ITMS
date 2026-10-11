@@ -5,6 +5,7 @@ from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.health import router as health_router
 from app.api.v1.internship_members import router as internship_members_router
 from app.api.v1.internships import router as internships_router
+from app.api.v1.learning import router as learning_router
 from app.api.v1.me import router as me_router
 from app.api.v1.mentor import router as mentor_router
 from app.api.v1.profile import router as profile_router
@@ -23,4 +24,5 @@ api_router.include_router(internships_router)
 api_router.include_router(internship_members_router)
 api_router.include_router(mentor_router)
 api_router.include_router(tasks_router)
+api_router.include_router(learning_router)
 api_router.include_router(training_router)
