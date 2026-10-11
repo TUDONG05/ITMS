@@ -7,6 +7,11 @@ from app.core.deps import require_roles
 from app.db.session import get_db
 from app.models.enums import UserRole
 from app.models.user import User
+from app.schemas.internship import (
+    InternshipProposalCreate,
+    InternshipRequestRead,
+    InternshipStatusHistoryItem,
+)
 from app.schemas.mentor import (
     InternRoadmapDetailSchema,
     MentorAssignmentHistoryItem,
@@ -16,6 +21,7 @@ from app.schemas.mentor import (
     MentorOverviewMetricsSchema,
     QuizAttemptDetailSchema,
 )
+from app.services.internship import InternshipService
 from app.services.mentor import MentorService
 
 router = APIRouter(prefix="/mentor", tags=["mentor"])
@@ -116,3 +122,46 @@ def get_assignment_history(
 ) -> list[MentorAssignmentHistoryItem]:
     """Retrieve mentor assignment and change history with full audit trail."""
     return MentorService.get_assignment_history(db, current_user=current_user, member_id=member_id)
+
+
+@router.post(
+    "/proposals",
+    response_model=InternshipRequestRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_internship_proposal(
+    payload: InternshipProposalCreate,
+    current_user: User = Depends(require_roles([UserRole.MENTOR, UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> InternshipRequestRead:
+    """Mentor proposes to extend, stop, or complete an intern's internship."""
+    return InternshipService.create_proposal(db, payload=payload, current_user=current_user)
+
+
+@router.get("/proposals", response_model=list[InternshipRequestRead])
+def get_mentor_proposals(
+    status: str | None = Query(
+        None, description="Filter proposals by status (PENDING, APPROVED, REJECTED)"
+    ),
+    current_user: User = Depends(require_roles([UserRole.MENTOR, UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> list[InternshipRequestRead]:
+    """List internship proposals submitted by or relevant to the logged-in mentor."""
+    return InternshipService.get_mentor_proposals(
+        db, current_user=current_user, status_filter=status
+    )
+
+
+@router.get(
+    "/interns/{member_id}/status-history",
+    response_model=list[InternshipStatusHistoryItem],
+)
+def get_intern_status_history(
+    member_id: uuid.UUID,
+    current_user: User = Depends(require_roles([UserRole.MENTOR, UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> list[InternshipStatusHistoryItem]:
+    """Retrieve full internship status and request history for an intern."""
+    return InternshipService.get_member_status_history(
+        db, member_id=member_id, current_user=current_user
+    )
