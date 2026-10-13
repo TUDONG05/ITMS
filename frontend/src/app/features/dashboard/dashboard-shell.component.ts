@@ -32,7 +32,9 @@ import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { AuthService } from '../../core/api/auth.service';
 import { InternshipManagementComponent } from '../internships/internship-management.component';
+import { LearningComponent } from '../learning/learning.component';
 import { MentorInternManagementComponent } from '../mentor/mentor-intern-management.component';
+import { MentorInternshipStatusComponent } from '../mentor/mentor-internship-status.component';
 import { ProfileComponent } from '../profile/profile.component';
 import { TaskManagementComponent } from '../tasks/task-management.component';
 import { TrainingManagementComponent } from '../training/training-management.component';
@@ -232,7 +234,9 @@ const dashboards: Record<Role, Dashboard> = {
     NzProgressModule,
     NzTagModule,
     InternshipManagementComponent,
+    LearningComponent,
     MentorInternManagementComponent,
+    MentorInternshipStatusComponent,
     ProfileComponent,
     TaskManagementComponent,
     TrainingManagementComponent,
@@ -326,11 +330,38 @@ const dashboards: Record<Role, Dashboard> = {
           line-height: 1.2 !important;
         }
 
-        @media (max-width: 760px) {
+        .sidebar-backdrop {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          background: rgba(0, 0, 0, 0.45) !important;
+          z-index: 95 !important;
+          backdrop-filter: blur(2px) !important;
+        }
+
+        @media (max-width: 768px) {
+          nz-sider.sidebar,
+          .sidebar {
+            transform: translateX(-105%) !important;
+            transition: transform 0.25s ease !important;
+          }
+          nz-sider.sidebar.sidebar--open,
+          .sidebar.sidebar--open {
+            transform: translateX(0) !important;
+          }
           .dashboard-main,
           nz-layout.dashboard-main {
             margin-left: 0 !important;
             width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            overflow-x: hidden !important;
+          }
+          .breadcrumb {
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
           }
         }
       }
@@ -635,6 +666,11 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'interns' && (role() === 'MENTOR' || role() === 'ADMIN')) {
               <!-- UC-11: Mentor quản lý Intern -->
               <app-mentor-intern-management />
+            } @else if (
+              section() === 'internship-status' && (role() === 'MENTOR' || role() === 'ADMIN')
+            ) {
+              <!-- UC-13: Quản lý trạng thái thực tập (Mentor đề xuất gia hạn, dừng, kết thúc) -->
+              <app-mentor-internship-status />
             } @else if (section() === 'training' && (role() === 'ADMIN' || role() === 'MENTOR')) {
               <!-- UC-16: Quản lý đào tạo (LMS) -->
               <app-training-management />
@@ -644,6 +680,12 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'notifications') {
               <!-- UC-9: Quản lý thông báo -->
               <app-notification-management />
+            } @else if (
+              role() === 'INTERN' &&
+              (section() === 'roadmap' || section() === 'documents' || section() === 'quizzes')
+            ) {
+              <!-- UC-6: Học tập và đào tạo — Intern xem lộ trình, tài liệu, làm Quiz -->
+              <app-learning [view]="section()" />
             } @else {
               <section class="feature-placeholder">
                 <span nz-icon [nzType]="activeIcon()"></span>

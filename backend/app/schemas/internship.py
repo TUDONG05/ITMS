@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 from pydantic import Field, model_validator
 
-from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole
+from app.models.enums import InternshipMemberStatus, InternshipStatus, RequestType, UserRole
 from app.schemas.base import BaseSchema
 
 
@@ -141,6 +141,43 @@ class InternshipRequestReview(BaseSchema):
     review_note: str | None = None
 
 
+class InternshipProposalCreate(BaseSchema):
+    member_id: uuid.UUID
+    type: str  # EXTEND | STOP | COMPLETE | TERMINATE
+    reason: str = Field(..., min_length=1, max_length=1000)
+    requested_end_date: date | None = None
+
+    @model_validator(mode="after")
+    def validate_proposal(self) -> "InternshipProposalCreate":
+        raw_type = str(self.type).strip().upper()
+        if raw_type == "TERMINATE":
+            self.type = RequestType.STOP
+        elif raw_type in ("EXTEND", "STOP", "COMPLETE"):
+            self.type = RequestType(raw_type)
+        else:
+            raise ValueError(
+                f"Invalid proposal type '{raw_type}'. Must be EXTEND, STOP, or COMPLETE."
+            )
+
+        if self.type == RequestType.EXTEND and not self.requested_end_date:
+            raise ValueError("Ngày kết thúc đề xuất là bắt buộc khi yêu cầu gia hạn (EXTEND).")
+        return self
+
+
+class InternshipStatusHistoryItem(BaseSchema):
+    id: uuid.UUID
+    action: str  # INITIAL | EXTEND | STOP | COMPLETE
+    from_status: str | None = None
+    to_status: str
+    requested_by_name: str | None = None
+    reviewed_by_name: str | None = None
+    changed_at: datetime
+    reason: str | None = None
+    review_note: str | None = None
+    proposal_status: str | None = None  # PENDING | APPROVED | REJECTED
+    requested_end_date: date | None = None
+
+
 class InternshipRequestRead(BaseSchema):
     id: uuid.UUID
     internship_member_id: uuid.UUID
@@ -153,3 +190,9 @@ class InternshipRequestRead(BaseSchema):
     review_note: str | None = None
     created_at: datetime
     reviewed_at: datetime | None = None
+    intern_id: uuid.UUID | None = None
+    intern_name: str | None = None
+    intern_email: str | None = None
+    mentor_name: str | None = None
+    internship_id: uuid.UUID | None = None
+    internship_name: str | None = None
