@@ -31,6 +31,7 @@ import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { AuthService } from '../../core/api/auth.service';
+import { EvaluationsComponent } from '../evaluations/evaluations.component';
 import { InternshipManagementComponent } from '../internships/internship-management.component';
 import { LearningComponent } from '../learning/learning.component';
 import { MentorInternManagementComponent } from '../mentor/mentor-intern-management.component';
@@ -233,6 +234,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzPopoverModule,
     NzProgressModule,
     NzTagModule,
+    EvaluationsComponent,
     InternshipManagementComponent,
     LearningComponent,
     MentorInternManagementComponent,
@@ -677,6 +679,9 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'tasks' && (role() === 'MENTOR' || role() === 'INTERN')) {
               <!-- UC-7: Quản lý Task — Mentor giao/review, Intern nộp (Sprint 2) -->
               <app-task-management />
+            } @else if (section() === 'evaluations') {
+              <!-- UC-12: Quản lý đánh giá — Admin (tiêu chí), Mentor (lập/công bố), Intern (xem) -->
+              <app-evaluations />
             } @else if (section() === 'notifications') {
               <!-- UC-9: Quản lý thông báo -->
               <app-notification-management />
