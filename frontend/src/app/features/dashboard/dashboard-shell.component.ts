@@ -500,16 +500,34 @@ const dashboards: Record<Role, Dashboard> = {
               </button>
               <nz-dropdown-menu #accountMenu="nzDropdownMenu">
                 <ul nz-menu class="user-account-menu">
-                  <li nz-menu-item (click)="choose('profile')">
+                  <li
+                    nz-menu-item
+                    tabindex="0"
+                    (click)="choose('profile')"
+                    (keydown.enter)="choose('profile')"
+                    (keydown.space)="choose('profile'); $event.preventDefault()"
+                  >
                     <span nz-icon nzType="user"></span>
                     <span>Hồ sơ cá nhân</span>
                   </li>
-                  <li nz-menu-item (click)="openSection('change-password')">
+                  <li
+                    nz-menu-item
+                    tabindex="0"
+                    (click)="openSection('change-password')"
+                    (keydown.enter)="openSection('change-password')"
+                    (keydown.space)="openSection('change-password'); $event.preventDefault()"
+                  >
                     <span nz-icon nzType="key"></span>
                     <span>Đổi mật khẩu</span>
                   </li>
                   <li nz-menu-divider></li>
-                  <li nz-menu-item (click)="logout()">
+                  <li
+                    nz-menu-item
+                    tabindex="0"
+                    (click)="logout()"
+                    (keydown.enter)="logout()"
+                    (keydown.space)="logout(); $event.preventDefault()"
+                  >
                     <span nz-icon nzType="logout"></span>
                     <span>Đăng xuất</span>
                   </li>
