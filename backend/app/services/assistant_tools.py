@@ -15,6 +15,7 @@ from app.models.internship import Internship, InternshipMember
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
 from app.models.task import Task
 from app.models.user import User
+from app.services.notification import NotificationService
 
 MAX_TOOL_ROWS = 20
 MAX_TOOL_TEXT_CHARS = 2000
@@ -135,6 +136,7 @@ class AssistantToolService:
             "get_deadlines": self.get_deadlines,
             "get_quiz_results": self.get_quiz_results,
             "get_evaluations": self.get_evaluations,
+            "get_notifications": self.get_notifications,
         }
         handler = handlers.get(name)
         if handler is None:
@@ -179,6 +181,80 @@ class AssistantToolService:
                 }
                 for intern, member, internship in rows
             ],
+        }
+
+    def get_notifications(self, db: Session, user: User, arguments: dict[str, Any]) -> dict:
+        status = str(arguments.get("status") or "ALL").upper()
+        if status not in ("ALL", "UNREAD"):
+            raise ApiError(422, "INVALID_TOOL_ARGUMENT", "Trạng thái thông báo không hợp lệ.")
+
+        if user.role == UserRole.ADMIN:
+            if status == "UNREAD":
+                raise ApiError(
+                    422,
+                    "INVALID_TOOL_ARGUMENT",
+                    "Quản trị viên không có trạng thái đã đọc hoặc chưa đọc cho thông báo đã gửi.",
+                )
+            rows = NotificationService.list_notifications_admin(db, user)
+            scope = "ALL_SENT"
+            unread_count = None
+        elif user.role in (UserRole.MENTOR, UserRole.INTERN):
+            rows = NotificationService.list_notifications_user(db, user)
+            scope = "RECEIVED"
+            unread_count = 0
+        else:
+            raise ApiError(403, "FORBIDDEN", "Bạn không có quyền sử dụng trợ lý AI.")
+
+        query_text = str(arguments.get("query") or "").strip().casefold()
+        if query_text:
+            rows = [
+                item
+                for item in rows
+                if query_text in str(item["title"]).casefold()
+                or query_text in str(item["content"]).casefold()
+            ]
+
+        if user.role in (UserRole.MENTOR, UserRole.INTERN):
+            unread_count = sum(not bool(item["is_read"]) for item in rows)
+            if status == "UNREAD":
+                rows = [item for item in rows if not item["is_read"]]
+
+        total_count = len(rows)
+        limited_rows = rows[: _limit(arguments.get("limit"))]
+        notifications = []
+        for item in limited_rows:
+            notification = {
+                "id": str(item["id"]),
+                "title": item["title"],
+                "content": _bounded_text(item["content"]),
+                "target_type": item["target_type"],
+                "created_at": item["created_at"],
+                "creator_name": item["creator_name"],
+            }
+            if user.role == UserRole.ADMIN:
+                notification.update(
+                    {
+                        "recipient_names": item["recipient_names"],
+                        "read_count": item["read_count"],
+                    }
+                )
+            else:
+                notification.update(
+                    {
+                        "is_read": item["is_read"],
+                        "read_at": item["read_at"],
+                    }
+                )
+            notifications.append(notification)
+
+        return {
+            "scope": scope,
+            "status": status,
+            "total_count": total_count,
+            "unread_count": unread_count,
+            "returned_count": len(notifications),
+            "truncated": len(notifications) < total_count,
+            "notifications": notifications,
         }
 
     def get_mentor_assignment(self, db: Session, user: User, arguments: dict[str, Any]) -> dict:
@@ -583,6 +659,18 @@ TOOL_DEFINITIONS = [
                 {
                     "intern_id": {"type": "string"},
                     "status": {"type": "string", "enum": ["DRAFT", "PUBLISHED"]},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 20},
+                },
+            ),
+            (
+                "get_notifications",
+                (
+                    "Lấy thông báo trong phạm vi được phép xem. Intern và Mentor xem thông báo "
+                    "đã nhận cùng số chưa đọc; Admin xem toàn bộ thông báo đã gửi."
+                ),
+                {
+                    "query": {"type": "string"},
+                    "status": {"type": "string", "enum": ["ALL", "UNREAD"]},
                     "limit": {"type": "integer", "minimum": 1, "maximum": 20},
                 },
             ),

@@ -437,5 +437,6 @@ def _citation_label(tool_name: str) -> str:
         "get_deadlines": "Deadline task trong ITMS",
         "get_quiz_results": "Kết quả quiz trong ITMS",
         "get_evaluations": "Đánh giá trong ITMS",
+        "get_notifications": "Thông báo trong ITMS",
     }
     return labels.get(tool_name, "Dữ liệu ITMS")

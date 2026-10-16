@@ -14,6 +14,7 @@ from app.main import app
 from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole, UserStatus
 from app.models.evaluation import Evaluation
 from app.models.exam import Quiz, QuizAttempt
+from app.models.interaction import Notification, NotificationRead
 from app.models.internship import Internship, InternshipMember
 from app.models.knowledge import AIConversation, AIMessage
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
@@ -229,6 +230,65 @@ def assistant_data() -> Generator[dict[str, object]]:
     session.close()
 
 
+@pytest.fixture
+def assistant_notification_data(
+    assistant_data: dict[str, object],
+) -> Generator[dict[str, object]]:
+    session = assistant_data["session"]
+    admin = assistant_data["admin"]
+    intern_a = assistant_data["intern_a"]
+    intern_b = assistant_data["intern_b"]
+    now = datetime.now(UTC)
+    notifications = [
+        Notification(
+            title="Global notice",
+            content="Visible to everyone",
+            target_type="ALL",
+            target_data=None,
+            created_by=admin.id,
+            created_at=now,
+        ),
+        Notification(
+            title="Intern notice",
+            content="Visible to interns",
+            target_type="ROLE",
+            target_data=["INTERN"],
+            created_by=admin.id,
+            created_at=now + timedelta(seconds=1),
+        ),
+        Notification(
+            title="Mentor notice",
+            content="Visible to mentors",
+            target_type="ROLE",
+            target_data=["MENTOR"],
+            created_by=admin.id,
+            created_at=now + timedelta(seconds=2),
+        ),
+        Notification(
+            title="Private notice for intern B",
+            content="Visible only to intern B",
+            target_type="USER",
+            target_data=[str(intern_b.id)],
+            created_by=admin.id,
+            created_at=now + timedelta(seconds=3),
+        ),
+    ]
+    session.add_all(notifications)
+    session.flush()
+    session.add(NotificationRead(notification_id=notifications[0].id, user_id=intern_a.id))
+    session.flush()
+
+    yield {**assistant_data, "notifications": notifications}
+
+    session.query(NotificationRead).filter(
+        NotificationRead.notification_id.in_([item.id for item in notifications])
+    ).delete(synchronize_session=False)
+    session.query(Notification).filter(Notification.created_by == admin.id).delete(
+        synchronize_session=False
+    )
+    session.flush()
+
+
 def test_intern_chat_ignores_foreign_intern_id_and_returns_contract(
     monkeypatch: pytest.MonkeyPatch, assistant_data: dict[str, object]
 ) -> None:
@@ -332,6 +392,104 @@ def test_intern_chat_ignores_foreign_intern_id_and_returns_contract(
     forbidden = TestClient(app).get(detail_url, headers={"X-User-Id": str(intern_b.id)})
     assert forbidden.status_code == 404
     assert forbidden.json()["error"]["code"] == "CONVERSATION_NOT_FOUND"
+
+
+def test_notification_tool_is_exposed_and_scopes_intern_notifications(
+    assistant_notification_data: dict[str, object],
+) -> None:
+    session = assistant_notification_data["session"]
+    intern = assistant_notification_data["intern_a"]
+    tool_names = {item["function"]["name"] for item in TOOL_DEFINITIONS}
+
+    result = AssistantToolService().execute(
+        session, intern, "get_notifications", {"query": "notice"}
+    )
+
+    assert "get_notifications" in tool_names
+    assert result["scope"] == "RECEIVED"
+    assert result["total_count"] == 2
+    assert result["unread_count"] == 1
+    assert result["returned_count"] == 2
+    assert result["truncated"] is False
+    assert {item["title"] for item in result["notifications"]} == {
+        "Global notice",
+        "Intern notice",
+    }
+    assert all("target_data" not in item for item in result["notifications"])
+    assert all("created_by" not in item for item in result["notifications"])
+
+
+def test_notification_tool_applies_mentor_and_admin_scope(
+    assistant_notification_data: dict[str, object],
+) -> None:
+    session = assistant_notification_data["session"]
+    mentor = assistant_notification_data["mentor"]
+    admin = assistant_notification_data["admin"]
+    service = AssistantToolService()
+
+    mentor_result = service.execute(session, mentor, "get_notifications", {"query": "notice"})
+    admin_result = service.execute(session, admin, "get_notifications", {"query": "notice"})
+
+    assert mentor_result["scope"] == "RECEIVED"
+    assert {item["title"] for item in mentor_result["notifications"]} == {
+        "Global notice",
+        "Mentor notice",
+    }
+    assert mentor_result["unread_count"] == 2
+    assert admin_result["scope"] == "ALL_SENT"
+    assert admin_result["total_count"] == 4
+    assert admin_result["unread_count"] is None
+    assert {item["title"] for item in admin_result["notifications"]} == {
+        "Global notice",
+        "Intern notice",
+        "Mentor notice",
+        "Private notice for intern B",
+    }
+    assert all("read_count" in item for item in admin_result["notifications"])
+    assert all("target_data" not in item for item in admin_result["notifications"])
+
+
+def test_notification_tool_filters_unread_and_reports_exact_limited_total(
+    assistant_notification_data: dict[str, object],
+) -> None:
+    session = assistant_notification_data["session"]
+    admin = assistant_notification_data["admin"]
+    intern = assistant_notification_data["intern_a"]
+    now = datetime.now(UTC) + timedelta(minutes=1)
+    extra_notifications = [
+        Notification(
+            title=f"Count notice {index}",
+            content="Counted notification",
+            target_type="ALL",
+            target_data=None,
+            created_by=admin.id,
+            created_at=now + timedelta(seconds=index),
+        )
+        for index in range(21)
+    ]
+    session.add_all(extra_notifications)
+    session.flush()
+    service = AssistantToolService()
+
+    limited = service.execute(
+        session,
+        intern,
+        "get_notifications",
+        {"query": "Count notice", "limit": 20},
+    )
+    unread = service.execute(
+        session,
+        intern,
+        "get_notifications",
+        {"query": "Intern notice", "status": "UNREAD"},
+    )
+
+    assert limited["total_count"] == 21
+    assert limited["returned_count"] == 20
+    assert limited["truncated"] is True
+    assert unread["total_count"] == 1
+    assert unread["returned_count"] == 1
+    assert unread["notifications"][0]["title"] == "Intern notice"
 
 
 def test_task_tool_applies_role_scope(assistant_data: dict[str, object]) -> None:
