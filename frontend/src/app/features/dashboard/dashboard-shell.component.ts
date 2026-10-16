@@ -23,7 +23,6 @@ import { NzAvatarModule } from 'ng-zorro-antd/avatar';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
-import { NzDrawerModule } from 'ng-zorro-antd/drawer';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
@@ -44,6 +43,7 @@ import { NotificationManagementComponent } from '../notifications/notification-m
 import { Notification, NotificationService } from '../../core/api/notification.service';
 import { AsyncPipe, SlicePipe } from '@angular/common';
 import { Subscription, interval } from 'rxjs';
+import { AssistantChatComponent } from '../assistant/assistant-chat.component';
 
 enum Role {
   Intern = 'INTERN',
@@ -226,7 +226,6 @@ const dashboards: Record<Role, Dashboard> = {
     NzBadgeModule,
     NzButtonModule,
     NzCardModule,
-    NzDrawerModule,
     NzIconModule,
     NzLayoutModule,
     NzMenuModule,
@@ -243,6 +242,7 @@ const dashboards: Record<Role, Dashboard> = {
     UserManagementComponent,
     RequestManagementComponent,
     NotificationManagementComponent,
+    AssistantChatComponent,
   ],
 
   styles: [
@@ -700,36 +700,7 @@ const dashboards: Record<Role, Dashboard> = {
           </nz-content>
         </nz-layout>
       </nz-layout>
-      <button
-        class="ai-launcher"
-        type="button"
-        aria-label="Mở hội thoại với Trợ lý AI"
-        (click)="openAiChat()"
-      >
-        <img src="/chat_bot_logo.png" alt="" />
-      </button>
-      <nz-drawer
-        nzTitle="Trợ lý AI ITMS"
-        nzPlacement="right"
-        [nzWidth]="360"
-        [nzVisible]="isAiChatOpen()"
-        (nzOnClose)="closeAiChat()"
-      >
-        <ng-container *nzDrawerContent>
-          <div class="ai-conversation">
-            <p class="ai-message">
-              Xin chào! Tôi có thể hỗ trợ Roadmap, Task, deadline và tiến độ học tập của bạn.
-            </p>
-            <p class="ai-hint">Hãy nhập câu hỏi để bắt đầu hội thoại.</p>
-            <div class="ai-composer">
-              <input
-                aria-label="Câu hỏi cho Trợ lý AI"
-                placeholder="Nhập câu hỏi của bạn..."
-              /><button nz-button nzType="primary">Gửi</button>
-            </div>
-          </div>
-        </ng-container>
-      </nz-drawer>
+      <app-assistant-chat [role]="role()" />
 
       <!-- Notification Popover Template for Mentor/Intern -->
       <ng-template #notifPopoverTemplate>
@@ -844,7 +815,6 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
   protected readonly role = signal<Role>(Role.Admin);
   protected readonly section = signal('overview');
   protected readonly isMenuOpen = signal(false);
-  protected readonly isAiChatOpen = signal(false);
   protected readonly dashboard = computed(() => dashboards[this.role()]);
 
   protected readonly currentUser = this.authService.currentUser;
@@ -975,16 +945,6 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
       next: () => this.finishLogout(),
       error: () => this.finishLogout(),
     });
-  }
-
-  protected openAiChat(): void {
-    this.isAiChatOpen.set(true);
-    this.cdr.markForCheck();
-  }
-
-  protected closeAiChat(): void {
-    this.isAiChatOpen.set(false);
-    this.cdr.markForCheck();
   }
 
   private finishLogout(): void {

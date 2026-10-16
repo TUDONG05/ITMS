@@ -63,6 +63,10 @@ class Settings:
     smtp_username: str | None = None
     smtp_password: str | None = None
     smtp_from_email: str | None = None
+    ai_api_key: str | None = None
+    ai_base_url: str = "https://ai-gateway.vercel.sh/v1"
+    ai_model: str | None = None
+    ai_timeout_seconds: float = 45.0
 
 
 @lru_cache
@@ -89,4 +93,12 @@ def get_settings() -> Settings:
         smtp_username=os.getenv("ITMS_SMTP_USERNAME"),
         smtp_password=os.getenv("ITMS_SMTP_PASSWORD"),
         smtp_from_email=os.getenv("ITMS_SMTP_FROM_EMAIL"),
+        ai_api_key=(
+            os.getenv("ITMS_AI_API_KEY")
+            or os.getenv("AI_GATEWAY_API_KEY")
+            or os.getenv("VERCEL_OIDC_TOKEN")
+        ),
+        ai_base_url=os.getenv("ITMS_AI_BASE_URL", "https://ai-gateway.vercel.sh/v1"),
+        ai_model=os.getenv("ITMS_AI_MODEL"),
+        ai_timeout_seconds=float(os.getenv("ITMS_AI_TIMEOUT_SECONDS", "45")),
     )

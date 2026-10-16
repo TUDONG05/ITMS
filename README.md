@@ -93,11 +93,19 @@ ITMS_ACCESS_TOKEN_TTL_SECONDS=900
 ITMS_SESSION_REFRESH_TTL_SECONDS=43200
 ITMS_REMEMBERED_REFRESH_TTL_SECONDS=2592000
 ITMS_REFRESH_COOKIE_NAME=itms_refresh_token
+ITMS_AI_BASE_URL=https://ai-gateway.vercel.sh/v1
+ITMS_AI_MODEL=provider/model-id
+ITMS_AI_API_KEY=replace-with-your-ai-gateway-key
 ```
 
 Nếu sử dụng chức năng OTP, cấu hình thêm `ITMS_SMTP_USERNAME`,
 `ITMS_SMTP_PASSWORD` và `ITMS_SMTP_FROM_EMAIL`. Chỉ sử dụng Gmail App Password;
 không dùng mật khẩu Gmail thông thường.
+
+Trợ lý dữ liệu cần endpoint tương thích OpenAI. Có thể thay `ITMS_AI_BASE_URL` và
+`ITMS_AI_MODEL` để dùng provider khác. Mỗi lượt backend chỉ gửi câu hỏi hiện tại
+và kết quả tool tối thiểu đã lọc RBAC; không gửi lịch sử hội thoại, email, token,
+mật khẩu, SQL hoặc đáp án chuẩn của quiz.
 
 > `environment.local`, `.env*` và `.vercel/` chứa thông tin nhạy cảm và đã được
 > Git bỏ qua. Không commit hoặc gửi các file này qua kênh công khai.
