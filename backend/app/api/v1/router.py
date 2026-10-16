@@ -3,6 +3,8 @@ from fastapi import APIRouter
 from app.api.v1.assistant import router as assistant_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.dashboard import router as dashboard_router
+from app.api.v1.evaluations import criteria_router as evaluation_criteria_router
+from app.api.v1.evaluations import router as evaluations_router
 from app.api.v1.health import router as health_router
 from app.api.v1.internship_members import router as internship_members_router
 from app.api.v1.internships import router as internships_router
@@ -30,3 +32,5 @@ api_router.include_router(tasks_router)
 api_router.include_router(learning_router)
 api_router.include_router(training_router)
 api_router.include_router(notifications_router)
+api_router.include_router(evaluation_criteria_router)
+api_router.include_router(evaluations_router)

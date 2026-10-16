@@ -1,0 +1,169 @@
+:host {
+  display: block;
+}
+
+.eval-card {
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.intro {
+  margin-bottom: 16px;
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.muted {
+  color: #8c8c8c;
+  margin: 0;
+  max-width: 70ch;
+}
+
+.sub {
+  display: block;
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.toolbar__actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  width: 190px;
+}
+
+.actions-col {
+  white-space: nowrap;
+
+  > * + * {
+    margin-left: 8px;
+  }
+}
+
+.eval-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.eval-title {
+  margin: 0 0 2px;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.eval-score {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.eval-score__value {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.eval-score__max {
+  color: #8c8c8c;
+}
+
+.comment {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #fafbfd;
+  border-radius: 8px;
+
+  p {
+    margin: 4px 0 0;
+    white-space: pre-wrap;
+    line-height: 1.6;
+  }
+}
+
+.comment__label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.detail-total {
+  margin: 12px 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.field--grow {
+  flex: 1;
+}
+
+.field-label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.field-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  .field {
+    min-width: 200px;
+  }
+}
+
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f2f7;
+}
+
+.preview {
+  margin: 10px 0 0;
+}
