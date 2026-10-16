@@ -23,12 +23,14 @@ import { NzAvatarModule } from 'ng-zorro-antd/avatar';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
+import { NzDropdownModule } from 'ng-zorro-antd/dropdown';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTagModule } from 'ng-zorro-antd/tag';
+import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { AuthService } from '../../core/api/auth.service';
 import { EvaluationsComponent } from '../evaluations/evaluations.component';
 import { InternshipManagementComponent } from '../internships/internship-management.component';
@@ -45,6 +47,7 @@ import { Notification, NotificationService } from '../../core/api/notification.s
 import { AsyncPipe, SlicePipe } from '@angular/common';
 import { Subscription, interval } from 'rxjs';
 import { AssistantChatComponent } from '../assistant/assistant-chat.component';
+import { ChangePasswordComponent } from '../auth/change-password.component';
 
 enum Role {
   Intern = 'INTERN',
@@ -68,10 +71,7 @@ interface Dashboard {
   metrics: { label: string; value: string; note: string; tone: string; icon: string }[];
 }
 
-const common: Item[] = [
-  { id: 'notifications', label: 'Thông báo', icon: 'bell' },
-  { id: 'change-password', label: 'Đổi mật khẩu', icon: 'key' },
-];
+const common: Item[] = [{ id: 'notifications', label: 'Thông báo', icon: 'bell' }];
 
 const dashboards: Record<Role, Dashboard> = {
   [Role.Intern]: {
@@ -81,12 +81,10 @@ const dashboards: Record<Role, Dashboard> = {
     greeting: 'Chào buổi sáng, Nguyễn Văn An!',
     description: 'Theo dõi lộ trình, task và kết quả thực tập của bạn.',
     nav: [
-      { id: 'profile', label: 'Hồ sơ cá nhân', icon: 'user' },
       { id: 'roadmap', label: 'Lộ trình học tập', icon: 'read' },
       { id: 'documents', label: 'Tài liệu học tập', icon: 'file-text' },
       { id: 'quizzes', label: 'Bài kiểm tra', icon: 'form' },
       { id: 'tasks', label: 'Task của tôi', icon: 'check-square' },
-      { id: 'internship', label: 'Theo dõi thực tập', icon: 'calendar' },
       { id: 'evaluations', label: 'Đánh giá', icon: 'star' },
       ...common,
     ],
@@ -122,10 +120,8 @@ const dashboards: Record<Role, Dashboard> = {
     greeting: 'Xin chào, Lê Minh Hoàng!',
     description: 'Đồng hành và phát triển các thực tập sinh phụ trách.',
     nav: [
-      { id: 'profile', label: 'Hồ sơ cá nhân', icon: 'user' },
       { id: 'interns', label: 'Quản lý Intern', icon: 'team' },
       { id: 'tasks', label: 'Quản lý Task', icon: 'check-square' },
-      { id: 'learning', label: 'Theo dõi đào tạo', icon: 'book' },
       { id: 'evaluations', label: 'Đánh giá', icon: 'star' },
       { id: 'internship-status', label: 'Trạng thái thực tập', icon: 'calendar' },
       ...common,
@@ -168,13 +164,11 @@ const dashboards: Record<Role, Dashboard> = {
     greeting: 'Xin chào, Administrator!',
     description: 'Tổng quan vận hành hệ thống quản lý thực tập sinh.',
     nav: [
-      { id: 'profile', label: 'Hồ sơ cá nhân', icon: 'user' },
       { id: 'users', label: 'Quản lý người dùng', icon: 'team' },
       { id: 'internships', label: 'Quản lý thực tập', icon: 'solution' },
       { id: 'training', label: 'Quản lý đào tạo (LMS)', icon: 'book' },
       { id: 'evaluations', label: 'Quản lý đánh giá', icon: 'star' },
       { id: 'requests', label: 'Quản lý yêu cầu', icon: 'audit' },
-      { id: 'reports', label: 'Báo cáo & thống kê', icon: 'bar-chart' },
       ...common,
     ],
     metrics: [
@@ -227,12 +221,14 @@ const dashboards: Record<Role, Dashboard> = {
     NzBadgeModule,
     NzButtonModule,
     NzCardModule,
+    NzDropdownModule,
     NzIconModule,
     NzLayoutModule,
     NzMenuModule,
     NzPopoverModule,
     NzProgressModule,
     NzTagModule,
+    NzTooltipModule,
     EvaluationsComponent,
     InternshipManagementComponent,
     LearningComponent,
@@ -245,6 +241,7 @@ const dashboards: Record<Role, Dashboard> = {
     RequestManagementComponent,
     NotificationManagementComponent,
     AssistantChatComponent,
+    ChangePasswordComponent,
   ],
 
   styles: [
@@ -253,10 +250,10 @@ const dashboards: Record<Role, Dashboard> = {
         nz-sider.sidebar,
         .sidebar {
           position: fixed !important;
-          top: 0 !important;
+          top: 64px !important;
           left: 0 !important;
           bottom: 0 !important;
-          height: 100vh !important;
+          height: calc(100dvh - 64px) !important;
           width: 250px !important;
           min-width: 250px !important;
           max-width: 250px !important;
@@ -264,7 +261,7 @@ const dashboards: Record<Role, Dashboard> = {
           overflow-y: auto !important;
           overflow-x: hidden !important;
           background: #fff !important;
-          border-right: 1px solid #e8edf5 !important;
+          border-right: 0 !important;
           box-sizing: border-box !important;
 
           .ant-layout-sider-children {
@@ -279,17 +276,39 @@ const dashboards: Record<Role, Dashboard> = {
         .dashboard-main,
         nz-layout.dashboard-main {
           margin-left: 250px !important;
-          min-height: 100vh !important;
+          min-height: 100dvh !important;
           width: calc(100% - 250px) !important;
+          padding-top: 64px !important;
+          box-sizing: border-box !important;
           display: flex !important;
           flex-direction: column !important;
           background: #f4f7fc !important;
         }
 
+        .dashboard-shell--sidebar-collapsed {
+          nz-sider.sidebar,
+          .sidebar {
+            width: 72px !important;
+            min-width: 72px !important;
+            max-width: 72px !important;
+          }
+
+          .dashboard-main,
+          nz-layout.dashboard-main {
+            margin-left: 72px !important;
+            width: calc(100% - 72px) !important;
+          }
+        }
+
         .topbar {
-          position: sticky !important;
+          position: fixed !important;
           top: 0 !important;
-          z-index: 90 !important;
+          right: 0 !important;
+          left: 0 !important;
+          z-index: 120 !important;
+          width: 100% !important;
+          height: 64px !important;
+          box-sizing: border-box !important;
         }
 
         .metric-card,
@@ -332,33 +351,33 @@ const dashboards: Record<Role, Dashboard> = {
           line-height: 1.2 !important;
         }
 
-        .sidebar-backdrop {
-          position: fixed !important;
-          top: 0 !important;
-          left: 0 !important;
-          width: 100vw !important;
-          height: 100vh !important;
-          background: rgba(0, 0, 0, 0.45) !important;
-          z-index: 95 !important;
-          backdrop-filter: blur(2px) !important;
-        }
-
         @media (max-width: 768px) {
+          .topbar {
+            height: 56px !important;
+          }
           nz-sider.sidebar,
           .sidebar {
-            transform: translateX(-105%) !important;
-            transition: transform 0.25s ease !important;
-          }
-          nz-sider.sidebar.sidebar--open,
-          .sidebar.sidebar--open {
-            transform: translateX(0) !important;
+            top: 56px !important;
+            right: auto !important;
+            bottom: 0 !important;
+            width: 72px !important;
+            min-width: 72px !important;
+            max-width: 72px !important;
+            height: calc(100dvh - 56px) !important;
+            padding: 12px 8px !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            border-right: 0 !important;
+            border-bottom: 0 !important;
+            transform: none !important;
           }
           .dashboard-main,
           nz-layout.dashboard-main {
-            margin-left: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
+            margin-left: 72px !important;
+            width: calc(100% - 72px) !important;
+            max-width: calc(100% - 72px) !important;
             min-width: 0 !important;
+            padding-top: 56px !important;
             overflow-x: hidden !important;
           }
           .breadcrumb {
@@ -370,27 +389,9 @@ const dashboards: Record<Role, Dashboard> = {
     `,
   ],
   template: `
-    <div class="dashboard-shell">
-      @if (isMenuOpen()) {
-        <div
-          class="sidebar-backdrop"
-          role="button"
-          tabindex="0"
-          aria-label="Đóng menu"
-          (click)="toggleMenu()"
-          (keydown.escape)="toggleMenu()"
-        ></div>
-      }
+    <div class="dashboard-shell" [class.dashboard-shell--sidebar-collapsed]="isSidebarCollapsed()">
       <nz-layout>
-        <nz-sider
-          class="sidebar"
-          [class.sidebar--open]="isMenuOpen()"
-          [nzWidth]="250"
-          nzTheme="light"
-        >
-          <div class="sidebar-brand">
-            <img src="/itms-logo.png" alt="ITMS — Hệ thống quản lý thực tập sinh" />
-          </div>
+        <nz-sider class="sidebar" [nzWidth]="250" nzTheme="light">
           <ul nz-menu nzMode="inline" class="sidebar__nav" aria-label="Chức năng">
             <li
               nz-menu-item
@@ -399,8 +400,10 @@ const dashboards: Record<Role, Dashboard> = {
               [nzSelected]="section() === 'overview'"
               (click)="choose('overview')"
               (keydown.enter)="choose('overview')"
+              title="Tổng quan"
             >
-              <span nz-icon nzType="home"></span>Tổng quan
+              <span nz-icon nzType="home"></span>
+              <span class="sidebar__label">Tổng quan</span>
             </li>
             @for (item of dashboard().nav; track item.id) {
               <li
@@ -410,24 +413,37 @@ const dashboards: Record<Role, Dashboard> = {
                 [nzSelected]="section() === item.id"
                 (click)="openSection(item.id)"
                 (keydown.enter)="openSection(item.id)"
+                [attr.title]="item.label"
               >
-                <span nz-icon [nzType]="item.icon"></span>{{ item.label }}
+                <span nz-icon [nzType]="item.icon"></span>
+                <span class="sidebar__label">{{ item.label }}</span>
               </li>
             }
           </ul>
-          <div class="sidebar__bottom">
-            <button nz-button nzType="text" class="nav-item" (click)="choose('settings')">
-              <span nz-icon nzType="setting"></span>Cài đặt</button
-            ><button nz-button nzType="text" class="nav-item" (click)="logout()">
-              <span nz-icon nzType="logout"></span>Đăng xuất
-            </button>
-          </div>
         </nz-sider>
         <nz-layout class="dashboard-main">
-          <nz-header class="topbar"
-            ><button nz-button nzType="text" class="menu-toggle" (click)="toggleMenu()">
-              <span nz-icon nzType="menu"></span>
-            </button>
+          <nz-header class="topbar">
+            <div class="topbar__left">
+              <div class="topbar__brand">
+                <img src="/itms-logo.png" alt="ITMS — Hệ thống quản lý thực tập sinh" />
+              </div>
+              <button
+                nz-button
+                nzType="text"
+                type="button"
+                class="sidebar-collapse-toggle"
+                [attr.aria-label]="
+                  isSidebarCollapsed() ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'
+                "
+                [attr.aria-expanded]="!isSidebarCollapsed()"
+                [title]="
+                  isSidebarCollapsed() ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'
+                "
+                (click)="toggleSidebar()"
+              >
+                <span nz-icon [nzType]="isSidebarCollapsed() ? 'right' : 'left'"></span>
+              </button>
+            </div>
             <div class="topbar__right">
               @if (role() === 'ADMIN') {
                 <nz-badge [nzCount]="(unreadCount$ | async) ?? 0" [nzOverflowCount]="99">
@@ -460,29 +476,65 @@ const dashboards: Record<Role, Dashboard> = {
                   </button>
                 </nz-badge>
               }
-              <nz-avatar
-                class="avatar avatar--clickable"
-                [nzSrc]="userAvatar() ?? undefined"
-                [nzText]="userInitials()"
-                (click)="choose('profile')"
-                role="button"
-                tabindex="0"
-                (keydown.enter)="choose('profile')"
-                title="Xem hồ sơ cá nhân"
-              ></nz-avatar>
-              <div
-                class="user-summary user-summary--clickable"
-                (click)="choose('profile')"
-                role="button"
-                tabindex="0"
-                (keydown.enter)="choose('profile')"
-                title="Xem hồ sơ cá nhân"
+              <button
+                nz-button
+                nzType="text"
+                type="button"
+                class="account-trigger"
+                nz-dropdown
+                [nzDropdownMenu]="accountMenu"
+                nzTrigger="click"
+                nzPlacement="bottomRight"
+                aria-label="Mở menu tài khoản"
               >
-                <strong>{{ userName() }}</strong
-                ><small>{{ dashboard().roleLabel }}</small>
-              </div>
-            </div></nz-header
-          >
+                <nz-avatar
+                  class="avatar"
+                  [nzSrc]="userAvatar() ?? undefined"
+                  [nzText]="userInitials()"
+                ></nz-avatar>
+                <span class="user-summary">
+                  <strong>{{ userName() }}</strong>
+                  <small>{{ dashboard().roleLabel }}</small>
+                </span>
+                <span nz-icon nzType="down" class="account-trigger__arrow"></span>
+              </button>
+              <nz-dropdown-menu #accountMenu="nzDropdownMenu">
+                <ul nz-menu class="user-account-menu">
+                  <li
+                    nz-menu-item
+                    tabindex="0"
+                    (click)="choose('profile')"
+                    (keydown.enter)="choose('profile')"
+                    (keydown.space)="choose('profile'); $event.preventDefault()"
+                  >
+                    <span nz-icon nzType="user"></span>
+                    <span>Hồ sơ cá nhân</span>
+                  </li>
+                  <li
+                    nz-menu-item
+                    tabindex="0"
+                    (click)="openSection('change-password')"
+                    (keydown.enter)="openSection('change-password')"
+                    (keydown.space)="openSection('change-password'); $event.preventDefault()"
+                  >
+                    <span nz-icon nzType="key"></span>
+                    <span>Đổi mật khẩu</span>
+                  </li>
+                  <li nz-menu-divider></li>
+                  <li
+                    nz-menu-item
+                    tabindex="0"
+                    (click)="logout()"
+                    (keydown.enter)="logout()"
+                    (keydown.space)="logout(); $event.preventDefault()"
+                  >
+                    <span nz-icon nzType="logout"></span>
+                    <span>Đăng xuất</span>
+                  </li>
+                </ul>
+              </nz-dropdown-menu>
+            </div>
+          </nz-header>
           <nz-content class="content">
             <div class="breadcrumb">
               <span nz-icon nzType="home"></span> <span>/</span> {{ activeLabel() }}
@@ -585,7 +637,7 @@ const dashboards: Record<Role, Dashboard> = {
                             ><small>{{ row.subtitle }}</small></span
                           >
                           <nz-tag [nzColor]="statusColor(row.status || '')" class="tag">{{
-                            row.status
+                            statusLabel(row.status || '')
                           }}</nz-tag>
                           <span>{{ row.due_at ? (row.due_at | date: 'dd/MM/yyyy') : '-' }}</span>
                         </div>
@@ -605,6 +657,9 @@ const dashboards: Record<Role, Dashboard> = {
                       </div>
                       <div style="padding: 20px 0; text-align: center;">
                         <nz-progress
+                          nz-tooltip
+                          [nzTooltipTitle]="progressTooltip(dashboardData()?.progress)"
+                          nzTooltipPlacement="top"
                           [nzPercent]="formatPercentNumber(dashboardData()?.progress?.percent)"
                           [nzFormat]="formatProgress"
                           nzType="circle"
@@ -617,44 +672,13 @@ const dashboards: Record<Role, Dashboard> = {
                       </div>
                     </nz-card>
                   }
-
-                  <nz-card class="panel panel--chart" [nzBordered]="false">
-                    <div class="panel__title">
-                      <h2>Phân bố công việc</h2>
-                      <button nz-button nzType="link" (click)="choose(analyticsTarget())">
-                        Chi tiết
-                      </button>
-                    </div>
-                    <div class="chart">
-                      <ul>
-                        <li>
-                          <i class="dot dot--green"></i>Hoàn thành
-                          <b>{{ dashboardData()?.task_breakdown?.completed }}</b>
-                        </li>
-                        <li>
-                          <i class="dot dot--orange"></i>Chờ review
-                          <b>{{ dashboardData()?.task_breakdown?.submitted }}</b>
-                        </li>
-                        <li>
-                          <i class="dot dot--pink"></i>Quá hạn
-                          <b>{{ dashboardData()?.task_breakdown?.overdue }}</b>
-                        </li>
-                        <li>
-                          <i class="dot dot--purple"></i>Cần sửa
-                          <b>{{ dashboardData()?.task_breakdown?.revision_required }}</b>
-                        </li>
-                        <li>
-                          <i class="dot dot--gray"></i>Chưa nộp
-                          <b>{{ dashboardData()?.task_breakdown?.todo }}</b>
-                        </li>
-                      </ul>
-                    </div>
-                  </nz-card>
                 </section>
               }
             } @else if (section() === 'profile') {
               <!-- UC-5: Hồ sơ cá nhân -->
               <app-profile />
+            } @else if (section() === 'change-password') {
+              <app-change-password [embedded]="true" />
             } @else if (
               section() === 'internships' && (role() === 'ADMIN' || role() === 'MENTOR')
             ) {
@@ -819,7 +843,7 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
   };
   protected readonly role = signal<Role>(Role.Admin);
   protected readonly section = signal('overview');
-  protected readonly isMenuOpen = signal(false);
+  protected readonly isSidebarCollapsed = signal(false);
   protected readonly dashboard = computed(() => dashboards[this.role()]);
 
   protected readonly currentUser = this.authService.currentUser;
@@ -875,7 +899,9 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.dashboardData.set(res);
         if (Object.values(Role).includes(res.role as Role)) {
-          this.role.set(res.role as Role);
+          const role = res.role as Role;
+          this.role.set(role);
+          this.section.set(this.normalizeSection(role, this.section()));
           if (res.role === Role.Admin) {
             this.internshipService.getInternships().subscribe({
               next: (internships) => this.internships.set(internships),
@@ -898,28 +924,37 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
   protected readonly activeLabel = computed(() =>
     this.section() === 'overview'
       ? 'Tổng quan'
-      : this.section() === 'settings'
-        ? 'Cài đặt'
-        : this.section() === 'logout'
-          ? 'Đăng xuất'
-          : (this.dashboard().nav.find((item) => item.id === this.section())?.label ?? 'Chức năng'),
+      : this.section() === 'profile'
+        ? 'Hồ sơ cá nhân'
+        : this.section() === 'change-password'
+          ? 'Đổi mật khẩu'
+          : this.section() === 'logout'
+            ? 'Đăng xuất'
+            : (this.dashboard().nav.find((item) => item.id === this.section())?.label ??
+              'Chức năng'),
   );
-  protected readonly activeIcon = computed(
-    () => this.dashboard().nav.find((item) => item.id === this.section())?.icon ?? 'setting',
+  protected readonly activeIcon = computed(() =>
+    this.section() === 'profile'
+      ? 'user'
+      : this.section() === 'change-password'
+        ? 'key'
+        : (this.dashboard().nav.find((item) => item.id === this.section())?.icon ?? 'setting'),
   );
 
   constructor() {
     this.activatedRoute.paramMap.subscribe((params) => {
       const requestedRole = params.get('role')?.toUpperCase();
       if (Object.values(Role).includes(requestedRole as Role)) {
-        this.role.set(requestedRole as Role);
+        const role = requestedRole as Role;
+        this.role.set(role);
+        this.section.set(this.normalizeSection(role, this.section()));
         this.notifService.refreshUnreadCount();
       }
     });
     this.activatedRoute.queryParamMap.subscribe((queryParams) => {
       const sec = queryParams.get('section') || queryParams.get('tab');
       if (sec) {
-        this.section.set(sec);
+        this.section.set(this.normalizeSection(this.role(), sec));
         this.notifService.refreshUnreadCount();
       }
     });
@@ -927,22 +962,16 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
 
   protected choose(section: string): void {
     this.section.set(section);
-    this.isMenuOpen.set(false);
     this.notifService.refreshUnreadCount();
     this.cdr.markForCheck();
   }
 
   protected openSection(section: string): void {
-    if (section === 'change-password') {
-      void this.router.navigate(['/change-password']);
-      return;
-    }
     this.choose(section);
   }
 
-  protected toggleMenu(): void {
-    this.isMenuOpen.update((open) => !open);
-    this.cdr.markForCheck();
+  protected toggleSidebar(): void {
+    this.isSidebarCollapsed.update((collapsed) => !collapsed);
   }
 
   protected logout(): void {
@@ -962,19 +991,34 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
     return this.role() === Role.Intern
       ? 'roadmap'
       : this.role() === Role.Mentor
-        ? 'learning'
+        ? 'interns'
         : 'training';
   }
 
-  protected analyticsTarget(): string {
-    return this.role() === Role.Admin ? 'reports' : 'evaluations';
+  private normalizeSection(role: Role, section: string): string {
+    if (section === 'settings') return 'overview';
+
+    const removedSection =
+      role === Role.Mentor ? 'learning' : role === Role.Intern ? 'internship' : 'reports';
+    return section === removedSection ? 'overview' : section;
   }
 
   protected statusColor(status: string): string {
     if (status === 'COMPLETED') return 'success';
-    if (status === 'SUBMITTED' || status === 'REVISION_REQUIRED') return 'warning';
-    if (status === 'TODO') return 'default';
-    return 'processing';
+    if (status === 'SUBMITTED') return 'warning';
+    if (status === 'REVISION_REQUIRED') return 'error';
+    return 'default';
+  }
+
+  protected statusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      TODO: 'Chưa nộp',
+      SUBMITTED: 'Chờ review',
+      REVISION_REQUIRED: 'Yêu cầu làm lại',
+      COMPLETED: 'Hoàn thành',
+      CANCELLED: 'Đã hủy',
+    };
+    return labels[status] ?? status;
   }
 
   protected readonly formatProgress = (percent: number): string => {
@@ -984,6 +1028,11 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
   protected formatPercentNumber(val?: number | null): number {
     if (val == null) return 0;
     return Math.round(val * 100) / 100;
+  }
+
+  protected progressTooltip(progress: DashboardResponse['progress'] | undefined): string {
+    if (!progress) return '';
+    return `Đã hoàn thành ${progress.completed}/${progress.total} (${this.formatPercentNumber(progress.percent)}%)`;
   }
 
   protected onNotifPopoverVisibleChange(visible: boolean): void {

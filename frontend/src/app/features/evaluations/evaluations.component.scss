@@ -56,6 +56,10 @@
   flex-wrap: wrap;
 }
 
+.toolbar--actions-only {
+  justify-content: flex-end;
+}
+
 .filter-select {
   width: 190px;
 }

@@ -66,14 +66,11 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="mentor-management">
+    <div class="mentor-management feature-page-layout">
       <!-- HEADER & OVERVIEW CARDS -->
-      <div class="header-section">
+      <div class="header-section feature-page-header">
         <div class="header-title">
-          <h1>Quản lý Thực tập sinh phụ trách</h1>
-          <p>
-            Theo dõi tiến độ, lộ trình đào tạo, bài kiểm tra và lịch sử phân công của các Intern.
-          </p>
+          <h1 class="feature-page-title">Quản lý Thực tập sinh phụ trách</h1>
         </div>
       </div>
 

@@ -154,7 +154,6 @@ describe('EvaluationsComponent', () => {
       .flush({ items: [], total_active_weight: 100 });
     fixture.detectChanges();
 
-    expect(text()).toContain('Tổng trọng số các tiêu chí đang áp dụng: 100%');
-    expect(text()).not.toContain('Tổng trọng số các tiêu chí đang áp dụng là');
+    expect(text()).not.toContain('Tổng trọng số các tiêu chí đang áp dụng');
   });
 });

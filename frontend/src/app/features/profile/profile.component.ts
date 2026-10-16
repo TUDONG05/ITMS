@@ -77,7 +77,10 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
       (change)="onFileSelected($event)"
     />
 
-    <div class="profile-page">
+    <div class="profile-page feature-page-layout">
+      <div class="feature-page-header">
+        <h1 class="feature-page-title">Hồ sơ cá nhân</h1>
+      </div>
       @if (loading()) {
         <div class="profile-loading">
           <nz-spin nzSize="large" />

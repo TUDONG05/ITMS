@@ -59,14 +59,11 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="internship-page">
+    <div class="internship-page feature-page-layout">
       <!-- Header Actions -->
-      <div class="page-header">
+      <div class="page-header feature-page-header">
         <div class="header-titles">
-          <h2>Quản lý Đợt thực tập</h2>
-          <p>
-            Tạo mới, theo dõi tiến độ các đợt thực tập và quản lý danh sách thực tập sinh & mentor.
-          </p>
+          <h1 class="feature-page-title">Quản lý Đợt thực tập</h1>
         </div>
         <button nz-button nzType="primary" (click)="openCreateModal()" class="btn-create-batch">
           <span nz-icon nzType="plus"></span>
@@ -82,7 +79,7 @@ import {
             <input
               type="text"
               nz-input
-              placeholder="🔎 Tìm kiếm tên đợt thực tập..."
+              placeholder="Tìm kiếm tên đợt thực tập..."
               [ngModel]="searchQuery()"
               (ngModelChange)="onSearchChange($event)"
             />
@@ -565,11 +562,6 @@ import {
             font-weight: 600;
             color: #1a1a1a;
           }
-          p {
-            margin: 0;
-            font-size: 13px;
-            color: #666;
-          }
         }
       }
 
@@ -780,12 +772,6 @@ import {
 
             h2 {
               font-size: 18px !important;
-              word-break: break-word !important;
-              overflow-wrap: anywhere !important;
-            }
-            p {
-              font-size: 12px !important;
-              line-height: 1.45 !important;
               word-break: break-word !important;
               overflow-wrap: anywhere !important;
             }
