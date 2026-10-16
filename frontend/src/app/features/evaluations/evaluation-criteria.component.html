@@ -2,10 +2,6 @@
   <div class="toolbar">
     <div>
       <h2 class="title">Tiêu chí đánh giá</h2>
-      <p class="muted">
-        Thiết lập tiêu chí, thang điểm tối đa và trọng số. Tổng điểm của mỗi đánh giá quy về thang
-        10, bình quân theo trọng số.
-      </p>
     </div>
     <button nz-button nzType="primary" (click)="openCreate()">Thêm tiêu chí</button>
   </div>
@@ -26,8 +22,6 @@
         nzMessage="Tổng trọng số các tiêu chí đang áp dụng là {{ totalActiveWeight() }}%"
         nzDescription="Hệ thống vẫn tính điểm theo tỷ lệ trọng số, nhưng nên để tổng bằng 100% cho dễ đọc."
       ></nz-alert>
-    } @else {
-      <p class="weight-ok">Tổng trọng số các tiêu chí đang áp dụng: 100%</p>
     }
 
     <nz-table

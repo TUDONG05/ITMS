@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
@@ -11,10 +11,17 @@ import { ApiErrorResponse, AuthService } from '../../core/api/auth.service';
   imports: [ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <main class="auth-page">
+    @if (embedded()) {
+      <div class="feature-page-header feature-page-header--standalone">
+        <h1 class="feature-page-title">Đổi mật khẩu</h1>
+      </div>
+    }
+    <main class="auth-page" [class.auth-page--embedded]="embedded()">
       <form class="auth-card" [formGroup]="form" (ngSubmit)="submit()">
-        <a class="back-link" [routerLink]="dashboardLink()">← Quay lại dashboard</a>
-        <h1>Đổi mật khẩu</h1>
+        @if (!embedded()) {
+          <a class="back-link" [routerLink]="dashboardLink()">← Quay lại dashboard</a>
+          <h1>Đổi mật khẩu</h1>
+        }
         <p class="auth-card__intro">Đặt mật khẩu mới để bảo vệ tài khoản ITMS của bạn.</p>
 
         @if (message(); as message) {
@@ -66,11 +73,27 @@ import { ApiErrorResponse, AuthService } from '../../core/api/auth.service';
       </form>
     </main>
   `,
+  styles: `
+    :host {
+      display: block;
+    }
+
+    .auth-page--embedded {
+      min-height: auto;
+      padding: 12px 0 24px;
+    }
+
+    .auth-page--embedded .auth-card h1 {
+      margin-top: 0;
+    }
+  `,
 })
 export class ChangePasswordComponent {
   private readonly authService = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder).nonNullable;
   private readonly router = inject(Router);
+
+  readonly embedded = input(false);
 
   protected readonly dashboardLink = computed(() =>
     dashboardLinkForCurrentUser(this.authService.currentUser()?.role),

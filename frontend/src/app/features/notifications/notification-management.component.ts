@@ -58,11 +58,11 @@ import { Notification, NotificationService } from '../../core/api/notification.s
     NzTooltipModule,
   ],
   template: `
-    <div class="notif-page">
+    <div class="notif-page feature-page-layout">
       <!-- ===== ADMIN VIEW ===== -->
       @if (role === 'ADMIN') {
-        <div class="page-header">
-          <h2><span nz-icon nzType="bell"></span> Quản lý Thông báo</h2>
+        <div class="page-header feature-page-header feature-page-header--standalone">
+          <h1 class="feature-page-title">Quản lý Thông báo</h1>
           <button nz-button nzType="primary" (click)="openCreateModal()">
             <span nz-icon nzType="plus"></span> Tạo thông báo mới
           </button>
@@ -328,13 +328,13 @@ import { Notification, NotificationService } from '../../core/api/notification.s
 
       <!-- ===== INTERN / MENTOR VIEW ===== -->
       @if (role === 'INTERN' || role === 'MENTOR') {
-        <div class="page-header">
-          <h2>
-            <span nz-icon nzType="bell"></span> Thông báo của tôi
+        <div class="page-header feature-page-header feature-page-header--standalone">
+          <h1 class="feature-page-title">
+            Thông báo của tôi
             @if (unreadCount() > 0) {
               <nz-badge [nzCount]="unreadCount()" style="margin-left:8px;"></nz-badge>
             }
-          </h2>
+          </h1>
           @if (unreadCount() > 0) {
             <button
               nz-button

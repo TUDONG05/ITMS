@@ -47,12 +47,11 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="request-page">
+    <div class="request-page feature-page-layout">
       <!-- Header -->
-      <div class="page-header">
+      <div class="page-header feature-page-header">
         <div class="header-titles">
-          <h2>Quản lý Yêu cầu Thực tập</h2>
-          <p>Duyệt hoặc từ chối các đề xuất gia hạn, tạm dừng hoặc kết thúc thực tập.</p>
+          <h1 class="feature-page-title">Quản lý Yêu cầu Thực tập</h1>
         </div>
       </div>
 
@@ -314,11 +313,6 @@ import {
           font-size: 18px;
           font-weight: 600;
           color: #1a1a1a;
-        }
-        p {
-          margin: 0;
-          font-size: 13px;
-          color: #666;
         }
       }
       .main-card {

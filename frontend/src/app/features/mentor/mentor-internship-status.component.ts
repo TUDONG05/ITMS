@@ -66,15 +66,11 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="internship-status-container">
+    <div class="internship-status-container feature-page-layout">
       <!-- HEADER -->
-      <div class="header-section">
+      <div class="header-section feature-page-header">
         <div class="header-title">
-          <h1>Quản lý Trạng thái Thực tập</h1>
-          <p>
-            Theo dõi trạng thái, xem lịch sử và đề xuất gia hạn, dừng hoặc kết thúc quá trình thực
-            tập của Intern phụ trách.
-          </p>
+          <h1 class="feature-page-title">Quản lý Trạng thái Thực tập</h1>
         </div>
         <div class="header-actions">
           <button nz-button nzType="default" (click)="loadAllData()" [nzLoading]="isLoading()">

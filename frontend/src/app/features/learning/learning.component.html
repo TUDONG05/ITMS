@@ -1,3 +1,15 @@
+<div class="feature-page-header feature-page-header--standalone">
+  <h1 class="feature-page-title">
+    {{
+      view() === 'documents'
+        ? 'Tài liệu học tập'
+        : view() === 'quizzes'
+          ? 'Bài kiểm tra'
+          : 'Lộ trình học tập'
+    }}
+  </h1>
+</div>
+
 @if (isLoading()) {
   <div class="loading"><nz-spin nzSimple nzSize="large"></nz-spin></div>
 } @else if (loadError()) {
@@ -13,7 +25,6 @@
       <nz-card class="learning-card" [nzBordered]="false">
         <div class="toolbar">
           <div>
-            <h2 class="title">Tài liệu học tập</h2>
             <p class="muted">Toàn bộ nội dung trong lộ trình {{ rm.name }}.</p>
           </div>
           <nz-select
@@ -85,7 +96,6 @@
       <nz-card class="learning-card" [nzBordered]="false">
         <div class="toolbar">
           <div>
-            <h2 class="title">Bài kiểm tra</h2>
             <p class="muted">
               Điểm tính theo thang 100. Bài chỉ được tính khi bạn nộp trước giờ hết hạn.
             </p>

@@ -48,20 +48,19 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="user-mgmt-page">
+    <div class="user-mgmt-page feature-page-layout">
       <!-- Page Header -->
-      <div class="page-header">
+      <div class="page-header feature-page-header">
         <div class="header-titles">
-          <h2>Quản lý người dùng</h2>
-          <p>Tạo mới, cập nhật thông tin, phân vai trò và khóa/mở tài khoản người dùng.</p>
+          <h1 class="feature-page-title">Quản lý người dùng</h1>
         </div>
         <button nz-button nzType="primary" class="add-btn" (click)="openCreateModal()">
           <span nz-icon nzType="user-add"></span> Thêm người dùng
         </button>
       </div>
 
-      <!-- Filters -->
-      <nz-card [nzBordered]="false" class="filter-card">
+      <!-- Filters + Users Content -->
+      <nz-card [nzBordered]="false" class="main-card">
         <div class="filter-row">
           <nz-input-group nzPrefixIcon="search" class="search-input">
             <input
@@ -96,10 +95,6 @@ import {
             <nz-option nzValue="INACTIVE" nzLabel="Không hoạt động"></nz-option>
           </nz-select>
         </div>
-      </nz-card>
-
-      <!-- Users Content (Desktop Table + Mobile Cards) -->
-      <nz-card [nzBordered]="false" class="table-card">
         <nz-spin [nzSpinning]="loading()">
           <!-- 1. BẢNG DỮ LIỆU HIỂN THỊ TRÊN DESKTOP (Màn hình > 768px) -->
           <div class="desktop-view">
@@ -390,6 +385,8 @@ import {
       :host {
         display: block;
         width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
         box-sizing: border-box;
       }
 
@@ -397,38 +394,44 @@ import {
         display: flex;
         flex-direction: column;
         gap: 12px;
-        padding: 16px;
         width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
         box-sizing: border-box;
       }
 
       .page-header {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         justify-content: space-between;
         flex-wrap: wrap;
         gap: 12px;
+        padding: 12px 16px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
       }
       .page-header h2 {
         margin: 0;
-        font-size: 20px;
+        font-size: 18px;
         font-weight: 600;
+        color: #1a1a1a;
       }
-      .page-header p {
-        margin: 4px 0 0;
-        color: #666;
-        font-size: 13px;
+      /* Main content card */
+      .main-card {
+        width: 100%;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
       }
-
-      /* Filters Card */
-      .filter-card :ng-deep .ant-card-body {
-        padding: 12px;
+      .main-card :ng-deep .ant-card-body {
+        padding: 24px !important;
       }
       .filter-row {
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
         align-items: center;
+        margin-bottom: 12px;
       }
       .search-input {
         flex: 1;
@@ -441,6 +444,15 @@ import {
       /* Views Switcher */
       .desktop-view {
         display: block;
+        width: 100%;
+        overflow-x: auto;
+      }
+      .desktop-view :ng-deep table {
+        width: 100% !important;
+        table-layout: fixed !important;
+      }
+      .desktop-view :ng-deep .ant-table-pagination {
+        margin: 16px 0 0 !important;
       }
       .mobile-view {
         display: none;
@@ -462,6 +474,16 @@ import {
         .user-mgmt-page {
           padding: 0 !important;
           width: 100% !important;
+        }
+
+        .page-header {
+          flex-direction: column;
+          align-items: stretch;
+          padding: 14px 16px;
+        }
+
+        .main-card :ng-deep .ant-card-body {
+          padding: 12px !important;
         }
 
         .desktop-view {
@@ -500,16 +522,12 @@ import {
         .page-header h2 {
           font-size: 18px;
         }
-        .page-header p {
-          font-size: 12px;
-        }
-
         .add-btn {
           height: 34px !important;
           font-size: 13px !important;
         }
 
-        .filter-card :ng-deep .ant-card-body {
+        .main-card :ng-deep .ant-card-body {
           padding: 8px 10px !important;
         }
 
@@ -538,15 +556,6 @@ import {
       }
 
       /* Mobile Card Styles */
-      .table-card {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-      }
-      .table-card :ng-deep .ant-card-body {
-        padding: 0 !important;
-      }
-
       .user-card {
         background: #ffffff;
         border: 1px solid #eaedf1;
