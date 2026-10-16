@@ -367,6 +367,50 @@ def test_task_tool_applies_role_scope(assistant_data: dict[str, object]) -> None
     assert "email" not in mentor_search["interns"][0]
 
 
+def test_intern_search_reports_exact_total_when_results_hit_the_row_limit(
+    assistant_data: dict[str, object],
+) -> None:
+    session = assistant_data["session"]
+    admin = assistant_data["admin"]
+    internship = assistant_data["internship"]
+    suffix = uuid.uuid4().hex[:8]
+    query = f"Count Probe {suffix}"
+    interns = [
+        User(
+            email=f"count_probe_{suffix}_{index}@example.invalid",
+            password_hash="not-a-real-password",
+            full_name=f"{query} {index:02d}",
+            role=UserRole.INTERN,
+            status=UserStatus.ACTIVE,
+        )
+        for index in range(21)
+    ]
+    session.add_all(interns)
+    session.flush()
+    session.add_all(
+        [
+            InternshipMember(
+                internship_id=internship.id,
+                intern_id=intern.id,
+                status=InternshipMemberStatus.ACTIVE,
+            )
+            for intern in interns
+        ]
+    )
+    session.flush()
+
+    result = AssistantToolService().find_accessible_interns(
+        session,
+        admin,
+        {"query": query, "limit": 20},
+    )
+
+    assert result["total_count"] == 21
+    assert result["returned_count"] == 20
+    assert result["truncated"] is True
+    assert len(result["interns"]) == 20
+
+
 def test_mentor_assignment_tool_is_exposed_and_returns_interns_own_mentor(
     assistant_data: dict[str, object],
 ) -> None:
@@ -698,6 +742,11 @@ def test_database_answer_requires_a_successful_tool(
 def test_system_prompt_routes_aggregate_questions_without_intern_lookup() -> None:
     assert "câu hỏi tổng hợp" in SYSTEM_PROMPT
     assert "không truyền intern_id" in SYSTEM_PROMPT
+
+
+def test_system_prompt_distinguishes_exact_totals_from_limited_rows() -> None:
+    assert "total_count" in SYSTEM_PROMPT
+    assert "returned_count" in SYSTEM_PROMPT
 
 
 def test_malformed_provider_tool_calls_return_a_safe_error(

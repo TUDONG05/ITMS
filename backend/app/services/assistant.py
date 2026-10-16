@@ -35,6 +35,8 @@ Mỗi câu trả lời phải gọi ít nhất một tool để kiểm chứng d
 Với câu hỏi tổng hợp trong toàn bộ phạm vi được phép, gọi thẳng tool nghiệp vụ và
 không truyền intern_id. Chỉ dùng find_accessible_interns khi câu hỏi nhắc đến một
 intern cụ thể nhưng cần xác định đúng người. Trả lời ngắn gọn bằng tiếng Việt.
+Khi tool trả về total_count và returned_count, luôn dùng total_count để trả lời câu hỏi
+"bao nhiêu"; returned_count chỉ là số dòng chi tiết được trả về do giới hạn limit.
 """
 
 MAX_TOOL_ROUNDS = 4

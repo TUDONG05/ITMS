@@ -164,8 +164,12 @@ class AssistantToolService:
         if query_text:
             pattern = f"%{query_text}%"
             query = query.where(or_(User.full_name.ilike(pattern), User.email.ilike(pattern)))
+        total_count = int(db.scalar(select(func.count()).select_from(query.subquery())) or 0)
         rows = db.execute(query.order_by(User.full_name).limit(limit)).all()
         return {
+            "total_count": total_count,
+            "returned_count": len(rows),
+            "truncated": len(rows) < total_count,
             "interns": [
                 {
                     "intern_id": str(intern.id),
@@ -174,7 +178,7 @@ class AssistantToolService:
                     "member_status": member.status,
                 }
                 for intern, member, internship in rows
-            ]
+            ],
         }
 
     def get_mentor_assignment(self, db: Session, user: User, arguments: dict[str, Any]) -> dict:
