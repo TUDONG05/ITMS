@@ -75,6 +75,7 @@
 <!-- Bảng điểm theo tiêu chí, dùng cho thẻ của Intern và ngăn chi tiết -->
 <ng-template #scoresTable let-evaluation>
   <nz-table
+    class="responsive-card-table responsive-card-table--compact"
     [nzData]="evaluation.scores"
     [nzShowPagination]="false"
     nzSize="small"
@@ -90,9 +91,9 @@
     <tbody>
       @for (item of evaluation.scores; track item.criterion_id) {
         <tr>
-          <td>{{ item.name }}</td>
-          <td>{{ item.weight }}%</td>
-          <td>
+          <td data-label="Tiêu chí">{{ item.name }}</td>
+          <td data-label="Trọng số">{{ item.weight }}%</td>
+          <td data-label="Điểm">
             <strong>{{ item.score }}</strong>
             <span class="muted"> / {{ item.max_score }}</span>
           </td>
@@ -144,6 +145,7 @@
     } @else {
       <nz-table
         #evaluationTable
+        class="responsive-card-table"
         [nzData]="evaluations()"
         [nzPageSize]="10"
         nzSize="middle"
@@ -165,15 +167,15 @@
         <tbody>
           @for (evaluation of evaluationTable.data; track evaluation.id) {
             <tr>
-              <td>
+              <td data-label="Intern">
                 <strong>{{ evaluation.intern_name }}</strong>
                 <span class="sub">{{ evaluation.internship_name }}</span>
               </td>
               @if (isAdmin()) {
-                <td>{{ evaluation.mentor_name }}</td>
+                <td data-label="Mentor">{{ evaluation.mentor_name }}</td>
               }
-              <td>{{ typeLabel(evaluation.evaluation_type) }}</td>
-              <td>
+              <td data-label="Loại">{{ typeLabel(evaluation.evaluation_type) }}</td>
+              <td data-label="Tổng điểm">
                 @if (evaluation.total_score !== null) {
                   <strong>{{ evaluation.total_score }}</strong>
                   <span class="muted"> / 10</span>
@@ -181,13 +183,13 @@
                   <span class="muted">Chưa chấm đủ</span>
                 }
               </td>
-              <td>
+              <td data-label="Trạng thái">
                 <nz-tag [nzColor]="statusColor(evaluation.status)">
                   {{ statusLabel(evaluation.status) }}
                 </nz-tag>
               </td>
-              <td>{{ evaluation.updated_at | date: 'dd/MM/yyyy HH:mm' }}</td>
-              <td class="actions-col">
+              <td data-label="Cập nhật">{{ evaluation.updated_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+              <td data-label="Thao tác" class="actions-col">
                 <button nz-button nzSize="small" (click)="openDetail(evaluation)">Xem</button>
                 @if (isMentor() && evaluation.status === 'DRAFT') {
                   <button nz-button nzSize="small" (click)="openEdit(evaluation)">Sửa</button>
@@ -219,7 +221,7 @@
   [nzVisible]="isDetailOpen()"
   [nzTitle]="detail() ? typeLabel(detail()!.evaluation_type) : 'Chi tiết đánh giá'"
   nzPlacement="right"
-  [nzWidth]="560"
+  [nzWidth]="'min(560px, 100vw)'"
   (nzOnClose)="closeDetail()"
 >
   <ng-container *nzDrawerContent>
@@ -255,7 +257,7 @@
 <nz-modal
   [nzVisible]="isEditorOpen()"
   [nzTitle]="editingId() ? 'Sửa đánh giá nháp' : 'Lập đánh giá mới'"
-  [nzWidth]="720"
+  [nzWidth]="'min(720px, calc(100vw - 16px))'"
   [nzMaskClosable]="false"
   [nzFooter]="editorFooter"
   (nzOnCancel)="closeEditor()"

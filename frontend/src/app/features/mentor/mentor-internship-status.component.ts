@@ -170,7 +170,7 @@ import {
               [nzLoading]="isLoading()"
               [nzPageSize]="10"
               nzSize="middle"
-              class="intern-table"
+              class="intern-table responsive-card-table"
             >
               <thead>
                 <tr>
@@ -185,7 +185,7 @@ import {
               <tbody>
                 @for (intern of internTable.data; track intern.id) {
                   <tr>
-                    <td>
+                    <td data-label="Thực tập sinh">
                       <div class="user-cell">
                         <nz-avatar
                           [nzSrc]="intern.intern_avatar_url || undefined"
@@ -198,10 +198,10 @@ import {
                         </div>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Đợt thực tập">
                       <span class="batch-badge">{{ intern.internship_name || 'N/A' }}</span>
                     </td>
-                    <td>
+                    <td data-label="Thời gian">
                       <div class="date-cell">
                         <span>{{
                           intern.start_date ? (intern.start_date | date: 'dd/MM/yyyy') : '—'
@@ -212,12 +212,12 @@ import {
                         }}</span>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Trạng thái thực tập">
                       <nz-tag [nzColor]="getStatusTagColor(intern.status)">
                         {{ getStatusLabel(intern.status) }}
                       </nz-tag>
                     </td>
-                    <td>
+                    <td data-label="Đề xuất hiện tại">
                       @if (getPendingProposalForIntern(intern.id); as pending) {
                         <nz-tag nzColor="processing" class="pending-tag">
                           <span nz-icon nzType="sync" nzSpin></span>
@@ -227,7 +227,7 @@ import {
                         <span class="text-muted">Không có đề xuất chờ</span>
                       }
                     </td>
-                    <td nzAlign="center">
+                    <td data-label="Thao tác" nzAlign="center">
                       <div class="action-buttons">
                         <button
                           nz-button
@@ -273,6 +273,7 @@ import {
 
             <nz-table
               #proposalTable
+              class="responsive-card-table"
               [nzData]="filteredProposals()"
               [nzLoading]="isLoadingProposals()"
               [nzPageSize]="10"
@@ -292,34 +293,34 @@ import {
               <tbody>
                 @for (item of proposalTable.data; track item.id) {
                   <tr>
-                    <td>
+                    <td data-label="Thực tập sinh">
                       <strong>{{ item.intern_name || 'Intern' }}</strong>
                       <div class="text-muted small">{{ item.intern_email || '' }}</div>
                     </td>
-                    <td>
+                    <td data-label="Loại đề xuất">
                       <nz-tag [nzColor]="getProposalTypeColor(item.type)">
                         {{ getProposalTypeLabel(item.type) }}
                       </nz-tag>
                     </td>
-                    <td>
+                    <td data-label="Ngày kết thúc mới">
                       @if (item.type === 'EXTEND' && item.requested_end_date) {
                         <span>{{ item.requested_end_date | date: 'dd/MM/yyyy' }}</span>
                       } @else {
                         <span>—</span>
                       }
                     </td>
-                    <td>
+                    <td data-label="Lý do đề xuất">
                       <span class="reason-text" [title]="item.reason">{{ item.reason }}</span>
                     </td>
-                    <td>
+                    <td data-label="Trạng thái">
                       <nz-tag [nzColor]="getReviewStatusColor(item.status)">
                         {{ getReviewStatusLabel(item.status) }}
                       </nz-tag>
                     </td>
-                    <td>
+                    <td data-label="Ngày tạo">
                       {{ item.created_at | date: 'dd/MM/yyyy HH:mm' }}
                     </td>
-                    <td>
+                    <td data-label="Phản hồi quản trị">
                       @if (item.review_note) {
                         <span class="note-text" [title]="item.review_note">{{
                           item.review_note
@@ -346,7 +347,7 @@ import {
         [nzOkDisabled]="isSubmitDisabled()"
         nzOkText="Gửi đề xuất"
         nzCancelText="Hủy"
-        [nzWidth]="540"
+        [nzWidth]="'min(540px, calc(100vw - 16px))'"
       >
         <ng-container *nzModalContent>
           @if (selectedIntern(); as intern) {
@@ -453,7 +454,7 @@ import {
       <nz-drawer
         [nzVisible]="isDrawerVisible"
         nzPlacement="right"
-        [nzWidth]="500"
+        [nzWidth]="'min(500px, 100vw)'"
         [nzTitle]="drawerTitle"
         (nzOnClose)="closeHistoryDrawer()"
       >
@@ -842,6 +843,11 @@ import {
           flex-direction: column;
         }
 
+        .header-actions,
+        .header-actions button {
+          width: 100%;
+        }
+
         .filter-inputs {
           flex-direction: column;
         }
@@ -850,6 +856,33 @@ import {
         .status-select {
           max-width: 100%;
           width: 100%;
+        }
+
+        .action-buttons {
+          flex-wrap: wrap;
+        }
+
+        input[nz-input],
+        textarea[nz-input],
+        nz-select,
+        nz-date-picker {
+          font-size: 16px;
+        }
+      }
+
+      @media (max-width: 390px) {
+        .metrics-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .modal-intern-header {
+          align-items: flex-start;
+        }
+
+        .modal-intern-header > div,
+        .user-meta {
+          min-width: 0;
+          overflow-wrap: anywhere;
         }
       }
     `,

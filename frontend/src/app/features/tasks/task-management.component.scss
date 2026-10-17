@@ -126,3 +126,66 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+@media (max-width: 768px) {
+  .task-card {
+    border-radius: 8px;
+  }
+
+  .task-toolbar,
+  .task-toolbar__filters {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .search-input,
+  .filter-select {
+    width: 100%;
+  }
+
+  .overdue-check {
+    min-height: 44px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .submission-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .submission-actions {
+    flex-wrap: wrap;
+  }
+
+  input[nz-input],
+  textarea[nz-input],
+  nz-select {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 390px) {
+  .comment-box,
+  .submission-form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .comment-box button,
+  .submission-form-actions button {
+    min-height: 44px;
+  }
+
+  .attach-item {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .attach-name {
+    flex-basis: calc(100% - 32px);
+  }
+}

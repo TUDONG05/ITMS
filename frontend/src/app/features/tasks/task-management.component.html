@@ -57,7 +57,13 @@
   } @else if (!filteredTasks().length) {
     <nz-empty nzNotFoundContent="Chưa có task"></nz-empty>
   } @else {
-    <nz-table #taskTable [nzData]="filteredTasks()" [nzPageSize]="8" nzSize="middle">
+    <nz-table
+      #taskTable
+      class="responsive-card-table"
+      [nzData]="filteredTasks()"
+      [nzPageSize]="8"
+      nzSize="middle"
+    >
       <thead>
         <tr>
           <th>Task</th>
@@ -74,7 +80,7 @@
       <tbody>
         @for (t of taskTable.data; track t.id) {
           <tr>
-            <td>
+            <td data-label="Task">
               <button class="link-btn" (click)="openDetail(t.id)">
                 <b>{{ t.title }}</b>
               </button>
@@ -83,10 +89,10 @@
               >
             </td>
             @if (isMentorSide()) {
-              <td>{{ t.intern_name ?? '-' }}</td>
+              <td data-label="Intern">{{ t.intern_name ?? '-' }}</td>
             }
-            <td>{{ t.internship_name ?? '-' }}</td>
-            <td>
+            <td data-label="Đợt thực tập">{{ t.internship_name ?? '-' }}</td>
+            <td data-label="Hạn">
               {{ t.deadline ? (t.deadline | date: 'HH:mm dd/MM') : '-' }}
               @if (t.is_overdue) {
                 <nz-tag nzColor="error">Quá hạn</nz-tag>
@@ -95,11 +101,11 @@
                 <nz-tag nzColor="warning">Nộp muộn</nz-tag>
               }
             </td>
-            <td>{{ t.priority ?? '-' }}</td>
-            <td>
+            <td data-label="Ưu tiên">{{ t.priority ?? '-' }}</td>
+            <td data-label="Trạng thái">
               <nz-tag [nzColor]="statusColor(t.status)">{{ statusLabel(t.status) }}</nz-tag>
             </td>
-            <td class="actions-col">
+            <td data-label="Thao tác" class="actions-col">
               <button nz-button nzType="link" (click)="openDetail(t.id)">Xem</button>
               @if (isMentorSide() && t.status !== 'COMPLETED' && t.status !== 'CANCELLED') {
                 <button nz-button nzType="link" (click)="openEdit(t)">Sửa</button>
@@ -129,6 +135,7 @@
   [nzOkText]="editingTask() ? 'Lưu' : 'Giao task'"
   nzCancelText="Đóng"
   [nzOkLoading]="isSaving()"
+  [nzWidth]="'min(520px, calc(100vw - 16px))'"
   (nzOnOk)="saveForm()"
   (nzOnCancel)="isFormOpen.set(false)"
 >
@@ -217,7 +224,7 @@
   [nzVisible]="isDetailOpen()"
   nzTitle="Chi tiết Task"
   nzPlacement="right"
-  [nzWidth]="560"
+  [nzWidth]="'min(560px, 100vw)'"
   (nzOnClose)="closeDetail()"
 >
   <ng-container *nzDrawerContent>

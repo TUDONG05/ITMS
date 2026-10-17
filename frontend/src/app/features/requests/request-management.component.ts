@@ -427,7 +427,7 @@ import {
           }
         }
       }
-      @media (max-width: 576px) {
+      @media (max-width: 768px) {
         .desktop-only {
           display: none;
         }
