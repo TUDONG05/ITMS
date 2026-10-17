@@ -144,7 +144,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
           @if (!editing()) {
             <!-- Read-only view -->
             <div nz-row [nzGutter]="[24, 16]">
-              <div nz-col [nzSpan]="12">
+              <div nz-col [nzXs]="24" [nzSm]="12">
                 <span class="field-label">Họ và tên</span>
                 <p class="field-value">
                   {{ profile()!.full_name }}
@@ -159,7 +159,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
                   }
                 </p>
               </div>
-              <div nz-col [nzSpan]="12">
+              <div nz-col [nzXs]="24" [nzSm]="12">
                 <span class="field-label">Email</span>
                 <p class="field-value">
                   {{ profile()!.email }}
@@ -172,11 +172,11 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
                   ></span>
                 </p>
               </div>
-              <div nz-col [nzSpan]="12">
+              <div nz-col [nzXs]="24" [nzSm]="12">
                 <span class="field-label">Số điện thoại</span>
                 <p class="field-value">{{ profile()!.phone ?? '—' }}</p>
               </div>
-              <div nz-col [nzSpan]="12">
+              <div nz-col [nzXs]="24" [nzSm]="12">
                 <span class="field-label">Ảnh đại diện</span>
                 @if (profile()!.avatar_url) {
                   <img
@@ -188,7 +188,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
                   <p class="field-value">—</p>
                 }
               </div>
-              <div nz-col [nzSpan]="12">
+              <div nz-col [nzXs]="24" [nzSm]="12">
                 <span class="field-label">Ngày tạo tài khoản</span>
                 <p class="field-value">{{ profile()!.created_at | slice: 0 : 10 }}</p>
               </div>
@@ -432,6 +432,12 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
         box-sizing: border-box;
       }
 
+      @media (max-width: 576px) {
+        .profile-page {
+          padding: 0 !important;
+        }
+      }
+
       .profile-loading {
         display: flex;
         justify-content: center;
@@ -471,6 +477,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
         align-items: center;
         justify-content: space-between;
         gap: 12px;
+        flex-wrap: wrap;
       }
 
       .mentor-row {

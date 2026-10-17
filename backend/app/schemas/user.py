@@ -1,10 +1,13 @@
+import re
 import uuid
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.models.enums import UserRole, UserStatus
 from app.schemas.base import BaseSchema
+
+EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 
 
 class UserBase(BaseSchema):
@@ -14,6 +17,16 @@ class UserBase(BaseSchema):
     status: UserStatus = UserStatus.ACTIVE
     phone: str | None = Field(default=None, max_length=20)
     avatar_url: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        if cls.__name__ == "UserRead":
+            return value
+        normalized_email = value.strip().casefold()
+        if not EMAIL_REGEX.match(normalized_email):
+            raise ValueError("Email không hợp lệ.")
+        return normalized_email
 
 
 class UserCreate(UserBase):

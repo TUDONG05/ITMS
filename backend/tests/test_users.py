@@ -156,6 +156,32 @@ def test_create_user_duplicate_email(client: TestClient, seeded_users):
     assert "đã được sử dụng" in resp.json()["detail"]
 
 
+@pytest.mark.parametrize(
+    "invalid_email",
+    [
+        "not_an_email",
+        "missing_at.domain.com",
+        "@missingusername.com",
+        "username@.com",
+        "username@domain",
+    ],
+)
+def test_create_user_invalid_email(client: TestClient, seeded_users, invalid_email: str):
+    admin = seeded_users["admin"]
+    payload = {
+        "email": invalid_email,
+        "full_name": "Người Dùng Email Sai",
+        "password": "Password@123",
+        "role": "INTERN",
+    }
+    resp = client.post(
+        "/api/v1/users",
+        json=payload,
+        headers={"X-User-Id": str(admin.id)},
+    )
+    assert resp.status_code == 422
+
+
 def test_update_user_by_admin(client: TestClient, seeded_users):
     admin = seeded_users["admin"]
     intern = seeded_users["intern"]
