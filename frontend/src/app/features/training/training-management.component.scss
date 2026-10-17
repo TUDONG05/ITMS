@@ -1095,6 +1095,8 @@
     gap: 10px;
 
     .search-box {
+      flex: 0 0 auto;
+      width: 100%;
       min-width: 100%;
       max-width: 100%;
     }

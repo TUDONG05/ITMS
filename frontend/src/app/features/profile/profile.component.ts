@@ -631,6 +631,81 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
       .profile-error {
         color: #ff4d4f;
       }
+
+      @media (max-width: 768px) {
+        .profile-page {
+          padding: 0;
+        }
+
+        .profile-header-card,
+        .profile-mentor-card,
+        .profile-info-card,
+        .profile-security-card {
+          border-radius: 8px;
+        }
+
+        .profile-header {
+          align-items: flex-start;
+        }
+
+        .profile-header-info,
+        .mentor-info {
+          min-width: 0;
+        }
+
+        .profile-email,
+        .mentor-info span,
+        .field-value {
+          overflow-wrap: anywhere;
+        }
+
+        :host ::ng-deep .profile-info-card .ant-col-12 {
+          max-width: 100%;
+          flex: 0 0 100%;
+        }
+
+        .info-card-title-row,
+        .security-row {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .info-card-title-row button,
+        .security-row button {
+          min-height: 44px;
+        }
+
+        input[nz-input] {
+          min-height: 44px;
+          font-size: 16px;
+        }
+      }
+
+      @media (max-width: 390px) {
+        .profile-header {
+          align-items: center;
+          flex-direction: column;
+          text-align: center;
+        }
+
+        .profile-badges {
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+
+        .mentor-row {
+          align-items: flex-start;
+        }
+
+        .form-actions {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .form-actions button {
+          min-height: 44px;
+        }
+      }
     `,
   ],
 })

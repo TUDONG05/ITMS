@@ -160,7 +160,7 @@ import {
                       class="btn-manage-intern"
                     >
                       <span nz-icon nzType="team"></span>
-                      Quản lý Intern
+                      Quản lý thực tập
                     </button>
                     <button
                       nz-button

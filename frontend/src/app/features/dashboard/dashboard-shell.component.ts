@@ -36,7 +36,6 @@ import { EvaluationsComponent } from '../evaluations/evaluations.component';
 import { InternshipManagementComponent } from '../internships/internship-management.component';
 import { LearningComponent } from '../learning/learning.component';
 import { MentorInternManagementComponent } from '../mentor/mentor-intern-management.component';
-import { MentorInternshipStatusComponent } from '../mentor/mentor-internship-status.component';
 import { ProfileComponent } from '../profile/profile.component';
 import { TaskManagementComponent } from '../tasks/task-management.component';
 import { TrainingManagementComponent } from '../training/training-management.component';
@@ -120,10 +119,9 @@ const dashboards: Record<Role, Dashboard> = {
     greeting: 'Xin chào, Lê Minh Hoàng!',
     description: 'Đồng hành và phát triển các thực tập sinh phụ trách.',
     nav: [
-      { id: 'interns', label: 'Quản lý Intern', icon: 'team' },
+      { id: 'interns', label: 'Quản lý thực tập', icon: 'team' },
       { id: 'tasks', label: 'Quản lý Task', icon: 'check-square' },
       { id: 'evaluations', label: 'Đánh giá', icon: 'star' },
-      { id: 'internship-status', label: 'Trạng thái thực tập', icon: 'calendar' },
       ...common,
     ],
     metrics: [
@@ -233,7 +231,6 @@ const dashboards: Record<Role, Dashboard> = {
     InternshipManagementComponent,
     LearningComponent,
     MentorInternManagementComponent,
-    MentorInternshipStatusComponent,
     ProfileComponent,
     TaskManagementComponent,
     TrainingManagementComponent,
@@ -370,6 +367,34 @@ const dashboards: Record<Role, Dashboard> = {
             border-right: 0 !important;
             border-bottom: 0 !important;
             transform: none !important;
+            box-shadow: none !important;
+          }
+          .sidebar__nav.ant-menu .ant-menu-item {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 100% !important;
+            margin-inline: 0 !important;
+            padding-inline: 0 !important;
+            text-align: center !important;
+          }
+          .sidebar__nav.ant-menu .ant-menu-item > .ant-menu-title-content {
+            display: flex !important;
+            width: 100% !important;
+            align-items: center !important;
+            justify-content: center !important;
+            text-align: center !important;
+          }
+          .sidebar__nav [nz-icon] {
+            display: inline-flex !important;
+            width: 20px !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin-right: 0 !important;
+            font-size: 19px !important;
+          }
+          .sidebar__label {
+            display: none !important;
           }
           .dashboard-main,
           nz-layout.dashboard-main {
@@ -541,24 +566,30 @@ const dashboards: Record<Role, Dashboard> = {
             </div>
 
             @if (section() === 'overview') {
-              @if (role() === 'ADMIN') {
-                <div
-                  style="margin-bottom: 20px; display: flex; align-items: center; justify-content: flex-end; gap: 10px;"
-                >
-                  <span>Lọc theo đợt thực tập:</span>
-                  <nz-select
-                    style="width: 250px"
-                    [(ngModel)]="selectedInternshipId"
-                    (ngModelChange)="onInternshipChange($event)"
-                    nzAllowClear
-                    nzPlaceHolder="Tất cả"
-                  >
-                    @for (internship of internships(); track internship.id) {
-                      <nz-option [nzValue]="internship.id" [nzLabel]="internship.name"></nz-option>
-                    }
-                  </nz-select>
-                </div>
-              }
+              <div
+                class="feature-page-header feature-page-header--standalone dashboard-overview-header"
+              >
+                <h1 class="feature-page-title">Tổng quan</h1>
+                @if (role() === 'ADMIN') {
+                  <div class="dashboard-filter-bar">
+                    <span>Lọc theo đợt thực tập:</span>
+                    <nz-select
+                      style="width: 250px"
+                      [(ngModel)]="selectedInternshipId"
+                      (ngModelChange)="onInternshipChange($event)"
+                      nzAllowClear
+                      nzPlaceHolder="Tất cả"
+                    >
+                      @for (internship of internships(); track internship.id) {
+                        <nz-option
+                          [nzValue]="internship.id"
+                          [nzLabel]="internship.name"
+                        ></nz-option>
+                      }
+                    </nz-select>
+                  </div>
+                }
+              </div>
               @if (isLoading()) {
                 <div style="text-align: center; padding: 50px;">
                   <nz-spin nzSimple nzSize="large"></nz-spin>
@@ -690,13 +721,8 @@ const dashboards: Record<Role, Dashboard> = {
               <!-- UC-17: Quản lý yêu cầu thực tập -->
               <app-request-management />
             } @else if (section() === 'interns' && (role() === 'MENTOR' || role() === 'ADMIN')) {
-              <!-- UC-11: Mentor quản lý Intern -->
+              <!-- UC-11 + UC-13: Mentor quản lý thực tập và gửi đề xuất trạng thái -->
               <app-mentor-intern-management />
-            } @else if (
-              section() === 'internship-status' && (role() === 'MENTOR' || role() === 'ADMIN')
-            ) {
-              <!-- UC-13: Quản lý trạng thái thực tập (Mentor đề xuất gia hạn, dừng, kết thúc) -->
-              <app-mentor-internship-status />
             } @else if (section() === 'training' && (role() === 'ADMIN' || role() === 'MENTOR')) {
               <!-- UC-16: Quản lý đào tạo (LMS) -->
               <app-training-management />
@@ -997,6 +1023,7 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
 
   private normalizeSection(role: Role, section: string): string {
     if (section === 'settings') return 'overview';
+    if (role === Role.Mentor && section === 'internship-status') return 'interns';
 
     const removedSection =
       role === Role.Mentor ? 'learning' : role === Role.Intern ? 'internship' : 'reports';

@@ -10,10 +10,12 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzAvatarModule } from 'ng-zorro-antd/avatar';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
+import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
 import { NzDividerModule } from 'ng-zorro-antd/divider';
 import { NzDrawerModule } from 'ng-zorro-antd/drawer';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
@@ -32,6 +34,9 @@ import { NzTimelineModule } from 'ng-zorro-antd/timeline';
 
 import { InternshipService } from '../../core/api/internship.service';
 import {
+  InternshipProposalCreatePayload,
+  InternshipProposalItem,
+  InternshipStatusHistoryItem,
   MentorAssignmentHistoryItem,
   MentorInternDetail,
   MentorInternListItem,
@@ -45,10 +50,12 @@ import {
   imports: [
     CommonModule,
     FormsModule,
+    NzAlertModule,
     NzAvatarModule,
     NzBadgeModule,
     NzButtonModule,
     NzCardModule,
+    NzDatePickerModule,
     NzDividerModule,
     NzDrawerModule,
     NzEmptyModule,
@@ -70,7 +77,7 @@ import {
       <!-- HEADER & OVERVIEW CARDS -->
       <div class="header-section feature-page-header">
         <div class="header-title">
-          <h1 class="feature-page-title">Quản lý Thực tập sinh phụ trách</h1>
+          <h1 class="feature-page-title">Quản lý thực tập</h1>
         </div>
       </div>
 
@@ -80,7 +87,7 @@ import {
           <div class="metric-content">
             <span nz-icon nzType="team" class="metric-icon metric-icon--blue"></span>
             <div>
-              <p>Tổng Intern phụ trách</p>
+              <p>Tổng thực tập sinh phụ trách</p>
               <strong>{{ overview()?.total_interns ?? 0 }}</strong>
             </div>
           </div>
@@ -162,6 +169,9 @@ import {
             <button nz-button nzType="default" (click)="resetFilters()">
               <span nz-icon nzType="reload"></span> Đặt lại
             </button>
+            <button nz-button nzType="default" (click)="openProposalHistoryModal()">
+              <span nz-icon nzType="form"></span> Đề xuất đã gửi ({{ proposals().length }})
+            </button>
             <button nz-button nzType="default" (click)="openAuditHistoryModal()">
               <span nz-icon nzType="audit"></span> Lịch sử phân công
             </button>
@@ -188,6 +198,7 @@ import {
                   <th>Lộ trình & Tiến độ</th>
                   <th>Bài kiểm tra</th>
                   <th>Trạng thái</th>
+                  <th>Đề xuất hiện tại</th>
                   <th nzAlign="right">Thao tác</th>
                 </tr>
               </thead>
@@ -235,6 +246,16 @@ import {
                         {{ getStatusLabel(item.status) }}
                       </nz-tag>
                     </td>
+                    <td>
+                      @if (getPendingProposalForIntern(item.id); as pending) {
+                        <nz-tag nzColor="processing" class="pending-tag">
+                          <span nz-icon nzType="sync" nzSpin></span>
+                          Chờ duyệt {{ getProposalTypeLabel(pending.type) }}
+                        </nz-tag>
+                      } @else {
+                        <span class="text-muted">Không có đề xuất chờ</span>
+                      }
+                    </td>
                     <td nzAlign="right">
                       <div class="action-buttons">
                         <button
@@ -245,6 +266,24 @@ import {
                           title="Xem chi tiết hồ sơ & tiến độ"
                         >
                           <span nz-icon nzType="solution"></span> Chi tiết
+                        </button>
+                        <button
+                          nz-button
+                          nzType="primary"
+                          nzSize="small"
+                          (click)="openProposalModal(item)"
+                          [disabled]="isProposalDisabled(item)"
+                          [title]="getProposalDisabledTooltip(item)"
+                        >
+                          <span nz-icon nzType="form"></span> Đề xuất
+                        </button>
+                        <button
+                          nz-button
+                          nzType="default"
+                          nzSize="small"
+                          (click)="openStatusHistoryDrawer(item)"
+                        >
+                          <span nz-icon nzType="history"></span> Lịch sử
                         </button>
                       </div>
                     </td>
@@ -305,11 +344,40 @@ import {
                       <nz-tag nzColor="blue">{{ item.quizzes_passed }} bài</nz-tag>
                     </span>
                   </div>
+                  <div class="info-row">
+                    <span class="label">Đề xuất hiện tại:</span>
+                    <span class="value">
+                      @if (getPendingProposalForIntern(item.id); as pending) {
+                        <nz-tag nzColor="processing">
+                          Chờ duyệt {{ getProposalTypeLabel(pending.type) }}
+                        </nz-tag>
+                      } @else {
+                        <span class="text-muted">Không có đề xuất chờ</span>
+                      }
+                    </span>
+                  </div>
                 </div>
 
                 <div class="card-mobile-footer">
-                  <button nz-button nzType="primary" nzGhost nzBlock (click)="openDetail(item.id)">
+                  <button
+                    nz-button
+                    nzType="primary"
+                    nzGhost
+                    class="detail-action"
+                    (click)="openDetail(item.id)"
+                  >
                     <span nz-icon nzType="solution"></span> Chi tiết
+                  </button>
+                  <button
+                    nz-button
+                    nzType="primary"
+                    (click)="openProposalModal(item)"
+                    [disabled]="isProposalDisabled(item)"
+                  >
+                    <span nz-icon nzType="form"></span> Đề xuất
+                  </button>
+                  <button nz-button nzType="default" (click)="openStatusHistoryDrawer(item)">
+                    <span nz-icon nzType="history"></span> Lịch sử
                   </button>
                 </div>
               </div>
@@ -488,6 +556,7 @@ import {
                       <div class="table-responsive">
                         <nz-table
                           #quizTable
+                          class="responsive-card-table responsive-card-table--compact"
                           [nzData]="d.quiz_attempts"
                           [nzFrontPagination]="false"
                           nzSize="small"
@@ -504,19 +573,19 @@ import {
                           <tbody>
                             @for (q of quizTable.data; track q.id) {
                               <tr>
-                                <td>
+                                <td data-label="Bài kiểm tra">
                                   <strong>{{ q.quiz_title }}</strong>
                                 </td>
-                                <td>Lần {{ q.attempt_no }}</td>
-                                <td>
+                                <td data-label="Lần làm">Lần {{ q.attempt_no }}</td>
+                                <td data-label="Điểm">
                                   <strong>{{ q.score !== null ? q.score : '--' }}</strong>
                                 </td>
-                                <td>
+                                <td data-label="Kết quả">
                                   <nz-tag [nzColor]="q.passed ? 'green' : 'red'">
                                     {{ q.passed ? 'ĐẠT (PASSED)' : 'CHƯA ĐẠT' }}
                                   </nz-tag>
                                 </td>
-                                <td>
+                                <td data-label="Thời gian">
                                   <small>{{ formatDateTime(q.started_at) }}</small>
                                 </td>
                               </tr>
@@ -574,6 +643,212 @@ import {
         </ng-container>
       </nz-drawer>
 
+      <!-- MODAL GỬI ĐỀ XUẤT THAY ĐỔI TRẠNG THÁI -->
+      <nz-modal
+        [(nzVisible)]="isProposalModalVisible"
+        nzTitle="Tạo đề xuất thay đổi trạng thái thực tập"
+        (nzOnCancel)="closeProposalModal()"
+        (nzOnOk)="submitProposal()"
+        [nzOkLoading]="proposalSubmitting()"
+        [nzOkDisabled]="isSubmitProposalDisabled()"
+        nzOkText="Gửi đề xuất"
+        nzCancelText="Hủy"
+        [nzWidth]="proposalModalWidth()"
+      >
+        <ng-container *nzModalContent>
+          @if (selectedProposalIntern(); as intern) {
+            <div class="proposal-intern-card">
+              <div class="proposal-intern-header">
+                <nz-avatar
+                  [nzSrc]="intern.intern_avatar_url ?? undefined"
+                  [nzText]="getInitials(intern.intern_name)"
+                ></nz-avatar>
+                <div>
+                  <strong>{{ intern.intern_name }}</strong>
+                  <div class="text-muted">{{ intern.intern_email }}</div>
+                </div>
+              </div>
+              <nz-divider style="margin: 12px 0;"></nz-divider>
+              <div class="proposal-intern-details">
+                <div>
+                  <span>Đợt:</span> <b>{{ intern.internship_name }}</b>
+                </div>
+                <div>
+                  <span>Trạng thái hiện tại:</span>
+                  <nz-tag [nzColor]="getStatusTagColor(intern.status)">
+                    {{ getStatusLabel(intern.status) }}
+                  </nz-tag>
+                </div>
+                <div>
+                  <span>Hạn kết thúc hiện tại:</span>
+                  <b>{{ intern.end_date ? (intern.end_date | date: 'dd/MM/yyyy') : '—' }}</b>
+                </div>
+              </div>
+            </div>
+
+            @if (hasPendingExtendProposal(intern.id)) {
+              <nz-alert
+                nzType="warning"
+                nzShowIcon
+                nzMessage="Đang có đề xuất gia hạn chờ duyệt"
+                nzDescription="Tùy chọn Gia hạn được khóa cho đến khi đề xuất trước đó được xử lý."
+              ></nz-alert>
+            }
+
+            <form nz-form nzLayout="vertical" class="proposal-form">
+              <nz-form-item>
+                <nz-form-label nzRequired>Loại đề xuất</nz-form-label>
+                <nz-form-control>
+                  <nz-select [(ngModel)]="proposalType" name="proposalType" style="width: 100%;">
+                    <nz-option
+                      nzValue="EXTEND"
+                      nzLabel="Gia hạn thực tập"
+                      [nzDisabled]="hasPendingExtendProposal(intern.id)"
+                    ></nz-option>
+                    <nz-option nzValue="STOP" nzLabel="Dừng thực tập"></nz-option>
+                    <nz-option nzValue="COMPLETE" nzLabel="Hoàn thành thực tập"></nz-option>
+                  </nz-select>
+                </nz-form-control>
+              </nz-form-item>
+
+              @if (proposalType === 'EXTEND') {
+                <nz-form-item>
+                  <nz-form-label nzRequired>Ngày kết thúc mới đề xuất</nz-form-label>
+                  <nz-form-control nzExtra="Ngày mới phải sau ngày kết thúc hiện tại">
+                    <nz-date-picker
+                      [(ngModel)]="proposalEndDate"
+                      name="proposalEndDate"
+                      nzFormat="dd/MM/yyyy"
+                      style="width: 100%;"
+                      [nzDisabledDate]="disabledProposalEndDate"
+                      nzPlaceHolder="Chọn ngày kết thúc mới"
+                    ></nz-date-picker>
+                  </nz-form-control>
+                </nz-form-item>
+              }
+
+              <nz-form-item>
+                <nz-form-label nzRequired>Lý do đề xuất</nz-form-label>
+                <nz-form-control nzExtra="Tối đa 1000 ký tự">
+                  <textarea
+                    nz-input
+                    [(ngModel)]="proposalReason"
+                    name="proposalReason"
+                    [rows]="4"
+                    maxlength="1000"
+                    placeholder="Nhập lý do đề xuất..."
+                  ></textarea>
+                </nz-form-control>
+              </nz-form-item>
+            </form>
+          }
+        </ng-container>
+      </nz-modal>
+
+      <!-- DRAWER LỊCH SỬ TRẠNG THÁI -->
+      <nz-drawer
+        [nzVisible]="isStatusHistoryDrawerVisible"
+        nzPlacement="right"
+        [nzWidth]="statusHistoryDrawerWidth()"
+        [nzTitle]="statusHistoryDrawerTitle"
+        (nzOnClose)="closeStatusHistoryDrawer()"
+      >
+        <ng-container *nzDrawerContent>
+          @if (statusHistoryLoading()) {
+            <div class="drawer-loading"><nz-spin nzSimple nzSize="large"></nz-spin></div>
+          } @else if (statusHistoryItems().length === 0) {
+            <nz-empty nzNotFoundContent="Không có lịch sử trạng thái"></nz-empty>
+          } @else {
+            <nz-timeline class="status-history-timeline">
+              @for (item of statusHistoryItems(); track item.id) {
+                <nz-timeline-item [nzColor]="getTimelineItemColor(item)">
+                  <div class="status-history-entry">
+                    <div class="status-history-header">
+                      <nz-tag [nzColor]="getHistoryActionColor(item.action)">
+                        {{ getHistoryActionLabel(item.action) }}
+                      </nz-tag>
+                      @if (item.proposal_status) {
+                        <nz-tag [nzColor]="getReviewStatusColor(item.proposal_status)">
+                          {{ getReviewStatusLabel(item.proposal_status) }}
+                        </nz-tag>
+                      }
+                    </div>
+                    <div class="status-transition">
+                      <span>{{ getStatusLabel(item.from_status || 'INITIAL') }}</span>
+                      <span>→</span>
+                      <strong>{{ getStatusLabel(item.to_status) }}</strong>
+                    </div>
+                    @if (item.requested_end_date) {
+                      <p>
+                        <b>Ngày kết thúc đề xuất:</b>
+                        {{ item.requested_end_date | date: 'dd/MM/yyyy' }}
+                      </p>
+                    }
+                    @if (item.reason) {
+                      <p><b>Lý do:</b> {{ item.reason }}</p>
+                    }
+                    @if (item.review_note) {
+                      <p><b>Phản hồi:</b> {{ item.review_note }}</p>
+                    }
+                    <small>{{ item.changed_at | date: 'dd/MM/yyyy HH:mm' }}</small>
+                  </div>
+                </nz-timeline-item>
+              }
+            </nz-timeline>
+          }
+        </ng-container>
+      </nz-drawer>
+
+      <!-- MODAL DANH SÁCH ĐỀ XUẤT ĐÃ GỬI -->
+      <nz-modal
+        [(nzVisible)]="isProposalHistoryModalVisible"
+        nzTitle="Đề xuất trạng thái đã gửi"
+        (nzOnCancel)="closeProposalHistoryModal()"
+        [nzFooter]="null"
+        [nzWidth]="proposalHistoryModalWidth()"
+      >
+        <ng-container *nzModalContent>
+          <nz-spin [nzSpinning]="proposalsLoading()">
+            <nz-table
+              #proposalTable
+              class="responsive-card-table responsive-card-table--compact"
+              [nzData]="proposals()"
+              [nzPageSize]="8"
+              nzSize="small"
+            >
+              <thead>
+                <tr>
+                  <th>Thực tập sinh</th>
+                  <th>Loại đề xuất</th>
+                  <th>Lý do</th>
+                  <th>Trạng thái</th>
+                  <th>Ngày tạo</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of proposalTable.data; track item.id) {
+                  <tr>
+                    <td data-label="Thực tập sinh">{{ item.intern_name || 'Thực tập sinh' }}</td>
+                    <td data-label="Loại đề xuất">
+                      <nz-tag [nzColor]="getProposalTypeColor(item.type)">
+                        {{ getProposalTypeLabel(item.type) }}
+                      </nz-tag>
+                    </td>
+                    <td data-label="Lý do">{{ item.reason }}</td>
+                    <td data-label="Trạng thái">
+                      <nz-tag [nzColor]="getReviewStatusColor(item.status)">
+                        {{ getReviewStatusLabel(item.status) }}
+                      </nz-tag>
+                    </td>
+                    <td data-label="Ngày tạo">{{ item.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </nz-table>
+          </nz-spin>
+        </ng-container>
+      </nz-modal>
+
       <!-- MODAL TOÀN BỘ LỊCH SỬ PHÂN CÔNG (AUDIT LOGS) -->
       <nz-modal
         [(nzVisible)]="isAuditModalVisible"
@@ -588,6 +863,7 @@ import {
               <div class="table-responsive">
                 <nz-table
                   #auditTable
+                  class="responsive-card-table responsive-card-table--compact"
                   [nzData]="allAuditHistory()"
                   [nzFrontPagination]="true"
                   [nzPageSize]="8"
@@ -606,25 +882,25 @@ import {
                   <tbody>
                     @for (record of auditTable.data; track record.changed_at) {
                       <tr>
-                        <td>
+                        <td data-label="Thời điểm">
                           <small>{{ formatDateTime(record.changed_at) }}</small>
                         </td>
-                        <td>
+                        <td data-label="Thực tập sinh">
                           <strong>{{ record.intern_name }}</strong>
                         </td>
-                        <td>
+                        <td data-label="Loại">
                           <nz-tag [nzColor]="record.action === 'ASSIGN' ? 'green' : 'blue'">
                             {{ record.action }}
                           </nz-tag>
                         </td>
-                        <td>
+                        <td data-label="Mentor cũ → Mới">
                           <span class="audit-transfer">
                             {{ record.old_mentor_name || 'None' }} &rarr;
                             <strong>{{ record.new_mentor_name }}</strong>
                           </span>
                         </td>
-                        <td>{{ record.changed_by_name }}</td>
-                        <td>
+                        <td data-label="Người thực hiện">{{ record.changed_by_name }}</td>
+                        <td data-label="Ghi chú">
                           <small>{{ record.note || '--' }}</small>
                         </td>
                       </tr>
@@ -835,8 +1111,19 @@ import {
 
       .action-buttons {
         display: flex;
+        flex-wrap: wrap;
         gap: 4px;
         justify-content: flex-end;
+      }
+
+      .pending-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .text-muted {
+        color: #9ca3af;
       }
 
       /* MOBILE CARDS DISPLAY */
@@ -905,13 +1192,89 @@ import {
 
       .card-mobile-footer {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
         padding-top: 10px;
         border-top: 1px solid #f3f4f6;
       }
 
       .card-mobile-footer button {
-        width: 100%;
+        flex: 1 1 calc(50% - 4px);
+        min-height: 44px;
+      }
+
+      .card-mobile-footer .detail-action {
+        flex-basis: 100%;
+      }
+
+      .proposal-intern-card,
+      .status-history-entry {
+        padding: 12px 16px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: #f9fafb;
+      }
+
+      .proposal-intern-card {
+        margin-bottom: 16px;
+      }
+
+      .proposal-intern-header,
+      .status-history-header,
+      .status-transition {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .proposal-intern-header > div {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .proposal-intern-details {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        color: #374151;
+        font-size: 13px;
+      }
+
+      .proposal-form {
+        margin-top: 16px;
+      }
+
+      .drawer-loading {
+        display: flex;
+        justify-content: center;
+        padding: 40px 0;
+      }
+
+      .status-history-timeline {
+        display: block;
+        padding-top: 8px;
+      }
+
+      .status-history-entry {
+        margin-bottom: 8px;
+        overflow-wrap: anywhere;
+      }
+
+      .status-history-header {
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .status-transition {
+        margin-bottom: 8px;
+      }
+
+      .status-history-entry p {
+        margin: 6px 0;
+      }
+
+      .status-history-entry small {
+        color: #9ca3af;
       }
 
       /* DRAWER & MODAL STYLES */
@@ -1130,6 +1493,10 @@ import {
          MOBILE BREAKPOINT (<= 767px)
          ========================================================================== */
       @media screen and (max-width: 767px) {
+        .table-responsive {
+          overflow-x: visible;
+        }
+
         .desktop-table {
           display: none;
         }
@@ -1193,6 +1560,13 @@ import {
           font-size: 13px;
         }
 
+        .proposal-form input[nz-input],
+        .proposal-form textarea[nz-input],
+        .proposal-form nz-select,
+        .proposal-form nz-date-picker {
+          font-size: 16px;
+        }
+
         .content-row {
           flex-direction: column;
           align-items: flex-start;
@@ -1235,6 +1609,8 @@ export class MentorInternManagementComponent implements OnInit {
   overview = signal<MentorOverviewMetrics | null>(null);
   interns = signal<MentorInternListItem[]>([]);
   internships = signal<{ id: string; name: string }[]>([]);
+  proposals = signal<InternshipProposalItem[]>([]);
+  proposalsLoading = signal<boolean>(false);
 
   searchQuery = '';
   selectedStatus = '';
@@ -1245,6 +1621,19 @@ export class MentorInternManagementComponent implements OnInit {
   detailLoading = signal<boolean>(false);
   detail = signal<MentorInternDetail | null>(null);
   activeDetailTab = signal<number>(0);
+
+  // Proposal and internship status state
+  selectedProposalIntern = signal<MentorInternListItem | null>(null);
+  proposalSubmitting = signal<boolean>(false);
+  statusHistoryLoading = signal<boolean>(false);
+  statusHistoryItems = signal<InternshipStatusHistoryItem[]>([]);
+  isProposalModalVisible = false;
+  isProposalHistoryModalVisible = false;
+  isStatusHistoryDrawerVisible = false;
+  statusHistoryDrawerTitle = 'Lịch sử trạng thái';
+  proposalType: 'EXTEND' | 'STOP' | 'COMPLETE' = 'EXTEND';
+  proposalEndDate: Date | null = null;
+  proposalReason = '';
 
   // Audit history modal state
   isAuditModalVisible = false;
@@ -1269,9 +1658,16 @@ export class MentorInternManagementComponent implements OnInit {
     return this.windowWidth() <= 767 ? '95vw' : '760px';
   });
 
+  proposalModalWidth = computed(() => (this.windowWidth() <= 767 ? 'calc(100vw - 16px)' : '540px'));
+  proposalHistoryModalWidth = computed(() =>
+    this.windowWidth() <= 767 ? 'calc(100vw - 16px)' : '900px',
+  );
+  statusHistoryDrawerWidth = computed(() => (this.windowWidth() <= 767 ? '100%' : '500px'));
+
   ngOnInit(): void {
     this.loadOverview();
     this.loadInterns();
+    this.loadProposals();
     this.loadAuxiliaryData();
   }
 
@@ -1325,6 +1721,150 @@ export class MentorInternManagementComponent implements OnInit {
     this.loadInterns();
   }
 
+  loadProposals(): void {
+    this.proposalsLoading.set(true);
+    this.mentorService.getMentorProposals().subscribe({
+      next: (data) => {
+        this.proposals.set(data);
+        this.proposalsLoading.set(false);
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.proposalsLoading.set(false);
+        this.message.error(err?.error?.detail || 'Không thể tải danh sách đề xuất');
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  getPendingProposalForIntern(internId: string): InternshipProposalItem | undefined {
+    return this.proposals().find(
+      (proposal) =>
+        (proposal.internship_member_id === internId || proposal.intern_id === internId) &&
+        proposal.status === 'PENDING',
+    );
+  }
+
+  hasPendingExtendProposal(internId: string): boolean {
+    return this.proposals().some(
+      (proposal) =>
+        (proposal.internship_member_id === internId || proposal.intern_id === internId) &&
+        proposal.type === 'EXTEND' &&
+        proposal.status === 'PENDING',
+    );
+  }
+
+  isProposalDisabled(intern: MentorInternListItem): boolean {
+    return intern.status === 'COMPLETED' || intern.status === 'STOPPED';
+  }
+
+  getProposalDisabledTooltip(intern: MentorInternListItem): string {
+    if (intern.status === 'COMPLETED') return 'Thực tập sinh đã hoàn thành kỳ thực tập';
+    if (intern.status === 'STOPPED') return 'Thực tập sinh đã dừng thực tập';
+    return '';
+  }
+
+  openProposalModal(intern: MentorInternListItem): void {
+    this.selectedProposalIntern.set(intern);
+    this.proposalReason = '';
+    this.proposalEndDate = null;
+    if (this.hasPendingExtendProposal(intern.id)) {
+      this.proposalType = 'COMPLETE';
+    } else {
+      this.proposalType = 'EXTEND';
+      if (intern.end_date) {
+        const proposedDate = new Date(intern.end_date);
+        proposedDate.setDate(proposedDate.getDate() + 30);
+        this.proposalEndDate = proposedDate;
+      }
+    }
+    this.isProposalModalVisible = true;
+    this.cdr.markForCheck();
+  }
+
+  closeProposalModal(): void {
+    this.isProposalModalVisible = false;
+    this.selectedProposalIntern.set(null);
+  }
+
+  disabledProposalEndDate = (current: Date): boolean => {
+    const intern = this.selectedProposalIntern();
+    if (!intern || !current) return false;
+    const currentEndDate = intern.end_date ? new Date(intern.end_date) : new Date();
+    return current.getTime() <= currentEndDate.getTime();
+  };
+
+  isSubmitProposalDisabled(): boolean {
+    return !this.proposalReason.trim() || (this.proposalType === 'EXTEND' && !this.proposalEndDate);
+  }
+
+  submitProposal(): void {
+    const intern = this.selectedProposalIntern();
+    if (!intern || this.isSubmitProposalDisabled()) return;
+    if (this.proposalType === 'EXTEND' && this.hasPendingExtendProposal(intern.id)) {
+      this.message.error('Đã có đề xuất gia hạn đang chờ xử lý');
+      return;
+    }
+
+    const payload: InternshipProposalCreatePayload = {
+      member_id: intern.id,
+      type: this.proposalType,
+      reason: this.proposalReason.trim(),
+      requested_end_date:
+        this.proposalType === 'EXTEND' && this.proposalEndDate
+          ? this.formatDateISO(this.proposalEndDate)
+          : null,
+    };
+
+    this.proposalSubmitting.set(true);
+    this.mentorService.createProposal(payload).subscribe({
+      next: () => {
+        this.proposalSubmitting.set(false);
+        this.closeProposalModal();
+        this.message.success('Đã gửi đề xuất thành công');
+        this.loadProposals();
+        this.loadInterns();
+      },
+      error: (err) => {
+        this.proposalSubmitting.set(false);
+        this.message.error(err?.error?.detail || err?.message || 'Không thể gửi đề xuất');
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  openStatusHistoryDrawer(intern: MentorInternListItem): void {
+    this.statusHistoryDrawerTitle = `Lịch sử trạng thái: ${intern.intern_name}`;
+    this.isStatusHistoryDrawerVisible = true;
+    this.statusHistoryLoading.set(true);
+    this.statusHistoryItems.set([]);
+    this.mentorService.getInternStatusHistory(intern.id).subscribe({
+      next: (items) => {
+        this.statusHistoryItems.set(items);
+        this.statusHistoryLoading.set(false);
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.statusHistoryLoading.set(false);
+        this.message.error(err?.error?.detail || 'Không thể tải lịch sử trạng thái');
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  closeStatusHistoryDrawer(): void {
+    this.isStatusHistoryDrawerVisible = false;
+  }
+
+  openProposalHistoryModal(): void {
+    this.isProposalHistoryModalVisible = true;
+    this.loadProposals();
+  }
+
+  closeProposalHistoryModal(): void {
+    this.isProposalHistoryModalVisible = false;
+  }
+
   openDetail(memberId: string): void {
     this.isDetailDrawerOpen.set(true);
     this.detailLoading.set(true);
@@ -1368,6 +1908,49 @@ export class MentorInternManagementComponent implements OnInit {
 
   closeAuditHistoryModal(): void {
     this.isAuditModalVisible = false;
+  }
+
+  getProposalTypeColor(type: string): string {
+    if (type === 'EXTEND') return 'cyan';
+    if (type === 'COMPLETE') return 'green';
+    if (type === 'STOP' || type === 'TERMINATE') return 'red';
+    return 'blue';
+  }
+
+  getProposalTypeLabel(type: string): string {
+    if (type === 'EXTEND') return 'Gia hạn';
+    if (type === 'COMPLETE') return 'Hoàn thành';
+    if (type === 'STOP' || type === 'TERMINATE') return 'Dừng thực tập';
+    return type;
+  }
+
+  getReviewStatusColor(status: string): string {
+    if (status === 'APPROVED') return 'success';
+    if (status === 'REJECTED') return 'error';
+    return 'warning';
+  }
+
+  getReviewStatusLabel(status: string): string {
+    if (status === 'APPROVED') return 'Đã duyệt';
+    if (status === 'REJECTED') return 'Từ chối';
+    return 'Chờ duyệt';
+  }
+
+  getTimelineItemColor(item: InternshipStatusHistoryItem): string {
+    if (item.action === 'INITIAL') return 'gray';
+    if (item.proposal_status === 'APPROVED') return 'green';
+    if (item.proposal_status === 'REJECTED') return 'red';
+    return 'blue';
+  }
+
+  getHistoryActionColor(action: string): string {
+    if (action === 'INITIAL') return 'default';
+    return this.getProposalTypeColor(action);
+  }
+
+  getHistoryActionLabel(action: string): string {
+    if (action === 'INITIAL') return 'Bắt đầu';
+    return `Đề xuất ${this.getProposalTypeLabel(action).toLowerCase()}`;
   }
 
   getStatusTagColor(status: string): string {
@@ -1452,5 +2035,12 @@ export class MentorInternManagementComponent implements OnInit {
     } catch {
       return isoStr;
     }
+  }
+
+  private formatDateISO(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 }

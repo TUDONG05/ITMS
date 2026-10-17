@@ -236,3 +236,72 @@
   margin: 2px 0 0;
   font-size: 15px;
 }
+
+@media (max-width: 768px) {
+  .learning-card {
+    border-radius: 8px;
+  }
+
+  .toolbar,
+  .phase-head {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .filter-select,
+  .phase-progress {
+    width: 100%;
+  }
+
+  .summary {
+    ::ng-deep .ant-card-body {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 16px;
+    }
+  }
+
+  .row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .row > button {
+    min-height: 44px;
+  }
+
+  .questions {
+    padding-left: 18px;
+  }
+
+  input[nz-input],
+  textarea[nz-input],
+  nz-select {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 390px) {
+  .actions-col > * {
+    min-height: 40px;
+  }
+
+  .quiz-bar,
+  .result {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .result {
+    padding: 12px;
+  }
+
+  .result__icon {
+    font-size: 30px;
+  }
+
+  .questions {
+    padding-left: 16px;
+  }
+}

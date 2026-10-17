@@ -26,6 +26,7 @@
 
     <nz-table
       #criteriaTable
+      class="responsive-card-table"
       [nzData]="criteria()"
       [nzShowPagination]="false"
       nzSize="middle"
@@ -43,20 +44,20 @@
       <tbody>
         @for (criterion of criteriaTable.data; track criterion.id) {
           <tr>
-            <td>
+            <td data-label="Tiêu chí">
               <strong>{{ criterion.name }}</strong>
               @if (criterion.description) {
                 <span class="sub">{{ criterion.description }}</span>
               }
             </td>
-            <td>{{ criterion.max_score }}</td>
-            <td>{{ criterion.weight }}%</td>
-            <td>
+            <td data-label="Thang điểm tối đa">{{ criterion.max_score }}</td>
+            <td data-label="Trọng số">{{ criterion.weight }}%</td>
+            <td data-label="Trạng thái">
               <nz-tag [nzColor]="criterion.status === 'ACTIVE' ? 'success' : 'default'">
                 {{ criterion.status === 'ACTIVE' ? 'Đang áp dụng' : 'Ngừng áp dụng' }}
               </nz-tag>
             </td>
-            <td class="actions-col">
+            <td data-label="Thao tác" class="actions-col">
               <button nz-button nzSize="small" (click)="openEdit(criterion)">Sửa</button>
               <button nz-button nzSize="small" (click)="toggleStatus(criterion)">
                 {{ criterion.status === 'ACTIVE' ? 'Ngừng áp dụng' : 'Bật lại' }}
@@ -85,7 +86,7 @@
 <nz-modal
   [nzVisible]="isFormOpen()"
   [nzTitle]="editingId() ? 'Sửa tiêu chí' : 'Thêm tiêu chí'"
-  [nzWidth]="560"
+  [nzWidth]="'min(560px, calc(100vw - 16px))'"
   [nzMaskClosable]="false"
   [nzFooter]="formFooter"
   (nzOnCancel)="closeForm()"

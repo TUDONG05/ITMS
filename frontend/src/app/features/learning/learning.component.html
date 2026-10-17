@@ -41,6 +41,7 @@
         </div>
         <nz-table
           #documentTable
+          class="responsive-card-table"
           [nzData]="filteredContents()"
           [nzPageSize]="10"
           nzSize="middle"
@@ -58,7 +59,7 @@
           <tbody>
             @for (content of documentTable.data; track content.id) {
               <tr>
-                <td>
+                <td data-label="Nội dung">
                   <button type="button" class="link-btn" (click)="openContent(content.id)">
                     {{ content.title }}
                   </button>
@@ -66,16 +67,16 @@
                     <span class="sub">{{ content.description }}</span>
                   }
                 </td>
-                <td>{{ content.phase_name }}</td>
-                <td>
+                <td data-label="Giai đoạn">{{ content.phase_name }}</td>
+                <td data-label="Loại">
                   <nz-tag>{{ typeLabel(content.type) }}</nz-tag>
                 </td>
-                <td>
+                <td data-label="Trạng thái">
                   <nz-tag [nzColor]="statusColor(content.status)">
                     {{ statusLabel(content.status) }}
                   </nz-tag>
                 </td>
-                <td class="actions-col">
+                <td data-label="Tài liệu" class="actions-col">
                   @if (safeUrl(content.resource_url); as url) {
                     <a [href]="url" target="_blank" rel="noopener noreferrer">Mở tài liệu</a>
                   }
@@ -103,6 +104,7 @@
         </div>
         <nz-table
           #quizTable
+          class="responsive-card-table"
           [nzData]="allQuizzes()"
           [nzShowPagination]="false"
           nzSize="middle"
@@ -122,15 +124,15 @@
           <tbody>
             @for (quiz of quizTable.data; track quiz.id) {
               <tr>
-                <td>
+                <td data-label="Bài kiểm tra">
                   <strong>{{ quiz.title }}</strong>
                   <span class="sub">{{ quiz.question_count }} câu hỏi</span>
                 </td>
-                <td>{{ quiz.phase_name }}</td>
-                <td>{{ quiz.duration_minutes }} phút</td>
-                <td>{{ quiz.pass_score }}</td>
-                <td>{{ quiz.attempts_used }}/{{ quiz.max_attempts }}</td>
-                <td>
+                <td data-label="Giai đoạn">{{ quiz.phase_name }}</td>
+                <td data-label="Thời gian">{{ quiz.duration_minutes }} phút</td>
+                <td data-label="Điểm đạt">{{ quiz.pass_score }}</td>
+                <td data-label="Lượt làm">{{ quiz.attempts_used }}/{{ quiz.max_attempts }}</td>
+                <td data-label="Điểm cao nhất">
                   @if (quiz.best_score !== null) {
                     <nz-tag [nzColor]="quiz.passed ? 'success' : 'error'">
                       {{ quiz.best_score }}
@@ -139,7 +141,7 @@
                     <span class="muted">Chưa có</span>
                   }
                 </td>
-                <td class="actions-col">
+                <td data-label="Thao tác" class="actions-col">
                   @if (quiz.status === 'PUBLISHED') {
                     <button
                       nz-button
@@ -290,7 +292,7 @@
   [nzVisible]="isContentOpen()"
   [nzTitle]="selectedContent()?.title ?? 'Nội dung đào tạo'"
   nzPlacement="right"
-  [nzWidth]="560"
+  [nzWidth]="'min(560px, 100vw)'"
   (nzOnClose)="closeContent()"
 >
   <ng-container *nzDrawerContent>
@@ -335,7 +337,7 @@
 <nz-modal
   [nzVisible]="isQuizOpen()"
   [nzTitle]="attempt()?.quiz_title ?? 'Bài kiểm tra'"
-  [nzWidth]="780"
+  [nzWidth]="'min(780px, calc(100vw - 16px))'"
   [nzMaskClosable]="false"
   [nzFooter]="null"
   (nzOnCancel)="closeQuiz()"
@@ -465,7 +467,7 @@
 <nz-modal
   [nzVisible]="isResultsOpen()"
   [nzTitle]="quizResults()?.title ?? 'Kết quả bài kiểm tra'"
-  [nzWidth]="640"
+  [nzWidth]="'min(640px, calc(100vw - 16px))'"
   [nzFooter]="null"
   (nzOnCancel)="closeResults()"
 >
@@ -477,7 +479,12 @@
         Điểm đạt từ {{ data.pass_score }}, đã làm {{ data.attempts_used }}/{{ data.max_attempts }}
         lượt.
       </p>
-      <nz-table [nzData]="data.attempts" [nzShowPagination]="false" nzSize="small">
+      <nz-table
+        class="responsive-card-table responsive-card-table--compact"
+        [nzData]="data.attempts"
+        [nzShowPagination]="false"
+        nzSize="small"
+      >
         <thead>
           <tr>
             <th>Lượt</th>
@@ -490,17 +497,17 @@
         <tbody>
           @for (item of data.attempts; track item.attempt_id) {
             <tr>
-              <td>{{ item.attempt_no }}</td>
-              <td>{{ item.started_at | date: 'dd/MM/yyyy HH:mm' }}</td>
-              <td>
+              <td data-label="Lượt">{{ item.attempt_no }}</td>
+              <td data-label="Bắt đầu">{{ item.started_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+              <td data-label="Nộp bài">
                 @if (item.submitted_at) {
                   {{ item.submitted_at | date: 'dd/MM/yyyy HH:mm' }}
                 } @else {
                   <span class="muted">Đang làm dở</span>
                 }
               </td>
-              <td>{{ item.score ?? '-' }}</td>
-              <td>
+              <td data-label="Điểm">{{ item.score ?? '-' }}</td>
+              <td data-label="Kết quả">
                 @if (item.status === 'IN_PROGRESS') {
                   <nz-tag nzColor="processing">Đang làm</nz-tag>
                 } @else if (item.passed) {

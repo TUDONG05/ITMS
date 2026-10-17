@@ -73,3 +73,37 @@
     min-width: 150px;
   }
 }
+
+@media (max-width: 768px) {
+  .criteria-card {
+    border-radius: 8px;
+  }
+
+  .toolbar,
+  .field-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar button {
+    min-height: 44px;
+  }
+
+  .field-row .field {
+    min-width: 0;
+    width: 100%;
+  }
+
+  input[nz-input],
+  textarea[nz-input],
+  nz-input-number,
+  nz-select {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 390px) {
+  .actions-col > * {
+    min-height: 40px;
+  }
+}
