@@ -4,3 +4,4 @@ pydantic-settings>=2.8.0
 python-multipart>=0.0.20
 sqlalchemy>=2.0.38
 httpx>=0.28.1
+vercel-blob>=0.5.0,<1

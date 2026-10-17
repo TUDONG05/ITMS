@@ -1,6 +1,7 @@
 import io
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,6 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.api.v1 import profile as profile_api
 from app.core.security import hash_password
 from app.db.session import get_db
 from app.main import app
@@ -247,6 +249,70 @@ def test_upload_avatar_success(client: TestClient, seeded_users: dict[str, User]
     assert data["avatar_url"] is not None
     assert "/avatars/" in data["avatar_url"]
     assert data["avatar_url"].endswith(".png")
+
+
+def test_upload_avatar_uses_vercel_blob_when_configured(
+    client: TestClient,
+    seeded_users: dict[str, User],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    token = _login(client, "intern@itms.local", "Intern@12345")
+    headers = {"Authorization": f"Bearer {token}"}
+    uploaded: dict[str, object] = {}
+
+    async def fake_put_blob(pathname: str, body: bytes, **options: object):
+        uploaded.update(pathname=pathname, body=body, options=options)
+        return SimpleNamespace(url=f"https://itms.public.blob.vercel-storage.com/{pathname}")
+
+    monkeypatch.setenv("BLOB_READ_WRITE_TOKEN", "configured-for-test")
+    monkeypatch.setattr(profile_api, "put_blob", fake_put_blob, raising=False)
+
+    image_content = b"\x89PNG\r\n\x1a\n" + b"blob-avatar"
+    response = client.post(
+        "/api/v1/profile/avatar",
+        headers=headers,
+        files={"file": ("avatar.png", io.BytesIO(image_content), "image/png")},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert uploaded, "Vercel Blob uploader was not called"
+    assert data["avatar_url"] == (
+        f"https://itms.public.blob.vercel-storage.com/{uploaded['pathname']}"
+    )
+    assert str(uploaded["pathname"]).startswith("avatars/")
+    assert str(uploaded["pathname"]).endswith(".png")
+    assert uploaded["body"] == image_content
+    assert uploaded["options"] == {
+        "access": "public",
+        "content_type": "image/png",
+        "add_random_suffix": False,
+    }
+
+
+def test_upload_avatar_reports_blob_failure_without_updating_profile(
+    client: TestClient,
+    seeded_users: dict[str, User],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    token = _login(client, "intern@itms.local", "Intern@12345")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async def failing_put_blob(*args: object, **kwargs: object):
+        raise profile_api.BlobError("Blob service unavailable")
+
+    monkeypatch.setenv("BLOB_READ_WRITE_TOKEN", "configured-for-test")
+    monkeypatch.setattr(profile_api, "put_blob", failing_put_blob, raising=False)
+
+    response = client.post(
+        "/api/v1/profile/avatar",
+        headers=headers,
+        files={"file": ("avatar.png", io.BytesIO(b"valid-image"), "image/png")},
+    )
+
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "AVATAR_UPLOAD_FAILED"
+    assert seeded_users["intern"].avatar_url is None
 
 
 def test_upload_avatar_rejects_invalid_type(client: TestClient, seeded_users: dict[str, User]):
