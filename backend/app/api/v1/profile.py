@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+import os
 import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, UploadFile
 from sqlalchemy.orm import Session
+from vercel.blob import BlobError, put_blob
 
 from app.core.deps import get_current_user
 from app.core.errors import ApiError
@@ -17,6 +20,7 @@ from app.schemas.profile import InternProfileRead, MentorSummarySchema, UpdatePr
 from app.services import profile as profile_service
 
 router = APIRouter(prefix="/profile", tags=["profile"])
+logger = logging.getLogger(__name__)
 
 _ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 _MAX_BYTES = 2 * 1024 * 1024  # 2 MB
@@ -105,7 +109,8 @@ async def upload_avatar(
 
     * Định dạng cho phép: JPEG, PNG, WebP, GIF.
     * Kích thước tối đa: 2 MB.
-    * Lưu vào ``uploads/avatars/<uuid>.<ext>`` và cập nhật ``avatar_url`` của người dùng.
+    * Trên Vercel, lưu vào Blob; khi chạy local, lưu vào ``uploads/avatars``.
+    * Cập nhật ``avatar_url`` của người dùng bằng URL bền vững sau khi upload thành công.
     """
     # Validate MIME type
     content_type = file.content_type or ""
@@ -130,14 +135,35 @@ async def upload_avatar(
     }
     ext = ext_map[content_type]
 
-    # Lưu file với tên ngẫu nhiên
-    AVATAR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     filename = f"{uuid.uuid4().hex}{ext}"
-    dest = AVATAR_UPLOAD_DIR / filename
-    dest.write_bytes(content)
+    use_blob = bool(
+        os.getenv("VERCEL") or os.getenv("BLOB_READ_WRITE_TOKEN") or os.getenv("BLOB_STORE_ID")
+    )
+
+    if use_blob:
+        try:
+            blob = await put_blob(
+                f"avatars/{filename}",
+                content,
+                access="public",
+                content_type=content_type,
+                add_random_suffix=False,
+            )
+        except BlobError as exc:
+            logger.exception("Avatar upload to Vercel Blob failed.")
+            raise ApiError(
+                502,
+                "AVATAR_UPLOAD_FAILED",
+                "Không thể lưu ảnh đại diện. Vui lòng thử lại sau.",
+            ) from exc
+        avatar_url = blob.url
+    else:
+        AVATAR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        dest = AVATAR_UPLOAD_DIR / filename
+        dest.write_bytes(content)
+        avatar_url = f"/uploads/avatars/{filename}"
 
     # Cập nhật avatar_url trong DB
-    avatar_url = f"/uploads/avatars/{filename}"
     data = profile_service.update_profile(
         db,
         account.id,
