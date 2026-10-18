@@ -1,0 +1,14 @@
+.angular/
+.git/
+.pytest_cache/
+backend/.venv/
+backend/.pytest_cache/
+backend/.ruff_cache/
+docs/
+frontend/.angular/
+frontend/dist/
+frontend/node_modules/
+environment.local
+*.pdf
+*.xlsx
+login.html

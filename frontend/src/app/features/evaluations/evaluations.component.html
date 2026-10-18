@@ -1,0 +1,360 @@
+@if (isAdmin()) {
+  <div class="feature-page-header feature-page-header--standalone">
+    <h1 class="feature-page-title">Quản lý đánh giá</h1>
+  </div>
+  <nz-tabs nzSize="large">
+    <nz-tab nzTitle="Tiêu chí và trọng số">
+      <ng-template nz-tab>
+        <app-evaluation-criteria />
+      </ng-template>
+    </nz-tab>
+    <nz-tab nzTitle="Giám sát đánh giá">
+      <ng-template nz-tab>
+        <ng-container *ngTemplateOutlet="managerList"></ng-container>
+      </ng-template>
+    </nz-tab>
+  </nz-tabs>
+} @else if (isMentor()) {
+  <ng-container *ngTemplateOutlet="managerList"></ng-container>
+} @else if (isIntern()) {
+  @if (isLoading()) {
+    <div class="loading"><nz-spin nzSimple nzSize="large"></nz-spin></div>
+  } @else if (loadError()) {
+    <nz-card class="eval-card" [nzBordered]="false">
+      <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="loadError()"></nz-empty>
+      <div class="center">
+        <button nz-button nzType="primary" (click)="load()">Thử lại</button>
+      </div>
+    </nz-card>
+  } @else {
+    <div class="intro feature-page-header">
+      <h1 class="feature-page-title">Kết quả đánh giá</h1>
+      <p class="muted">Chỉ hiển thị các đánh giá mà Mentor đã công bố cho bạn.</p>
+    </div>
+    @for (evaluation of evaluations(); track evaluation.id) {
+      <nz-card class="eval-card" [nzBordered]="false">
+        <div class="eval-head">
+          <div>
+            <h3 class="eval-title">{{ typeLabel(evaluation.evaluation_type) }}</h3>
+            <span class="sub">
+              {{ evaluation.internship_name }}, Mentor {{ evaluation.mentor_name }}, công bố
+              {{ evaluation.published_at | date: 'dd/MM/yyyy' }}
+            </span>
+          </div>
+          <div class="eval-score">
+            <span class="eval-score__value">{{ evaluation.total_score }}</span>
+            <span class="eval-score__max">/ 10</span>
+          </div>
+        </div>
+        <nz-progress
+          [nzPercent]="scorePercent(evaluation)"
+          [nzShowInfo]="false"
+          [nzStrokeColor]="scorePercent(evaluation) >= 50 ? '#52c41a' : '#fa8c16'"
+        ></nz-progress>
+        <ng-container
+          *ngTemplateOutlet="scoresTable; context: { $implicit: evaluation }"
+        ></ng-container>
+        @if (evaluation.comment) {
+          <div class="comment">
+            <span class="comment__label">Nhận xét của Mentor</span>
+            <p>{{ evaluation.comment }}</p>
+          </div>
+        }
+      </nz-card>
+    } @empty {
+      <nz-card class="eval-card" [nzBordered]="false">
+        <nz-empty
+          nzNotFoundImage="simple"
+          nzNotFoundContent="Chưa có đánh giá nào được công bố cho bạn"
+        ></nz-empty>
+      </nz-card>
+    }
+  }
+}
+
+<!-- Bảng điểm theo tiêu chí, dùng cho thẻ của Intern và ngăn chi tiết -->
+<ng-template #scoresTable let-evaluation>
+  <nz-table
+    class="responsive-card-table responsive-card-table--compact"
+    [nzData]="evaluation.scores"
+    [nzShowPagination]="false"
+    nzSize="small"
+    [nzNoResult]="noScores"
+  >
+    <thead>
+      <tr>
+        <th>Tiêu chí</th>
+        <th>Trọng số</th>
+        <th>Điểm</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (item of evaluation.scores; track item.criterion_id) {
+        <tr>
+          <td data-label="Tiêu chí">{{ item.name }}</td>
+          <td data-label="Trọng số">{{ item.weight }}%</td>
+          <td data-label="Điểm">
+            <strong>{{ item.score }}</strong>
+            <span class="muted"> / {{ item.max_score }}</span>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </nz-table>
+  <ng-template #noScores>
+    <span class="muted">Chưa có điểm theo tiêu chí</span>
+  </ng-template>
+</ng-template>
+
+<!-- Danh sách đánh giá cho Mentor (lập/sửa/công bố) và Admin (chỉ đọc để giám sát) -->
+<ng-template #managerList>
+  @if (isMentor()) {
+    <div class="feature-page-header feature-page-header--standalone">
+      <h1 class="feature-page-title">Đánh giá Intern</h1>
+    </div>
+  }
+  <nz-card class="eval-card" [nzBordered]="false">
+    <div class="toolbar" [class.toolbar--actions-only]="isMentor()">
+      @if (isAdmin()) {
+        <h2 class="title">Giám sát đánh giá</h2>
+      }
+      <div class="toolbar__actions">
+        <nz-select
+          class="filter-select"
+          nzAllowClear
+          nzPlaceHolder="Lọc theo trạng thái"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="setStatusFilter($event)"
+        >
+          <nz-option nzValue="DRAFT" nzLabel="Bản nháp"></nz-option>
+          <nz-option nzValue="PUBLISHED" nzLabel="Đã công bố"></nz-option>
+        </nz-select>
+        @if (isMentor()) {
+          <button nz-button nzType="primary" (click)="openCreate()">Lập đánh giá</button>
+        }
+      </div>
+    </div>
+
+    @if (isLoading()) {
+      <div class="loading"><nz-spin nzSimple nzSize="large"></nz-spin></div>
+    } @else if (loadError()) {
+      <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="loadError()"></nz-empty>
+      <div class="center">
+        <button nz-button nzType="primary" (click)="load()">Thử lại</button>
+      </div>
+    } @else {
+      <nz-table
+        #evaluationTable
+        class="responsive-card-table"
+        [nzData]="evaluations()"
+        [nzPageSize]="10"
+        nzSize="middle"
+        [nzNoResult]="noEvaluations"
+      >
+        <thead>
+          <tr>
+            <th>Intern</th>
+            @if (isAdmin()) {
+              <th>Mentor</th>
+            }
+            <th>Loại</th>
+            <th>Tổng điểm</th>
+            <th>Trạng thái</th>
+            <th>Cập nhật</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (evaluation of evaluationTable.data; track evaluation.id) {
+            <tr>
+              <td data-label="Intern">
+                <strong>{{ evaluation.intern_name }}</strong>
+                <span class="sub">{{ evaluation.internship_name }}</span>
+              </td>
+              @if (isAdmin()) {
+                <td data-label="Mentor">{{ evaluation.mentor_name }}</td>
+              }
+              <td data-label="Loại">{{ typeLabel(evaluation.evaluation_type) }}</td>
+              <td data-label="Tổng điểm">
+                @if (evaluation.total_score !== null) {
+                  <strong>{{ evaluation.total_score }}</strong>
+                  <span class="muted"> / 10</span>
+                } @else {
+                  <span class="muted">Chưa chấm đủ</span>
+                }
+              </td>
+              <td data-label="Trạng thái">
+                <nz-tag [nzColor]="statusColor(evaluation.status)">
+                  {{ statusLabel(evaluation.status) }}
+                </nz-tag>
+              </td>
+              <td data-label="Cập nhật">{{ evaluation.updated_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+              <td data-label="Thao tác" class="actions-col">
+                <button nz-button nzSize="small" (click)="openDetail(evaluation)">Xem</button>
+                @if (isMentor() && evaluation.status === 'DRAFT') {
+                  <button nz-button nzSize="small" (click)="openEdit(evaluation)">Sửa</button>
+                  <button
+                    nz-button
+                    nzType="primary"
+                    nzSize="small"
+                    nz-popconfirm
+                    nzPopconfirmTitle="Công bố cho Intern? Sau khi công bố bạn không thể sửa."
+                    (nzOnConfirm)="publishRow(evaluation)"
+                  >
+                    Công bố
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </nz-table>
+      <ng-template #noEvaluations>
+        <nz-empty nzNotFoundImage="simple" nzNotFoundContent="Chưa có đánh giá nào"></nz-empty>
+      </ng-template>
+    }
+  </nz-card>
+</ng-template>
+
+<!-- Chi tiết đánh giá -->
+<nz-drawer
+  [nzVisible]="isDetailOpen()"
+  [nzTitle]="detail() ? typeLabel(detail()!.evaluation_type) : 'Chi tiết đánh giá'"
+  nzPlacement="right"
+  [nzWidth]="'min(560px, 100vw)'"
+  (nzOnClose)="closeDetail()"
+>
+  <ng-container *nzDrawerContent>
+    @if (detail(); as item) {
+      <div class="detail-meta">
+        <strong>{{ item.intern_name }}</strong>
+        <nz-tag [nzColor]="statusColor(item.status)">{{ statusLabel(item.status) }}</nz-tag>
+      </div>
+      <p class="muted">{{ item.internship_name }}, Mentor {{ item.mentor_name }}</p>
+      <p class="detail-total">
+        Tổng điểm:
+        @if (item.total_score !== null) {
+          <strong>{{ item.total_score }}</strong> / 10
+        } @else {
+          <span class="muted">chưa chấm đủ tiêu chí</span>
+        }
+      </p>
+      <ng-container *ngTemplateOutlet="scoresTable; context: { $implicit: item }"></ng-container>
+      @if (item.comment) {
+        <div class="comment">
+          <span class="comment__label">Nhận xét</span>
+          <p>{{ item.comment }}</p>
+        </div>
+      }
+      @if (item.published_at) {
+        <p class="muted">Công bố lúc {{ item.published_at | date: 'dd/MM/yyyy HH:mm' }}</p>
+      }
+    }
+  </ng-container>
+</nz-drawer>
+
+<!-- Trình soạn đánh giá (Mentor) -->
+<nz-modal
+  [nzVisible]="isEditorOpen()"
+  [nzTitle]="editingId() ? 'Sửa đánh giá nháp' : 'Lập đánh giá mới'"
+  [nzWidth]="'min(720px, calc(100vw - 16px))'"
+  [nzMaskClosable]="false"
+  [nzFooter]="editorFooter"
+  (nzOnCancel)="closeEditor()"
+>
+  <ng-container *nzModalContent>
+    @if (isLoadingLookups()) {
+      <div class="loading"><nz-spin nzSimple></nz-spin></div>
+    } @else {
+      <div class="field-row">
+        <div class="field field--grow">
+          <span class="field-label">Intern</span>
+          <nz-select
+            nzShowSearch
+            nzPlaceHolder="Chọn Intern bạn phụ trách"
+            [nzDisabled]="!!editingId()"
+            [ngModel]="memberId()"
+            (ngModelChange)="memberId.set($event)"
+          >
+            @for (option of internOptions(); track option.value) {
+              <nz-option [nzValue]="option.value" [nzLabel]="option.label"></nz-option>
+            }
+          </nz-select>
+        </div>
+        <div class="field">
+          <span class="field-label">Loại đánh giá</span>
+          <nz-select [ngModel]="evaluationType()" (ngModelChange)="evaluationType.set($event)">
+            @for (option of typeOptions; track option.value) {
+              <nz-option [nzValue]="option.value" [nzLabel]="option.label"></nz-option>
+            }
+          </nz-select>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Điểm theo tiêu chí</span>
+        @for (criterion of criteria(); track criterion.id) {
+          <div class="score-row">
+            <div class="score-row__name">
+              <strong>{{ criterion.name }}</strong>
+              <span class="sub">
+                Thang {{ criterion.max_score }}, trọng số {{ criterion.weight }}%
+              </span>
+            </div>
+            <nz-input-number
+              [ngModel]="scoreOf(criterion.id)"
+              (ngModelChange)="setScore(criterion.id, $event)"
+              [nzMin]="0"
+              [nzMax]="criterion.max_score"
+              [nzStep]="0.5"
+              [nzPrecision]="2"
+            ></nz-input-number>
+          </div>
+        } @empty {
+          <nz-alert
+            nzType="warning"
+            nzShowIcon
+            nzMessage="Chưa có tiêu chí nào đang áp dụng. Hãy nhờ Admin thiết lập tiêu chí."
+          ></nz-alert>
+        }
+        <p class="preview">
+          @if (previewScore() !== null) {
+            Tổng điểm tạm tính: <strong>{{ previewScore() }}</strong> / 10
+          } @else {
+            <span class="muted">Chấm đủ mọi tiêu chí để xem tổng điểm tạm tính.</span>
+          }
+        </p>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Nhận xét</span>
+        <textarea
+          nz-input
+          rows="4"
+          maxlength="5000"
+          placeholder="Nhận xét của Mentor"
+          [ngModel]="comment()"
+          (ngModelChange)="comment.set($event)"
+        ></textarea>
+      </div>
+    }
+    @if (editorError()) {
+      <nz-alert nzType="error" nzShowIcon [nzMessage]="editorError()"></nz-alert>
+    }
+  </ng-container>
+</nz-modal>
+<ng-template #editorFooter>
+  <button nz-button (click)="closeEditor()">Đóng</button>
+  <button nz-button [nzLoading]="isSaving()" (click)="saveDraft()">Lưu nháp</button>
+  <button
+    nz-button
+    nzType="primary"
+    [nzLoading]="isSaving()"
+    nz-popconfirm
+    nzPopconfirmTitle="Công bố cho Intern? Sau khi công bố bạn không thể sửa."
+    nzPopconfirmPlacement="top"
+    (nzOnConfirm)="saveAndPublish()"
+  >
+    Lưu và công bố
+  </button>
+</ng-template>

@@ -1,0 +1,159 @@
+<nz-card class="criteria-card" [nzBordered]="false">
+  <div class="toolbar">
+    <div>
+      <h2 class="title">Tiêu chí đánh giá</h2>
+    </div>
+    <button nz-button nzType="primary" (click)="openCreate()">Thêm tiêu chí</button>
+  </div>
+
+  @if (isLoading()) {
+    <div class="loading"><nz-spin nzSimple nzSize="large"></nz-spin></div>
+  } @else if (loadError()) {
+    <nz-empty nzNotFoundImage="simple" [nzNotFoundContent]="loadError()"></nz-empty>
+    <div class="center">
+      <button nz-button nzType="primary" (click)="load()">Thử lại</button>
+    </div>
+  } @else {
+    @if (totalActiveWeight() !== 100) {
+      <nz-alert
+        class="weight-alert"
+        nzType="warning"
+        nzShowIcon
+        nzMessage="Tổng trọng số các tiêu chí đang áp dụng là {{ totalActiveWeight() }}%"
+        nzDescription="Hệ thống vẫn tính điểm theo tỷ lệ trọng số, nhưng nên để tổng bằng 100% cho dễ đọc."
+      ></nz-alert>
+    }
+
+    <nz-table
+      #criteriaTable
+      class="responsive-card-table"
+      [nzData]="criteria()"
+      [nzShowPagination]="false"
+      nzSize="middle"
+      [nzNoResult]="noCriteria"
+    >
+      <thead>
+        <tr>
+          <th>Tiêu chí</th>
+          <th>Thang điểm tối đa</th>
+          <th>Trọng số</th>
+          <th>Trạng thái</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (criterion of criteriaTable.data; track criterion.id) {
+          <tr>
+            <td data-label="Tiêu chí">
+              <strong>{{ criterion.name }}</strong>
+              @if (criterion.description) {
+                <span class="sub">{{ criterion.description }}</span>
+              }
+            </td>
+            <td data-label="Thang điểm tối đa">{{ criterion.max_score }}</td>
+            <td data-label="Trọng số">{{ criterion.weight }}%</td>
+            <td data-label="Trạng thái">
+              <nz-tag [nzColor]="criterion.status === 'ACTIVE' ? 'success' : 'default'">
+                {{ criterion.status === 'ACTIVE' ? 'Đang áp dụng' : 'Ngừng áp dụng' }}
+              </nz-tag>
+            </td>
+            <td data-label="Thao tác" class="actions-col">
+              <button nz-button nzSize="small" (click)="openEdit(criterion)">Sửa</button>
+              <button nz-button nzSize="small" (click)="toggleStatus(criterion)">
+                {{ criterion.status === 'ACTIVE' ? 'Ngừng áp dụng' : 'Bật lại' }}
+              </button>
+              <button
+                nz-button
+                nzSize="small"
+                nzDanger
+                nz-popconfirm
+                nzPopconfirmTitle="Xóa tiêu chí này? Chỉ xóa được khi chưa dùng trong đánh giá nào."
+                (nzOnConfirm)="remove(criterion)"
+              >
+                Xóa
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </nz-table>
+    <ng-template #noCriteria>
+      <nz-empty nzNotFoundImage="simple" nzNotFoundContent="Chưa có tiêu chí nào"></nz-empty>
+    </ng-template>
+  }
+</nz-card>
+
+<nz-modal
+  [nzVisible]="isFormOpen()"
+  [nzTitle]="editingId() ? 'Sửa tiêu chí' : 'Thêm tiêu chí'"
+  [nzWidth]="'min(560px, calc(100vw - 16px))'"
+  [nzMaskClosable]="false"
+  [nzFooter]="formFooter"
+  (nzOnCancel)="closeForm()"
+>
+  <ng-container *nzModalContent>
+    <div class="field">
+      <span class="field-label">Tên tiêu chí</span>
+      <input
+        nz-input
+        maxlength="200"
+        placeholder="Ví dụ: Chuyên môn"
+        [ngModel]="form().name"
+        (ngModelChange)="patchForm({ name: $event })"
+      />
+    </div>
+    <div class="field">
+      <span class="field-label">Mô tả</span>
+      <textarea
+        nz-input
+        rows="3"
+        maxlength="2000"
+        placeholder="Tiêu chí này đo điều gì"
+        [ngModel]="form().description"
+        (ngModelChange)="patchForm({ description: $event })"
+      ></textarea>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <span class="field-label">Thang điểm tối đa</span>
+        <nz-input-number
+          [ngModel]="form().max_score"
+          (ngModelChange)="patchForm({ max_score: $event })"
+          [nzMin]="0.5"
+          [nzMax]="100"
+          [nzStep]="0.5"
+          [nzPrecision]="2"
+        ></nz-input-number>
+      </div>
+      <div class="field">
+        <span class="field-label">Trọng số (%)</span>
+        <nz-input-number
+          [ngModel]="form().weight"
+          (ngModelChange)="patchForm({ weight: $event })"
+          [nzMin]="0"
+          [nzMax]="100"
+          [nzStep]="5"
+          [nzPrecision]="2"
+        ></nz-input-number>
+      </div>
+      <div class="field">
+        <span class="field-label">Trạng thái</span>
+        <nz-select [ngModel]="form().status" (ngModelChange)="patchForm({ status: $event })">
+          <nz-option nzValue="ACTIVE" nzLabel="Đang áp dụng"></nz-option>
+          <nz-option nzValue="INACTIVE" nzLabel="Ngừng áp dụng"></nz-option>
+        </nz-select>
+      </div>
+    </div>
+    <p class="muted">
+      Đổi thang điểm hoặc trọng số không làm thay đổi các đánh giá đã công bố, vì mỗi đánh giá lưu
+      lại thông tin tiêu chí tại thời điểm chấm.
+    </p>
+    @if (formError()) {
+      <nz-alert nzType="error" nzShowIcon [nzMessage]="formError()"></nz-alert>
+    }
+  </ng-container>
+</nz-modal>
+<ng-template #formFooter>
+  <button nz-button (click)="closeForm()">Hủy</button>
+  <button nz-button nzType="primary" [nzLoading]="isSaving()" (click)="save()">Lưu</button>
+</ng-template>

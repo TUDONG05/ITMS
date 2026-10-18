@@ -1,3 +1,26 @@
 # Copy this file to environment.local and load it in the shell before starting Backend.
 ITMS_ENVIRONMENT=development
 ITMS_CORS_ORIGINS=http://localhost:4200
+ITMS_DATABASE_URL=postgresql+psycopg://postgres:your_password_here@localhost:5432/itms
+ITMS_DB_ECHO=false
+
+ITMS_JWT_SECRET=replace-with-a-long-random-development-secret
+ITMS_JWT_ISSUER=itms-backend
+ITMS_JWT_AUDIENCE=itms-web-client
+ITMS_ACCESS_TOKEN_TTL_SECONDS=900
+ITMS_SESSION_REFRESH_TTL_SECONDS=43200
+ITMS_REMEMBERED_REFRESH_TTL_SECONDS=2592000
+ITMS_REFRESH_COOKIE_NAME=itms_refresh_token
+
+# Database Assistant: OpenAI-compatible endpoint (Vercel AI Gateway by default).
+ITMS_AI_BASE_URL=https://ai-gateway.vercel.sh/v1
+ITMS_AI_MODEL=provider/model-id
+ITMS_AI_API_KEY=replace-with-your-ai-gateway-key
+ITMS_AI_TIMEOUT_SECONDS=45
+
+# Gmail SMTP: create an App Password in your Google Account; never use your normal password.
+ITMS_SMTP_HOST=smtp.gmail.com
+ITMS_SMTP_PORT=465
+ITMS_SMTP_USERNAME=your_gmail@gmail.com
+ITMS_SMTP_PASSWORD=your_16_character_app_password
+ITMS_SMTP_FROM_EMAIL=your_gmail@gmail.com

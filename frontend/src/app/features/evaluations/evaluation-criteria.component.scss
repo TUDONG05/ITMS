@@ -1,0 +1,109 @@
+:host {
+  display: block;
+}
+
+.criteria-card {
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.sub {
+  display: block;
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.weight-alert {
+  margin-bottom: 16px;
+}
+
+.actions-col {
+  white-space: nowrap;
+
+  > * + * {
+    margin-left: 8px;
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.field-label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.field-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  .field {
+    flex: 1;
+    min-width: 150px;
+  }
+}
+
+@media (max-width: 768px) {
+  .criteria-card {
+    border-radius: 8px;
+  }
+
+  .toolbar,
+  .field-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar button {
+    min-height: 44px;
+  }
+
+  .field-row .field {
+    min-width: 0;
+    width: 100%;
+  }
+
+  input[nz-input],
+  textarea[nz-input],
+  nz-input-number,
+  nz-select {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 390px) {
+  .actions-col > * {
+    min-height: 40px;
+  }
+}
