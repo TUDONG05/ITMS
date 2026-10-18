@@ -410,6 +410,22 @@ const dashboards: Record<Role, Dashboard> = {
             overflow-wrap: break-word !important;
           }
         }
+
+        @media (max-width: 360px) {
+          nz-sider.sidebar,
+          .sidebar {
+            width: 56px !important;
+            min-width: 56px !important;
+            max-width: 56px !important;
+            padding: 8px 4px !important;
+          }
+          .dashboard-main,
+          nz-layout.dashboard-main {
+            margin-left: 56px !important;
+            width: calc(100% - 56px) !important;
+            max-width: calc(100% - 56px) !important;
+          }
+        }
       }
     `,
   ],
@@ -651,7 +667,11 @@ const dashboards: Record<Role, Dashboard> = {
                         nz-button
                         nzType="link"
                         (click)="
-                          dashboard().roleLabel === 'Mentor' ? choose('interns') : choose('tasks')
+                          dashboard().roleLabel === 'Mentor'
+                            ? choose('interns')
+                            : dashboard().roleLabel === 'Quản trị viên'
+                              ? choose('internships')
+                              : choose('tasks')
                         "
                       >
                         Xem tất cả

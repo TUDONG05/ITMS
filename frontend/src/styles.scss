@@ -8,6 +8,8 @@
 html,
 body {
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   font-family: var(--itms-font-family);
 }
 
@@ -33,6 +35,14 @@ body [class*=' ant-'] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
+
+  @media (max-width: 360px) {
+    grid-template-columns: 1fr;
+
+    .otp-send-button {
+      width: 100%;
+    }
+  }
 }
 
 .otp-send-button {
@@ -396,6 +406,15 @@ body [class*=' ant-'] {
 
   .login-card {
     padding: 32px 24px;
+  }
+
+  .auth-page {
+    padding: 20px 12px;
+  }
+
+  .auth-card {
+    padding: 28px 18px;
+    border-radius: 16px;
   }
 
   .form-options {
@@ -940,6 +959,12 @@ nz-layout.dashboard-main {
 .table-row {
   padding: 10px 8px;
   border-bottom: 1px solid #f0f2f6;
+
+  > span:first-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
 }
 .table-row b,
 .table-row small {
@@ -1320,6 +1345,20 @@ nz-layout.dashboard-main {
   .dashboard-filter-bar nz-select {
     width: 100% !important;
   }
+  .feature-page-header--standalone {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 576px) {
+  .feature-page-header--standalone {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .feature-page-title {
+    font-size: 19px !important;
+  }
 }
 
 @media (max-width: 390px) {
@@ -1336,6 +1375,30 @@ nz-layout.dashboard-main {
   .panel,
   .metric-card {
     border-radius: 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  .sidebar,
+  nz-sider.sidebar {
+    width: 56px !important;
+    min-width: 56px !important;
+    max-width: 56px !important;
+    padding: 8px 4px !important;
+  }
+  .dashboard-main,
+  nz-layout.dashboard-main {
+    margin-left: 56px !important;
+    width: calc(100% - 56px) !important;
+    max-width: calc(100% - 56px) !important;
+  }
+  .topbar__brand {
+    width: 56px !important;
+    flex-basis: 56px !important;
+  }
+  .topbar__brand img {
+    width: 36px !important;
+    height: 36px !important;
   }
 }
 
@@ -1470,6 +1533,18 @@ nz-layout.dashboard-main {
   .ant-modal {
     max-width: calc(100vw - 16px) !important;
     margin: 8px auto !important;
+    top: 8px !important;
+  }
+  .ant-modal-content {
+    max-height: calc(100dvh - 16px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  .ant-modal-body {
+    overflow-y: auto !important;
+    max-height: calc(100dvh - 130px) !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 }
 .ant-modal-responsive-helper {
