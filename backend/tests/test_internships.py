@@ -110,9 +110,7 @@ def test_admin_create_internship(client: TestClient, test_data: dict[str, User])
     assert "id" in data
 
 
-def test_internship_stores_roadmap_relation(
-    client: TestClient, test_data: dict[str, User]
-) -> None:
+def test_internship_stores_roadmap_relation(client: TestClient, test_data: dict[str, User]) -> None:
     admin = test_data["admin"]
     roadmap_resp = client.post(
         "/api/v1/training/roadmaps",
@@ -137,9 +135,7 @@ def test_internship_stores_roadmap_relation(
     assert create_resp.json()["roadmap_id"] == roadmap_id
 
 
-def test_member_inherits_internship_roadmap(
-    client: TestClient, test_data: dict[str, User]
-) -> None:
+def test_member_inherits_internship_roadmap(client: TestClient, test_data: dict[str, User]) -> None:
     admin = test_data["admin"]
     intern = test_data["intern"]
     roadmap_resp = client.post(
