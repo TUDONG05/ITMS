@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole
 from app.models.internship import Internship, InternshipMember, InternshipRequest
+from app.models.roadmap import Roadmap
 from app.models.user import User
 from app.schemas.internship import (
     InternshipCreate,
@@ -21,6 +22,23 @@ from app.schemas.internship import (
 
 
 class InternshipService:
+    @staticmethod
+    def _validate_roadmap(db: Session, roadmap_id: uuid.UUID | None) -> uuid.UUID | None:
+        if roadmap_id is None:
+            return None
+        roadmap = db.get(Roadmap, roadmap_id)
+        if roadmap is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Roadmap not found",
+            )
+        if roadmap.status != "ACTIVE":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only ACTIVE roadmaps can be assigned to an internship",
+            )
+        return roadmap.id
+
     @staticmethod
     def create_internship(
         db: Session,
@@ -40,12 +58,14 @@ class InternshipService:
                 detail=f"Internship with name '{data.name}' already exists",
             )
 
+        roadmap_id = InternshipService._validate_roadmap(db, data.roadmap_id)
         internship = Internship(
             name=data.name,
             description=data.description,
             start_date=data.start_date,
             end_date=data.end_date,
             status=data.status,
+            roadmap_id=roadmap_id,
             created_by=creator_id,
         )
         db.add(internship)
@@ -121,6 +141,12 @@ class InternshipService:
             internship.end_date = data.end_date
         if data.status is not None:
             internship.status = data.status
+        update_data = data.model_dump(exclude_unset=True)
+        if "roadmap_id" in update_data:
+            roadmap_id = InternshipService._validate_roadmap(db, data.roadmap_id)
+            internship.roadmap_id = roadmap_id
+            for member in internship.members:
+                member.roadmap_id = roadmap_id
 
         db.commit()
         db.refresh(internship)
@@ -132,7 +158,7 @@ class InternshipService:
         internship_id: uuid.UUID,
         data: InternshipMemberCreate,
     ) -> InternshipMember:
-        InternshipService.get_internship_by_id(db, internship_id)
+        internship = InternshipService.get_internship_by_id(db, internship_id)
 
         # Validate intern exists and has role INTERN
         intern = db.get(User, data.intern_id)
@@ -182,11 +208,14 @@ class InternshipService:
                 detail="end_date must not be before start_date",
             )
 
+        roadmap_id = InternshipService._validate_roadmap(
+            db, data.roadmap_id or internship.roadmap_id
+        )
         member = InternshipMember(
             internship_id=internship_id,
             intern_id=data.intern_id,
             mentor_id=data.mentor_id,
-            roadmap_id=data.roadmap_id,
+            roadmap_id=roadmap_id,
             start_date=data.start_date,
             end_date=data.end_date,
             status=data.status,

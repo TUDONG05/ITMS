@@ -105,6 +105,7 @@ def get_internship(
         start_date=internship.start_date,
         end_date=internship.end_date,
         status=internship.status,
+        roadmap_id=internship.roadmap_id,
         created_by=internship.created_by,
         created_at=internship.created_at,
         updated_at=internship.updated_at,

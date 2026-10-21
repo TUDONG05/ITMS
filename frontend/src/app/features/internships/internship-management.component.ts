@@ -35,6 +35,7 @@ import {
   UpdateMemberPayload,
   UserSummary,
 } from '../../core/api/internship.service';
+import { Roadmap, TrainingService } from '../../core/api/training.service';
 
 @Component({
   selector: 'app-internship-management',
@@ -115,6 +116,7 @@ import {
           <thead>
             <tr>
               <th>Tên đợt thực tập</th>
+              <th>Lộ trình đào tạo</th>
               <th>Thời gian bắt đầu</th>
               <th>Thời gian kết thúc</th>
               <th>Trạng thái</th>
@@ -129,6 +131,13 @@ import {
                   <span class="cell-value item-name"
                     ><strong>{{ item.name }}</strong></span
                   >
+                </td>
+                <td data-label="Lộ trình">
+                  @if (item.roadmap_id) {
+                    <nz-tag nzColor="blue">{{ roadmapName(item.roadmap_id) }}</nz-tag>
+                  } @else {
+                    <span class="unassigned-text">Chưa giao</span>
+                  }
                 </td>
                 <td data-label="Bắt đầu">
                   <span class="cell-value">{{ item.start_date }}</span>
@@ -239,6 +248,7 @@ import {
               <tr>
                 <th>Thực tập sinh (Intern)</th>
                 <th>Email</th>
+                <th>Lộ trình đào tạo</th>
                 <th>Mentor phụ trách</th>
                 <th>Thời gian thực tập</th>
                 <th>Trạng thái</th>
@@ -255,6 +265,13 @@ import {
                   </td>
                   <td data-label="Email">
                     <span class="cell-value email-cell">{{ member.intern?.email || '—' }}</span>
+                  </td>
+                  <td data-label="Lộ trình">
+                    @if (member.roadmap_id) {
+                      <nz-tag nzColor="blue">{{ roadmapName(member.roadmap_id) }}</nz-tag>
+                    } @else {
+                      <span class="unassigned-text">Chưa giao</span>
+                    }
                   </td>
                   <td data-label="Mentor">
                     <div class="cell-value">
@@ -298,7 +315,7 @@ import {
               }
               @if (filteredMembers().length === 0 && !isMembersLoading()) {
                 <tr class="empty-row">
-                  <td colspan="6" class="empty-members">
+                  <td colspan="7" class="empty-members">
                     <p>
                       {{
                         memberSearchQuery()
@@ -362,6 +379,26 @@ import {
                   <nz-option nzValue="ONGOING" nzLabel="Đang diễn ra (ONGOING)"></nz-option>
                   <nz-option nzValue="COMPLETED" nzLabel="Đã hoàn thành (COMPLETED)"></nz-option>
                   <nz-option nzValue="CANCELLED" nzLabel="Đã hủy (CANCELLED)"></nz-option>
+                </nz-select>
+              </nz-form-control>
+            </nz-form-item>
+
+            <nz-form-item>
+              <nz-form-label>Lộ trình đào tạo</nz-form-label>
+              <nz-form-control>
+                <nz-select
+                  formControlName="roadmap_id"
+                  nzPlaceHolder="Chọn lộ trình đang hoạt động"
+                  nzAllowClear
+                  nzShowSearch
+                >
+                  @for (roadmap of availableRoadmaps(); track roadmap.id) {
+                    <nz-option
+                      [nzValue]="roadmap.id"
+                      [nzLabel]="roadmap.name + ' (' + roadmap.status + ')'"
+                      [nzDisabled]="roadmap.status !== 'ACTIVE'"
+                    ></nz-option>
+                  }
                 </nz-select>
               </nz-form-control>
             </nz-form-item>
@@ -1261,6 +1298,7 @@ import {
 })
 export class InternshipManagementComponent implements OnInit {
   private readonly internshipService = inject(InternshipService);
+  private readonly trainingService = inject(TrainingService);
   private readonly fb = inject(FormBuilder);
   private readonly message = inject(NzMessageService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -1278,6 +1316,7 @@ export class InternshipManagementComponent implements OnInit {
 
   protected readonly availableInterns = signal<UserSummary[]>([]);
   protected readonly availableMentors = signal<UserSummary[]>([]);
+  protected readonly availableRoadmaps = signal<Roadmap[]>([]);
 
   private searchDebounceTimer?: ReturnType<typeof setTimeout>;
 
@@ -1324,6 +1363,7 @@ export class InternshipManagementComponent implements OnInit {
     start_date: ['', [Validators.required]],
     end_date: ['', [Validators.required]],
     status: ['DRAFT' as InternshipStatus, [Validators.required]],
+    roadmap_id: [null as string | null],
     description: [''],
   });
 
@@ -1345,6 +1385,14 @@ export class InternshipManagementComponent implements OnInit {
   ngOnInit(): void {
     this.loadInternships();
     this.loadUsers();
+    this.loadRoadmaps();
+  }
+
+  loadRoadmaps(): void {
+    this.trainingService.getRoadmaps().subscribe({
+      next: (roadmaps) => this.availableRoadmaps.set(roadmaps),
+      error: (err) => console.error('Không thể tải danh sách lộ trình:', err),
+    });
   }
 
   loadInternships(): void {
@@ -1431,6 +1479,7 @@ export class InternshipManagementComponent implements OnInit {
       start_date: new Date().toISOString().substring(0, 10),
       end_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
       status: 'DRAFT',
+      roadmap_id: null,
       description: '',
     });
     this.isInternshipModalVisible = true;
@@ -1443,6 +1492,7 @@ export class InternshipManagementComponent implements OnInit {
       start_date: item.start_date,
       end_date: item.end_date,
       status: item.status,
+      roadmap_id: item.roadmap_id,
       description: item.description || '',
     });
     this.isInternshipModalVisible = true;
@@ -1473,6 +1523,7 @@ export class InternshipManagementComponent implements OnInit {
         start_date: formVal.start_date ?? undefined,
         end_date: formVal.end_date ?? undefined,
         status: formVal.status ?? undefined,
+        roadmap_id: formVal.roadmap_id || null,
         description: formVal.description,
       };
       this.internshipService.updateInternship(editing.id, payload).subscribe({
@@ -1493,6 +1544,7 @@ export class InternshipManagementComponent implements OnInit {
         start_date: formVal.start_date!,
         end_date: formVal.end_date!,
         status: formVal.status ?? 'DRAFT',
+        roadmap_id: formVal.roadmap_id || null,
         description: formVal.description,
       };
       this.internshipService.createInternship(payload).subscribe({
@@ -1641,6 +1693,11 @@ export class InternshipManagementComponent implements OnInit {
   }
 
   // --- Helpers ---
+  roadmapName(roadmapId: string | null): string {
+    if (!roadmapId) return 'Chưa giao';
+    return this.availableRoadmaps().find((roadmap) => roadmap.id === roadmapId)?.name ?? roadmapId;
+  }
+
   getStatusColor(status: InternshipStatus): string {
     switch (status) {
       case 'DRAFT':
