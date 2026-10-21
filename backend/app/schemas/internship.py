@@ -13,6 +13,7 @@ class InternshipBase(BaseSchema):
     start_date: date
     end_date: date
     status: InternshipStatus = InternshipStatus.DRAFT
+    roadmap_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def check_dates(self) -> "InternshipBase":
@@ -31,6 +32,7 @@ class InternshipUpdate(BaseSchema):
     start_date: date | None = None
     end_date: date | None = None
     status: InternshipStatus | None = None
+    roadmap_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def check_dates(self) -> "InternshipUpdate":

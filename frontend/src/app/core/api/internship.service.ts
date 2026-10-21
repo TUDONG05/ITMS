@@ -19,6 +19,7 @@ export interface Internship {
   name: string;
   description: string | null;
   status: InternshipStatus;
+  roadmap_id: string | null;
   start_date: string;
   end_date: string;
   created_by: string | null;
@@ -63,6 +64,7 @@ export interface CreateInternshipPayload {
   start_date: string;
   end_date: string;
   status?: InternshipStatus;
+  roadmap_id?: string | null;
 }
 
 export interface UpdateInternshipPayload {
@@ -71,6 +73,7 @@ export interface UpdateInternshipPayload {
   start_date?: string;
   end_date?: string;
   status?: InternshipStatus;
+  roadmap_id?: string | null;
 }
 
 export interface AddMemberPayload {

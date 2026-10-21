@@ -20,6 +20,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.roadmap import Roadmap
     from app.models.user import User
 
 
@@ -31,6 +32,7 @@ class Internship(Base):
             "status IN ('DRAFT', 'OPEN', 'ONGOING', 'COMPLETED', 'CANCELLED')",
             name="ck_internships_status",
         ),
+        Index("ix_internships_roadmap_id", "lo_trinh_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -45,6 +47,12 @@ class Internship(Base):
         ForeignKey("nguoi_dung.id", ondelete="SET NULL"),
         nullable=True,
     )
+    roadmap_id: Mapped[uuid.UUID | None] = mapped_column(
+        "lo_trinh_id",
+        UUID(as_uuid=True),
+        ForeignKey("lo_trinh_dao_tao.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
@@ -55,6 +63,7 @@ class Internship(Base):
     members: Mapped[list[InternshipMember]] = relationship(
         "InternshipMember", cascade="all, delete-orphan"
     )
+    roadmap: Mapped[Roadmap | None] = relationship("Roadmap", foreign_keys=[roadmap_id])
 
     @property
     def members_count(self) -> int:

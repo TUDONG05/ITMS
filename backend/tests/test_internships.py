@@ -110,6 +110,107 @@ def test_admin_create_internship(client: TestClient, test_data: dict[str, User])
     assert "id" in data
 
 
+def test_internship_stores_roadmap_relation(client: TestClient, test_data: dict[str, User]) -> None:
+    admin = test_data["admin"]
+    roadmap_resp = client.post(
+        "/api/v1/training/roadmaps",
+        headers={"X-User-Id": str(admin.id)},
+        json={"name": f"Batch Roadmap {uuid.uuid4().hex[:6]}", "status": "ACTIVE"},
+    )
+    assert roadmap_resp.status_code == 201
+    roadmap_id = roadmap_resp.json()["id"]
+
+    create_resp = client.post(
+        "/api/v1/internships",
+        headers={"X-User-Id": str(admin.id)},
+        json={
+            "name": f"Roadmap Batch {uuid.uuid4().hex[:6]}",
+            "start_date": "2026-03-01",
+            "end_date": "2026-06-30",
+            "roadmap_id": roadmap_id,
+        },
+    )
+
+    assert create_resp.status_code == 201
+    assert create_resp.json()["roadmap_id"] == roadmap_id
+
+
+def test_member_inherits_internship_roadmap(client: TestClient, test_data: dict[str, User]) -> None:
+    admin = test_data["admin"]
+    intern = test_data["intern"]
+    roadmap_resp = client.post(
+        "/api/v1/training/roadmaps",
+        headers={"X-User-Id": str(admin.id)},
+        json={"name": f"Inherited Roadmap {uuid.uuid4().hex[:6]}", "status": "ACTIVE"},
+    )
+    roadmap_id = roadmap_resp.json()["id"]
+    internship_resp = client.post(
+        "/api/v1/internships",
+        headers={"X-User-Id": str(admin.id)},
+        json={
+            "name": f"Inherited Roadmap Batch {uuid.uuid4().hex[:6]}",
+            "start_date": "2026-03-01",
+            "end_date": "2026-06-30",
+            "roadmap_id": roadmap_id,
+        },
+    )
+
+    enroll_resp = client.post(
+        f"/api/v1/internships/{internship_resp.json()['id']}/members",
+        headers={"X-User-Id": str(admin.id)},
+        json={"intern_id": str(intern.id)},
+    )
+
+    assert enroll_resp.status_code == 201
+    assert enroll_resp.json()["roadmap_id"] == roadmap_id
+
+
+def test_updating_internship_roadmap_syncs_existing_members(
+    client: TestClient, test_data: dict[str, User]
+) -> None:
+    admin = test_data["admin"]
+    intern = test_data["intern"]
+    roadmap_ids = []
+    for label in ("First", "Second"):
+        response = client.post(
+            "/api/v1/training/roadmaps",
+            headers={"X-User-Id": str(admin.id)},
+            json={"name": f"{label} Batch Roadmap {uuid.uuid4().hex[:6]}", "status": "ACTIVE"},
+        )
+        roadmap_ids.append(response.json()["id"])
+
+    internship_resp = client.post(
+        "/api/v1/internships",
+        headers={"X-User-Id": str(admin.id)},
+        json={
+            "name": f"Synced Roadmap Batch {uuid.uuid4().hex[:6]}",
+            "start_date": "2026-03-01",
+            "end_date": "2026-06-30",
+            "roadmap_id": roadmap_ids[0],
+        },
+    )
+    internship_id = internship_resp.json()["id"]
+    client.post(
+        f"/api/v1/internships/{internship_id}/members",
+        headers={"X-User-Id": str(admin.id)},
+        json={"intern_id": str(intern.id)},
+    )
+
+    update_resp = client.patch(
+        f"/api/v1/internships/{internship_id}",
+        headers={"X-User-Id": str(admin.id)},
+        json={"roadmap_id": roadmap_ids[1]},
+    )
+    members_resp = client.get(
+        f"/api/v1/internships/{internship_id}/members",
+        headers={"X-User-Id": str(admin.id)},
+    )
+
+    assert update_resp.status_code == 200
+    assert update_resp.json()["roadmap_id"] == roadmap_ids[1]
+    assert members_resp.json()[0]["roadmap_id"] == roadmap_ids[1]
+
+
 def test_admin_update_internship(client: TestClient, test_data: dict[str, User]) -> None:
     admin = test_data["admin"]
     create_resp = client.post(
