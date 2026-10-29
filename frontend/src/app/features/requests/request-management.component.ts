@@ -4,27 +4,29 @@ import {
   ChangeDetectorRef,
   Component,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
-import { FormBuilder, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
-import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzFormModule } from 'ng-zorro-antd/form';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalModule } from 'ng-zorro-antd/modal';
+import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzSelectModule } from 'ng-zorro-antd/select';
+import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 
 import {
-  InternshipRequest,
+  InternshipApplication,
   InternshipService,
-  RequestStatus,
-  RequestType,
 } from '../../core/api/internship.service';
 
 @Component({
@@ -34,14 +36,17 @@ import {
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
+    NzBadgeModule,
     NzButtonModule,
     NzCardModule,
-    NzDatePickerModule,
+    NzCheckboxModule,
     NzFormModule,
     NzIconModule,
     NzInputModule,
     NzModalModule,
+    NzPopconfirmModule,
     NzSelectModule,
+    NzSpinModule,
     NzTableModule,
     NzTagModule,
   ],
@@ -51,38 +56,33 @@ import {
       <!-- Header -->
       <div class="page-header feature-page-header">
         <div class="header-titles">
-          <h1 class="feature-page-title">Quản lý Yêu cầu Thực tập</h1>
+          <h1 class="feature-page-title">Duyệt đơn đăng ký thực tập</h1>
+          <p class="feature-page-subtitle">
+            Xét duyệt và tiếp nhận đơn đăng ký tham gia các đợt thực tập của thực tập sinh.
+          </p>
         </div>
       </div>
 
-      <!-- Main Content Card -->
+      <!-- Main Container -->
       <nz-card [nzBordered]="false" class="main-card">
-        <!-- Advanced Toolbar Filter -->
+        <!-- Toolbar Đơn đăng ký -->
         <div class="table-toolbar">
-          <div class="filter-row">
-            <!-- 1. Bộ lọc Loại yêu cầu -->
-            <div class="filter-item">
-              <span class="filter-label">Loại yêu cầu:</span>
-              <nz-select
-                [ngModel]="typeFilter()"
-                (ngModelChange)="onTypeFilterChange($event)"
-                nzPlaceHolder="Tất cả loại"
-                class="filter-select"
-              >
-                <nz-option nzValue="" nzLabel="Tất cả loại yêu cầu"></nz-option>
-                <nz-option nzValue="EXTEND" nzLabel="Gia hạn thực tập"></nz-option>
-                <nz-option nzValue="STOP" nzLabel="Dừng thực tập"></nz-option>
-                <nz-option nzValue="COMPLETE" nzLabel="Kết thúc thực tập"></nz-option>
-              </nz-select>
+          <div class="toolbar-left">
+            <div class="search-box">
+              <input
+                type="text"
+                nz-input
+                placeholder="Tìm theo tên hoặc email thực tập sinh..."
+                [ngModel]="appSearchQuery()"
+                (ngModelChange)="appSearchQuery.set($event)"
+              />
             </div>
 
-            <!-- 2. Bộ lọc Trạng thái -->
-            <div class="filter-item">
+            <div class="filter-box">
               <span class="filter-label">Trạng thái:</span>
               <nz-select
-                [ngModel]="statusFilter()"
-                (ngModelChange)="onStatusFilterChange($event)"
-                nzPlaceHolder="Tất cả trạng thái"
+                [ngModel]="appStatusFilter()"
+                (ngModelChange)="appStatusFilter.set($event)"
                 class="filter-select"
               >
                 <nz-option nzValue="" nzLabel="Tất cả trạng thái"></nz-option>
@@ -92,82 +92,160 @@ import {
               </nz-select>
             </div>
 
-            <!-- 3. Bộ lọc Khoảng thời gian -->
-            <div class="filter-item">
-              <span class="filter-label">Khoảng thời gian:</span>
-              <nz-range-picker
-                [ngModel]="dateRange()"
-                (ngModelChange)="onDateRangeChange($event)"
-                nzFormat="dd/MM/yyyy"
-                class="date-picker"
-              ></nz-range-picker>
-            </div>
+            <button
+              nz-button
+              nzType="default"
+              (click)="loadApplications()"
+              [nzLoading]="isLoadingApps()"
+            >
+              <span nz-icon nzType="reload"></span> Làm mới
+            </button>
+          </div>
 
-            <!-- Nút Reset -->
-            <div class="filter-item">
-              <button nz-button nzType="default" (click)="resetFilters()">
-                <span nz-icon nzType="reload"></span> Đặt lại
-              </button>
-            </div>
+          <div class="toolbar-right">
+            <button
+              nz-button
+              nzType="primary"
+              class="btn-approve-all"
+              [disabled]="pendingApplicationsCount() === 0"
+              nz-popconfirm
+              [nzPopconfirmTitle]="
+                'Bạn có chắc chắn muốn duyệt tất cả ' +
+                pendingApplicationsCount() +
+                ' đơn đăng ký đang chờ duyệt?'
+              "
+              (nzOnConfirm)="approveAllApps()"
+              [nzLoading]="isBatchSubmitting()"
+            >
+              <span nz-icon nzType="check-all"></span> Duyệt tất cả ({{
+                pendingApplicationsCount()
+              }})
+            </button>
           </div>
         </div>
 
-        <!-- Desktop Table View -->
+        <!-- Batch Action Bar (Khi có đơn được chọn) -->
+        @if (selectedAppIds().size > 0) {
+          <div class="batch-action-bar">
+            <div class="batch-info">
+              <span nz-icon nzType="check-circle" class="text-blue-500"></span>
+              <span>Đã chọn: <strong>{{ selectedAppIds().size }}</strong> đơn đăng ký</span>
+            </div>
+            <div class="batch-buttons">
+              <button
+                nz-button
+                nzType="primary"
+                class="btn-batch-approve"
+                [nzLoading]="isBatchSubmitting()"
+                nz-popconfirm
+                [nzPopconfirmTitle]="
+                  'Phê duyệt ' + selectedAppIds().size + ' đơn đăng ký đã chọn?'
+                "
+                (nzOnConfirm)="submitBatchAppReview('APPROVED')"
+              >
+                <span nz-icon nzType="check"></span> Duyệt đã chọn ({{ selectedAppIds().size }})
+              </button>
+              <button
+                nz-button
+                nzDanger
+                class="btn-batch-reject"
+                [nzLoading]="isBatchSubmitting()"
+                (click)="openBatchRejectModal()"
+              >
+                <span nz-icon nzType="close"></span> Từ chối đã chọn ({{ selectedAppIds().size }})
+              </button>
+              <button nz-button nzType="default" (click)="clearAppSelection()">Bỏ chọn</button>
+            </div>
+          </div>
+        }
+
+        <!-- Desktop Table Đơn đăng ký -->
         <div class="desktop-only">
           <nz-table
-            #requestTable
-            [nzData]="requests()"
-            [nzLoading]="isLoading()"
+            #appsTable
+            [nzData]="filteredApplications()"
+            [nzLoading]="isLoadingApps()"
             [nzShowPagination]="true"
             [nzPageSize]="10"
-            [nzScroll]="{ x: '900px' }"
+            [nzScroll]="{ x: '1000px' }"
           >
             <thead>
               <tr>
-                <th nzWidth="150px">Loại yêu cầu</th>
-                <th nzWidth="300px">Lý do đề xuất</th>
-                <th nzWidth="180px">Thời gian gửi / Đề xuất KT</th>
-                <th nzWidth="120px">Trạng thái</th>
-                <th nzWidth="200px">Ghi chú phản hồi</th>
-                <th nzWidth="120px" nzAlign="center">Thao tác Admin</th>
+                <th
+                  nzWidth="50px"
+                  [nzChecked]="isAllAppsSelected()"
+                  [nzIndeterminate]="isAppsIndeterminate()"
+                  (nzCheckedChange)="onSelectAllApps($event)"
+                ></th>
+                <th nzWidth="220px">Thực tập sinh</th>
+                <th nzWidth="200px">Đợt thực tập</th>
+                <th>Lý do / Nguyện vọng</th>
+                <th nzWidth="150px">Thời gian nộp</th>
+                <th nzWidth="130px">Trạng thái</th>
+                <th nzWidth="180px">Ghi chú duyệt</th>
+                <th nzWidth="150px" nzAlign="center">Thao tác</th>
               </tr>
             </thead>
             <tbody>
-              @for (req of requestTable.data; track req.id) {
+              @for (app of appsTable.data; track app.id) {
                 <tr>
+                  <td
+                    [nzChecked]="selectedAppIds().has(app.id)"
+                    (nzCheckedChange)="toggleAppSelection(app.id, $event)"
+                  ></td>
                   <td>
-                    <nz-tag [nzColor]="getRequestTypeColor(req.type)">
-                      {{ getRequestTypeLabel(req.type) }}
-                    </nz-tag>
+                    <div class="font-medium text-slate-900">
+                      {{ app.intern_name || 'Thực tập sinh' }}
+                    </div>
+                    <small class="text-slate-500">{{ app.intern_email }}</small>
                   </td>
-                  <td class="reason-cell">{{ req.reason }}</td>
                   <td>
-                    <span>{{ req.created_at | date: 'dd/MM/yyyy HH:mm' }}</span>
-                    @if (req.requested_end_date) {
-                      <br /><small class="text-muted"
-                        >Đề xuất KT: {{ req.requested_end_date }}</small
-                      >
+                    <span class="font-medium text-slate-800">{{
+                      app.internship_name || '—'
+                    }}</span>
+                  </td>
+                  <td class="reason-cell">
+                    {{ app.reason || '—' }}
+                  </td>
+                  <td>{{ app.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+                  <td>
+                    @if (app.status === 'PENDING') {
+                      <nz-tag nzColor="warning">Chờ duyệt</nz-tag>
+                    } @else if (app.status === 'APPROVED') {
+                      <nz-tag nzColor="success">Đã phê duyệt</nz-tag>
+                    } @else if (app.status === 'REJECTED') {
+                      <nz-tag nzColor="error">Bị từ chối</nz-tag>
                     }
                   </td>
                   <td>
-                    <nz-tag [nzColor]="getRequestStatusColor(req.status)">
-                      {{ getRequestStatusLabel(req.status) }}
-                    </nz-tag>
+                    <small class="text-slate-600">{{ app.review_note || '—' }}</small>
                   </td>
-                  <td>{{ req.review_note || '—' }}</td>
                   <td nzAlign="center">
-                    @if (req.status === 'PENDING') {
-                      <button
-                        nz-button
-                        nzType="primary"
-                        nzSize="small"
-                        (click)="openReviewModal(req)"
-                      >
-                        <span nz-icon nzType="check-circle"></span>
-                        Xử lý
-                      </button>
+                    @if (app.status === 'PENDING') {
+                      <div class="action-buttons-inline">
+                        <button
+                          nz-button
+                          nzType="primary"
+                          nzSize="small"
+                          nz-popconfirm
+                          [nzPopconfirmTitle]="
+                            'Xác nhận duyệt cho ' + (app.intern_name || 'Intern') + ' vào đợt?'
+                          "
+                          (nzOnConfirm)="singleApproveApp(app)"
+                        >
+                          Duyệt
+                        </button>
+                        <button
+                          nz-button
+                          nzDanger
+                          nzSize="small"
+                          (click)="openSingleRejectModal(app)"
+                        >
+                          Từ chối
+                        </button>
+                      </div>
                     } @else {
-                      <span class="text-muted">Đã xử lý</span>
+                      <span class="text-slate-400 text-xs">Đã xử lý</span>
                     }
                   </td>
                 </tr>
@@ -176,49 +254,77 @@ import {
           </nz-table>
         </div>
 
-        <!-- Mobile Card List View -->
+        <!-- Mobile View Đơn đăng ký -->
         <div class="mobile-only">
-          @if (isLoading()) {
-            <div class="loading-box">Đang tải danh sách...</div>
-          } @else if (requests().length === 0) {
-            <div class="empty-box">Không có dữ liệu đề xuất nào phù hợp.</div>
+          @if (isLoadingApps()) {
+            <div class="loading-box"><nz-spin nzSimple></nz-spin></div>
+          } @else if (filteredApplications().length === 0) {
+            <div class="empty-box">Không có đơn đăng ký nào.</div>
           } @else {
             <div class="mobile-card-list">
-              @for (req of requests(); track req.id) {
-                <div class="mobile-request-card">
+              @for (app of filteredApplications(); track app.id) {
+                <div class="mobile-app-card" [class.is-selected]="selectedAppIds().has(app.id)">
                   <div class="card-header">
-                    <nz-tag [nzColor]="getRequestTypeColor(req.type)">
-                      {{ getRequestTypeLabel(req.type) }}
-                    </nz-tag>
-                    <nz-tag [nzColor]="getRequestStatusColor(req.status)">
-                      {{ getRequestStatusLabel(req.status) }}
-                    </nz-tag>
+                    <!-- eslint-disable-next-line @angular-eslint/template/label-has-associated-control -->
+                    <label
+                      nz-checkbox
+                      [nzChecked]="selectedAppIds().has(app.id)"
+                      (nzCheckedChange)="toggleAppSelection(app.id, $event)"
+                    >
+                      <span class="font-semibold text-slate-800">{{
+                        app.intern_name || 'Thực tập sinh'
+                      }}</span>
+                    </label>
+                    @if (app.status === 'PENDING') {
+                      <nz-tag nzColor="warning">Chờ duyệt</nz-tag>
+                    } @else if (app.status === 'APPROVED') {
+                      <nz-tag nzColor="success">Đã phê duyệt</nz-tag>
+                    } @else if (app.status === 'REJECTED') {
+                      <nz-tag nzColor="error">Bị từ chối</nz-tag>
+                    }
                   </div>
 
                   <div class="card-body">
-                    <p class="reason-text"><strong>Lý do:</strong> {{ req.reason }}</p>
                     <p class="time-text">
-                      <small>Gửi lúc: {{ req.created_at | date: 'dd/MM/yyyy HH:mm' }}</small>
-                      @if (req.requested_end_date) {
-                        <br /><small>Đề xuất kết thúc: {{ req.requested_end_date }}</small>
-                      }
+                      <small>{{ app.intern_email }}</small>
                     </p>
-                    @if (req.review_note) {
+                    <p>
+                      <strong>Đợt:</strong> {{ app.internship_name || '—' }}
+                    </p>
+                    @if (app.reason) {
+                      <p class="reason-text">
+                        <strong>Lý do:</strong> {{ app.reason }}
+                      </p>
+                    }
+                    <p class="time-text">
+                      <small>Nộp lúc: {{ app.created_at | date: 'dd/MM/yyyy HH:mm' }}</small>
+                    </p>
+                    @if (app.review_note) {
                       <p class="note-text">
-                        <small>Phản hồi: {{ req.review_note }}</small>
+                        <small>Phản hồi: {{ app.review_note }}</small>
                       </p>
                     }
                   </div>
 
-                  <div class="card-footer">
-                    @if (req.status === 'PENDING') {
-                      <button nz-button nzType="primary" nzBlock (click)="openReviewModal(req)">
-                        <span nz-icon nzType="check-circle"></span> Xem & Xử lý
+                  @if (app.status === 'PENDING') {
+                    <div class="card-footer">
+                      <button
+                        nz-button
+                        nzType="primary"
+                        nzBlock
+                        nz-popconfirm
+                        [nzPopconfirmTitle]="
+                          'Duyệt đơn của ' + (app.intern_name || 'Intern') + '?'
+                        "
+                        (nzOnConfirm)="singleApproveApp(app)"
+                      >
+                        Duyệt đơn
                       </button>
-                    } @else {
-                      <div class="status-done-label">Đã xử lý</div>
-                    }
-                  </div>
+                      <button nz-button nzDanger nzBlock (click)="openSingleRejectModal(app)">
+                        Từ chối
+                      </button>
+                    </div>
+                  }
                 </div>
               }
             </div>
@@ -226,73 +332,33 @@ import {
         </div>
       </nz-card>
 
-      <!-- Modal Duyệt / Từ chối -->
+      <!-- Modal Từ chối (Dùng cho từ chối đơn lẻ / từ chối nhiều đơn) -->
       <nz-modal
-        [(nzVisible)]="isReviewModalVisible"
-        nzTitle="Xử lý Đề xuất Thực tập"
-        (nzOnCancel)="closeReviewModal()"
-        [nzFooter]="modalFooter"
-        class="custom-review-modal"
+        [(nzVisible)]="isRejectModalVisible"
+        [nzTitle]="rejectModalTitle"
+        (nzOnCancel)="closeRejectModal()"
+        (nzOnOk)="confirmRejectAction()"
+        [nzOkLoading]="isBatchSubmitting()"
+        nzOkText="Xác nhận từ chối"
+        nzOkDanger
+        nzCancelText="Hủy"
+        [nzWidth]="'min(500px, calc(100vw - 24px))'"
       >
         <ng-container *nzModalContent>
-          @if (selectedRequest(); as req) {
-            <div class="info-box">
-              <p><strong>Loại đề xuất:</strong> {{ getRequestTypeLabel(req.type) }}</p>
-              <p><strong>Lý do gửi:</strong> {{ req.reason }}</p>
-              @if (req.requested_end_date) {
-                <p><strong>Ngày kết thúc đề xuất:</strong> {{ req.requested_end_date }}</p>
-              }
-            </div>
-
-            <form [formGroup]="reviewForm" nz-form nzLayout="vertical">
-              <nz-form-item class="mb-0">
-                <nz-form-label>Ghi chú phản hồi (Admin Note)</nz-form-label>
-                <nz-form-control>
-                  <textarea
-                    nz-input
-                    rows="3"
-                    formControlName="review_note"
-                    placeholder="Nhập ghi chú hoặc lý do phê duyệt / từ chối..."
-                  ></textarea>
-                </nz-form-control>
-              </nz-form-item>
-            </form>
-          }
+          <form [formGroup]="rejectForm" nz-form nzLayout="vertical">
+            <nz-form-item>
+              <nz-form-label nzRequired>Lý do từ chối</nz-form-label>
+              <nz-form-control nzErrorTip="Vui lòng nhập lý do từ chối">
+                <textarea
+                  nz-input
+                  rows="3"
+                  formControlName="reason"
+                  placeholder="Nhập lý do từ chối để thông báo cho ứng viên..."
+                ></textarea>
+              </nz-form-control>
+            </nz-form-item>
+          </form>
         </ng-container>
-
-        <ng-template #modalFooter>
-          <div class="modal-footer-btns">
-            <button
-              nz-button
-              nzType="primary"
-              class="btn-action btn-approve"
-              [nzLoading]="isSubmitting()"
-              (click)="submitReview('APPROVED')"
-            >
-              Phê duyệt
-            </button>
-
-            <button
-              nz-button
-              nzType="primary"
-              nzDanger
-              class="btn-action"
-              [nzLoading]="isSubmitting()"
-              (click)="submitReview('REJECTED')"
-            >
-              Từ chối
-            </button>
-
-            <button
-              nz-button
-              nzType="default"
-              class="btn-action btn-cancel"
-              (click)="closeReviewModal()"
-            >
-              Hủy
-            </button>
-          </div>
-        </ng-template>
       </nz-modal>
     </div>
   `,
@@ -305,30 +371,53 @@ import {
       }
       .page-header {
         background: #fff;
-        padding: 16px 20px;
-        border-radius: 8px;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        h2 {
-          margin: 0 0 4px;
-          font-size: 18px;
-          font-weight: 600;
-          color: #1a1a1a;
-        }
-      }
-      .main-card {
-        border-radius: 8px;
+        padding: 18px 24px;
+        border-radius: 12px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
       }
-      .table-toolbar {
-        margin-bottom: 20px;
+      .feature-page-title {
+        margin: 0 0 6px;
+        font-size: 20px;
+        font-weight: 700;
+        color: #0f172a;
       }
-      .filter-row {
+      .feature-page-subtitle {
+        color: #64748b;
+        font-size: 13px;
+        margin: 0;
+      }
+      .main-card {
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+
+      /* Toolbar */
+      .table-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+        padding: 4px 0;
+      }
+      .toolbar-left {
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: 12px;
         flex-wrap: wrap;
+        flex: 1;
       }
-      .filter-item {
+      .toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .search-box {
+        width: 300px;
+        max-width: 100%;
+      }
+      .filter-box {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -336,155 +425,209 @@ import {
       .filter-label {
         font-size: 13px;
         font-weight: 500;
-        color: #595959;
+        color: #475569;
         white-space: nowrap;
       }
       .filter-select {
         width: 180px;
       }
-      .date-picker {
-        width: 250px;
+
+      /* Batch Action Bar */
+      .batch-action-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        padding: 10px 16px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        animation: fadeIn 0.2s ease-in;
       }
+      .batch-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: #166534;
+      }
+      .batch-buttons {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .btn-approve-all {
+        background-color: #10b981 !important;
+        border-color: #10b981 !important;
+        font-weight: 500;
+      }
+      .btn-batch-approve {
+        background-color: #10b981 !important;
+        border-color: #10b981 !important;
+      }
+      .btn-batch-reject {
+        margin: 0 !important;
+      }
+
       .reason-cell {
         word-break: break-word;
         white-space: normal;
         line-height: 1.5;
       }
-      .info-box {
-        background: #fafafa;
-        padding: 12px 16px;
-        border-radius: 6px;
-        margin-bottom: 16px;
-        border-left: 3px solid #1890ff;
-        p {
-          margin: 4px 0;
-          font-size: 13px;
-          line-height: 1.5;
-        }
+      .action-buttons-inline {
+        display: flex;
+        gap: 6px;
+        justify-content: center;
       }
-      .text-muted {
-        color: #8c8c8c;
-        font-size: 12px;
-      }
-      .mb-0 {
-        margin-bottom: 0 !important;
-      }
+
       .desktop-only {
         display: block;
       }
       .mobile-only {
         display: none;
       }
-      ::ng-deep .custom-review-modal .ant-modal-footer {
-        padding: 12px 24px 20px 24px !important;
-        border-top: none !important;
-      }
-      .modal-footer-btns {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        width: 100%;
-        .btn-action {
-          width: 100% !important;
-          height: 40px !important;
-          border-radius: 6px !important;
-          font-weight: 500;
-          font-size: 14px;
-          margin: 0 !important;
-        }
-        .btn-approve {
-          background-color: #1890ff;
-          border-color: #1890ff;
-        }
-        .btn-cancel {
-          background-color: #fff;
-          border: 1px solid #d9d9d9;
-          color: #262626;
-        }
-      }
-      @media (min-width: 577px) {
-        .modal-footer-btns {
-          flex-direction: row-reverse;
-          justify-content: flex-start;
-          .btn-action {
-            width: auto !important;
-            min-width: 100px;
-            height: 36px !important;
-          }
-        }
-      }
+
+      /* Responsive Mobile (<= 768px) */
       @media (max-width: 768px) {
-        .filter-row {
+        .desktop-only {
+          display: none !important;
+        }
+        .mobile-only {
+          display: block !important;
+        }
+        .table-toolbar {
           flex-direction: column;
           align-items: stretch;
         }
-        .filter-item {
+        .toolbar-left {
           flex-direction: column;
-          align-items: flex-start;
-          .filter-select,
-          .date-picker {
+          align-items: stretch;
+          width: 100%;
+        }
+        .search-box,
+        .filter-box,
+        .filter-select {
+          width: 100% !important;
+        }
+        .toolbar-right {
+          width: 100%;
+          button {
             width: 100%;
           }
         }
-      }
-      @media (max-width: 768px) {
-        .desktop-only {
-          display: none;
+        .batch-action-bar {
+          flex-direction: column;
+          align-items: stretch;
+          .batch-buttons {
+            flex-direction: column;
+            button {
+              width: 100%;
+            }
+          }
         }
-        .mobile-only {
-          display: block;
-        }
+
         .mobile-card-list {
           display: flex;
           flex-direction: column;
           gap: 12px;
         }
-        .mobile-request-card {
-          border: 1px solid #f0f0f0;
-          border-radius: 8px;
+        .mobile-app-card {
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
           padding: 14px;
           background: #fff;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+          transition: all 0.2s;
+
+          &.is-selected {
+            border-color: #3b82f6;
+            background: #f8faff;
+          }
+
           .card-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
+            gap: 8px;
             margin-bottom: 10px;
+
+            label {
+              min-width: 0;
+              word-break: break-word;
+            }
           }
           .card-body {
             font-size: 13px;
             margin-bottom: 12px;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            p {
+              margin: 4px 0;
+            }
             .reason-text {
-              margin: 0 0 6px;
-              color: #262626;
+              color: #1e293b;
               line-height: 1.4;
             }
             .time-text {
-              margin: 0 0 4px;
-              color: #8c8c8c;
+              color: #94a3b8;
             }
             .note-text {
-              margin: 0;
-              color: #595959;
+              color: #64748b;
               font-style: italic;
             }
           }
           .card-footer {
-            border-top: 1px dashed #f0f0f0;
+            border-top: 1px dashed #e2e8f0;
             padding-top: 10px;
-          }
-          .status-done-label {
-            text-align: center;
-            color: #8c8c8c;
-            font-size: 12px;
+            display: flex;
+            gap: 8px;
+            button {
+              flex: 1;
+            }
           }
         }
+
         .loading-box,
         .empty-box {
           text-align: center;
           padding: 24px;
-          color: #8c8c8c;
+          color: #94a3b8;
           font-size: 13px;
+        }
+      }
+
+      @media (max-width: 390px) {
+        .page-header {
+          padding: 12px 14px;
+        }
+        .feature-page-title {
+          font-size: 18px;
+        }
+        .main-card ::ng-deep .ant-card-body {
+          padding: 12px 8px !important;
+        }
+        .mobile-app-card {
+          padding: 10px 12px;
+        }
+        .batch-action-bar {
+          padding: 8px 10px;
+        }
+        .batch-info {
+          font-size: 13px;
+        }
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
         }
       }
     `,
@@ -496,167 +639,205 @@ export class RequestManagementComponent implements OnInit {
   private readonly message = inject(NzMessageService);
   private readonly cdr = inject(ChangeDetectorRef);
 
-  protected readonly requests = signal<InternshipRequest[]>([]);
-  protected readonly isLoading = signal<boolean>(false);
+  // --- ĐƠN ĐĂNG KÝ THỰC TẬP (APPLICATIONS) ---
+  protected readonly applications = signal<InternshipApplication[]>([]);
+  protected readonly isLoadingApps = signal<boolean>(false);
+  protected readonly isBatchSubmitting = signal<boolean>(false);
+  protected readonly appSearchQuery = signal<string>('');
+  protected readonly appStatusFilter = signal<string>('');
+  protected readonly selectedAppIds = signal<Set<string>>(new Set());
 
-  protected readonly statusFilter = signal<RequestStatus | ''>('');
-  protected readonly typeFilter = signal<RequestType | ''>('');
-  protected readonly dateRange = signal<Date[]>([]);
+  protected readonly pendingApplicationsCount = computed(() => {
+    return this.applications().filter((a) => a.status === 'PENDING').length;
+  });
 
-  protected readonly selectedRequest = signal<InternshipRequest | null>(null);
-  protected isReviewModalVisible = false;
-  protected isSubmitting = signal<boolean>(false);
+  protected readonly filteredApplications = computed(() => {
+    let list = this.applications();
+    const query = this.appSearchQuery().trim().toLowerCase();
+    if (query) {
+      list = list.filter(
+        (a) =>
+          (a.intern_name && a.intern_name.toLowerCase().includes(query)) ||
+          (a.intern_email && a.intern_email.toLowerCase().includes(query)) ||
+          (a.internship_name && a.internship_name.toLowerCase().includes(query)),
+      );
+    }
+    const status = this.appStatusFilter();
+    if (status) {
+      list = list.filter((a) => a.status === status);
+    }
+    return list;
+  });
 
-  protected readonly reviewForm = this.fb.group({
-    review_note: [''],
+  protected isAllAppsSelected = computed(() => {
+    const currentList = this.filteredApplications();
+    if (currentList.length === 0) return false;
+    const selected = this.selectedAppIds();
+    return currentList.every((a) => selected.has(a.id));
+  });
+
+  protected isAppsIndeterminate = computed(() => {
+    const currentList = this.filteredApplications();
+    if (currentList.length === 0) return false;
+    const selected = this.selectedAppIds();
+    const count = currentList.filter((a) => selected.has(a.id)).length;
+    return count > 0 && count < currentList.length;
+  });
+
+  // --- MODAL TỪ CHỐI ---
+  protected isRejectModalVisible = false;
+  protected rejectModalTitle = 'Xác nhận từ chối';
+  private rejectTarget: 'SINGLE_APP' | 'BATCH_APPS' = 'BATCH_APPS';
+  private targetAppToReject: InternshipApplication | null = null;
+
+  protected readonly rejectForm = this.fb.group({
+    reason: ['', [Validators.required, Validators.maxLength(2000)]],
   });
 
   ngOnInit(): void {
-    this.loadRequests();
+    this.loadApplications();
   }
 
-  private formatDate(d: Date): string {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
-  loadRequests(): void {
-    this.isLoading.set(true);
-
-    let startDateStr: string | undefined;
-    let endDateStr: string | undefined;
-
-    const dates = this.dateRange();
-    if (dates && dates.length === 2) {
-      startDateStr = this.formatDate(dates[0]);
-      endDateStr = this.formatDate(dates[1]);
-    }
-
-    this.internshipService
-      .getRequests(this.statusFilter(), this.typeFilter(), startDateStr, endDateStr)
-      .subscribe({
-        next: (data) => {
-          this.requests.set(data);
-          this.isLoading.set(false);
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.message.error('Không thể tải danh sách đề xuất thực tập.');
-          this.isLoading.set(false);
-          this.cdr.markForCheck();
-        },
-      });
-  }
-
-  onStatusFilterChange(status: RequestStatus | ''): void {
-    this.statusFilter.set(status);
-    this.loadRequests();
-  }
-
-  onTypeFilterChange(type: RequestType | ''): void {
-    this.typeFilter.set(type);
-    this.loadRequests();
-  }
-
-  onDateRangeChange(dates: Date[]): void {
-    this.dateRange.set(dates);
-    this.loadRequests();
-  }
-
-  resetFilters(): void {
-    this.statusFilter.set('');
-    this.typeFilter.set('');
-    this.dateRange.set([]);
-    this.loadRequests();
-  }
-
-  openReviewModal(req: InternshipRequest): void {
-    this.selectedRequest.set(req);
-    this.reviewForm.reset({ review_note: '' });
-    this.isReviewModalVisible = true;
-    this.cdr.markForCheck();
-  }
-
-  closeReviewModal(): void {
-    this.isReviewModalVisible = false;
-    this.selectedRequest.set(null);
-    this.cdr.markForCheck();
-  }
-
-  submitReview(status: 'APPROVED' | 'REJECTED'): void {
-    const req = this.selectedRequest();
-    if (!req) return;
-
-    this.isSubmitting.set(true);
-    const reviewNote = this.reviewForm.value.review_note || null;
-
-    this.internshipService.reviewRequest(req.id, { status, review_note: reviewNote }).subscribe({
-      next: () => {
-        this.message.success(
-          `Đã ${status === 'APPROVED' ? 'phê duyệt' : 'từ chối'} đề xuất thành công!`,
-        );
-        this.isSubmitting.set(false);
-        this.closeReviewModal();
-        this.loadRequests();
+  // ================= APPLICATIONS LOGIC =================
+  loadApplications(): void {
+    this.isLoadingApps.set(true);
+    this.internshipService.getApplications().subscribe({
+      next: (apps) => {
+        this.applications.set(apps);
+        this.isLoadingApps.set(false);
+        this.cdr.markForCheck();
       },
-      error: (err) => {
-        this.message.error(err?.error?.detail || 'Lỗi khi xử lý đề xuất.');
-        this.isSubmitting.set(false);
+      error: () => {
+        this.message.error('Không thể tải danh sách đơn đăng ký.');
+        this.isLoadingApps.set(false);
+        this.cdr.markForCheck();
       },
     });
   }
 
-  getRequestTypeColor(type: RequestType): string {
-    switch (type) {
-      case 'EXTEND':
-        return 'orange';
-      case 'STOP':
-        return 'volcano';
-      case 'COMPLETE':
-        return 'green';
-      default:
-        return 'blue';
+  toggleAppSelection(id: string, checked: boolean): void {
+    const updated = new Set(this.selectedAppIds());
+    if (checked) {
+      updated.add(id);
+    } else {
+      updated.delete(id);
+    }
+    this.selectedAppIds.set(updated);
+  }
+
+  onSelectAllApps(checked: boolean): void {
+    const updated = new Set(this.selectedAppIds());
+    this.filteredApplications().forEach((a) => {
+      if (checked) {
+        updated.add(a.id);
+      } else {
+        updated.delete(a.id);
+      }
+    });
+    this.selectedAppIds.set(updated);
+  }
+
+  clearAppSelection(): void {
+    this.selectedAppIds.set(new Set());
+  }
+
+  singleApproveApp(app: InternshipApplication): void {
+    this.internshipService.reviewApplication(app.id, { status: 'APPROVED' }).subscribe({
+      next: () => {
+        this.message.success(`Đã duyệt đơn đăng ký của ${app.intern_name || 'Intern'}!`);
+        this.loadApplications();
+      },
+      error: (err) => {
+        this.message.error(err?.error?.detail || 'Lỗi khi phê duyệt đơn.');
+      },
+    });
+  }
+
+  openSingleRejectModal(app: InternshipApplication): void {
+    this.rejectTarget = 'SINGLE_APP';
+    this.targetAppToReject = app;
+    this.rejectModalTitle = `Từ chối đơn đăng ký: ${app.intern_name || 'Thực tập sinh'}`;
+    this.rejectForm.reset({ reason: '' });
+    this.isRejectModalVisible = true;
+  }
+
+  openBatchRejectModal(): void {
+    this.rejectTarget = 'BATCH_APPS';
+    const count = this.selectedAppIds().size;
+    this.rejectModalTitle = `Xác nhận từ chối ${count} đơn đăng ký đã chọn`;
+    this.rejectForm.reset({ reason: '' });
+    this.isRejectModalVisible = true;
+  }
+
+  closeRejectModal(): void {
+    this.isRejectModalVisible = false;
+    this.targetAppToReject = null;
+  }
+
+  confirmRejectAction(): void {
+    if (this.rejectForm.invalid) {
+      this.rejectForm.markAllAsTouched();
+      return;
+    }
+
+    const reason = this.rejectForm.value.reason?.trim() || null;
+
+    if (this.rejectTarget === 'SINGLE_APP') {
+      const app = this.targetAppToReject;
+      if (!app) return;
+      this.isBatchSubmitting.set(true);
+      this.internshipService
+        .reviewApplication(app.id, { status: 'REJECTED', review_note: reason })
+        .subscribe({
+          next: () => {
+            this.message.success(`Đã từ chối đơn đăng ký của ${app.intern_name || 'Intern'}!`);
+            this.isBatchSubmitting.set(false);
+            this.closeRejectModal();
+            this.loadApplications();
+          },
+          error: (err) => {
+            this.message.error(err?.error?.detail || 'Lỗi khi từ chối đơn.');
+            this.isBatchSubmitting.set(false);
+          },
+        });
+    } else {
+      this.submitBatchAppReview('REJECTED', reason);
+      this.closeRejectModal();
     }
   }
 
-  getRequestTypeLabel(type: RequestType): string {
-    switch (type) {
-      case 'EXTEND':
-        return 'Gia hạn thực tập';
-      case 'STOP':
-        return 'Dừng thực tập';
-      case 'COMPLETE':
-        return 'Kết thúc thực tập';
-      default:
-        return type;
-    }
+  submitBatchAppReview(status: 'APPROVED' | 'REJECTED', note?: string | null): void {
+    const ids = Array.from(this.selectedAppIds());
+    if (ids.length === 0) return;
+
+    this.isBatchSubmitting.set(true);
+    this.internshipService.batchReviewApplications(ids, status, note).subscribe({
+      next: (res) => {
+        this.message.success(res.message);
+        this.isBatchSubmitting.set(false);
+        this.clearAppSelection();
+        this.loadApplications();
+      },
+      error: (err) => {
+        this.message.error(err?.error?.detail || 'Lỗi khi xử lý hàng loạt.');
+        this.isBatchSubmitting.set(false);
+      },
+    });
   }
 
-  getRequestStatusColor(status: RequestStatus): string {
-    switch (status) {
-      case 'PENDING':
-        return 'processing';
-      case 'APPROVED':
-        return 'success';
-      case 'REJECTED':
-        return 'error';
-      default:
-        return status;
-    }
-  }
-
-  getRequestStatusLabel(status: RequestStatus): string {
-    switch (status) {
-      case 'PENDING':
-        return 'Chờ duyệt';
-      case 'APPROVED':
-        return 'Đã duyệt';
-      case 'REJECTED':
-        return 'Từ chối';
-      default:
-        return status;
-    }
+  approveAllApps(): void {
+    this.isBatchSubmitting.set(true);
+    this.internshipService.approveAllApplications().subscribe({
+      next: (res) => {
+        this.message.success(res.message);
+        this.isBatchSubmitting.set(false);
+        this.clearAppSelection();
+        this.loadApplications();
+      },
+      error: (err) => {
+        this.message.error(err?.error?.detail || 'Lỗi khi duyệt tất cả đơn.');
+        this.isBatchSubmitting.set(false);
+      },
+    });
   }
 }

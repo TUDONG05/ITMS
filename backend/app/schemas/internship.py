@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import Field, model_validator
 
@@ -198,3 +199,43 @@ class InternshipRequestRead(BaseSchema):
     mentor_name: str | None = None
     internship_id: uuid.UUID | None = None
     internship_name: str | None = None
+
+
+class InternshipApplicationCreate(BaseSchema):
+    reason: str | None = Field(
+        None, max_length=2000, description="Lý do / nguyện vọng đăng ký thực tập (tùy chọn)"
+    )
+
+
+class InternshipApplicationReview(BaseSchema):
+    status: Literal["APPROVED", "REJECTED"]
+    review_note: str | None = Field(
+        None, max_length=2000, description="Ghi chú duyệt hoặc lý do từ chối"
+    )
+
+
+class InternshipApplicationRead(BaseSchema):
+    id: uuid.UUID
+    internship_id: uuid.UUID
+    intern_id: uuid.UUID
+    status: str
+    reason: str | None = None
+    reviewed_by: uuid.UUID | None = None
+    review_note: str | None = None
+    created_at: datetime
+    reviewed_at: datetime | None = None
+    internship_name: str | None = None
+    intern_name: str | None = None
+    intern_email: str | None = None
+    reviewer_name: str | None = None
+
+
+class BatchReviewPayload(BaseSchema):
+    ids: list[uuid.UUID]
+    status: Literal["APPROVED", "REJECTED"]
+    review_note: str | None = Field(None, max_length=2000)
+
+
+class BatchResult(BaseSchema):
+    processed_count: int
+    message: str

@@ -2,7 +2,12 @@ from app.models.auth import AuthSession
 from app.models.evaluation import Evaluation, EvaluationCriterion
 from app.models.exam import Question, Quiz, QuizAttempt
 from app.models.interaction import Notification, NotificationRead
-from app.models.internship import Internship, InternshipMember, InternshipRequest
+from app.models.internship import (
+    Internship,
+    InternshipApplication,
+    InternshipMember,
+    InternshipRequest,
+)
 from app.models.knowledge import AIConversation, AIMessage
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
 from app.models.task import Task, TaskComment, TaskSubmission
@@ -15,6 +20,7 @@ __all__ = [
     "Evaluation",
     "EvaluationCriterion",
     "Internship",
+    "InternshipApplication",
     "InternshipMember",
     "InternshipRequest",
     "LearningContent",

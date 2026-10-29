@@ -6,6 +6,7 @@ export type InternshipStatus = 'DRAFT' | 'OPEN' | 'ONGOING' | 'COMPLETED' | 'CAN
 export type MemberStatus = 'ACTIVE' | 'EXTENDED' | 'STOPPED' | 'COMPLETED';
 export type RequestType = 'EXTEND' | 'STOP' | 'COMPLETE';
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type ApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface UserSummary {
   id: string;
@@ -19,9 +20,9 @@ export interface Internship {
   name: string;
   description: string | null;
   status: InternshipStatus;
-  roadmap_id: string | null;
   start_date: string;
   end_date: string;
+  roadmap_id?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -58,6 +59,22 @@ export interface InternshipRequest {
   reviewed_at?: string | null;
 }
 
+export interface InternshipApplication {
+  id: string;
+  internship_id: string;
+  intern_id: string;
+  status: ApplicationStatus;
+  reason?: string | null;
+  reviewed_by?: string | null;
+  review_note?: string | null;
+  created_at: string;
+  reviewed_at?: string | null;
+  internship_name?: string | null;
+  intern_name?: string | null;
+  intern_email?: string | null;
+  reviewer_name?: string | null;
+}
+
 export interface CreateInternshipPayload {
   name: string;
   description?: string | null;
@@ -74,6 +91,15 @@ export interface UpdateInternshipPayload {
   end_date?: string;
   status?: InternshipStatus;
   roadmap_id?: string | null;
+}
+
+export interface CreateApplicationPayload {
+  reason?: string | null;
+}
+
+export interface ReviewApplicationPayload {
+  status: 'APPROVED' | 'REJECTED';
+  review_note?: string | null;
 }
 
 export interface AddMemberPayload {
@@ -103,6 +129,11 @@ export interface ReviewRequestPayload {
   review_note?: string | null;
 }
 
+export interface BatchResult {
+  processed_count: number;
+  message: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class InternshipService {
   private readonly http = inject(HttpClient);
@@ -125,6 +156,10 @@ export class InternshipService {
     });
   }
 
+  getOpenInternships(): Observable<Internship[]> {
+    return this.http.get<Internship[]>('/api/v1/internships/open');
+  }
+
   createInternship(payload: CreateInternshipPayload): Observable<Internship> {
     return this.http.post<Internship>('/api/v1/internships', payload, {});
   }
@@ -137,6 +172,50 @@ export class InternshipService {
     return this.http.patch<Internship>(`/api/v1/internships/${id}`, payload, {});
   }
 
+  // --- Intern Applications ---
+
+  applyInternship(
+    internshipId: string,
+    payload: CreateApplicationPayload,
+  ): Observable<InternshipApplication> {
+    return this.http.post<InternshipApplication>(
+      `/api/v1/internships/${internshipId}/apply`,
+      payload,
+    );
+  }
+
+  getMyApplications(): Observable<InternshipApplication[]> {
+    return this.http.get<InternshipApplication[]>('/api/v1/internships/my-applications');
+  }
+
+  getApplications(
+    status?: string,
+    internshipId?: string,
+    search?: string,
+  ): Observable<InternshipApplication[]> {
+    let params = new HttpParams();
+    if (status) params = params.set('status', status);
+    if (internshipId) params = params.set('internship_id', internshipId);
+    if (search && search.trim()) params = params.set('search', search.trim());
+    return this.http.get<InternshipApplication[]>('/api/v1/internships/applications', { params });
+  }
+
+  getApplication(appId: string): Observable<InternshipApplication> {
+    return this.http.get<InternshipApplication>(`/api/v1/internships/applications/${appId}`);
+  }
+
+  reviewApplication(
+    appId: string,
+    payload: ReviewApplicationPayload,
+  ): Observable<InternshipApplication> {
+    return this.http.patch<InternshipApplication>(
+      `/api/v1/internships/applications/${appId}/review`,
+      payload,
+    );
+  }
+
+  // --- Members ---
+
   getMembers(internshipId: string, search?: string): Observable<InternshipMember[]> {
     let params = new HttpParams();
     if (search && search.trim()) {
@@ -145,14 +224,6 @@ export class InternshipService {
     return this.http.get<InternshipMember[]>(`/api/v1/internships/${internshipId}/members`, {
       params,
     });
-  }
-
-  addMember(internshipId: string, payload: AddMemberPayload): Observable<InternshipMember> {
-    return this.http.post<InternshipMember>(
-      `/api/v1/internships/${internshipId}/members`,
-      payload,
-      {},
-    );
   }
 
   getMember(memberId: string): Observable<InternshipMember> {
@@ -199,10 +270,41 @@ export class InternshipService {
   }
 
   reviewRequest(requestId: string, payload: ReviewRequestPayload): Observable<InternshipRequest> {
-    // Sửa URL từ /api/v1/internship-members/requests/... sang /api/v1/internships/requests/...
     return this.http.patch<InternshipRequest>(
       `/api/v1/internships/requests/${requestId}/review`,
       payload,
     );
+  }
+
+  batchReviewApplications(
+    ids: string[],
+    status: 'APPROVED' | 'REJECTED',
+    review_note?: string | null,
+  ): Observable<BatchResult> {
+    return this.http.post<BatchResult>('/api/v1/internships/applications/batch-review', {
+      ids,
+      status,
+      review_note,
+    });
+  }
+
+  approveAllApplications(): Observable<BatchResult> {
+    return this.http.post<BatchResult>('/api/v1/internships/applications/approve-all', {});
+  }
+
+  batchReviewRequests(
+    ids: string[],
+    status: 'APPROVED' | 'REJECTED',
+    review_note?: string | null,
+  ): Observable<BatchResult> {
+    return this.http.post<BatchResult>('/api/v1/internships/requests/batch-review', {
+      ids,
+      status,
+      review_note,
+    });
+  }
+
+  approveAllRequests(): Observable<BatchResult> {
+    return this.http.post<BatchResult>('/api/v1/internships/requests/approve-all', {});
   }
 }

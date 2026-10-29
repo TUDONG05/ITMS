@@ -9,6 +9,11 @@ from app.db.session import get_db
 from app.models.enums import InternshipStatus, RequestType, UserRole
 from app.models.user import User
 from app.schemas.internship import (
+    BatchResult,
+    BatchReviewPayload,
+    InternshipApplicationCreate,
+    InternshipApplicationRead,
+    InternshipApplicationReview,
     InternshipCreate,
     InternshipDetailRead,
     InternshipMemberCreate,
@@ -50,7 +55,84 @@ def create_internship(
     return InternshipRead.model_validate(internship)
 
 
-# --- ĐẶT CÁC ROUTE REQUESTS LÊN TRƯỚC BẤT KỲ ROUTE CHỨA {id} NÀO ---
+# --- ĐẶT CÁC ROUTE TĨNH / QUẢN LÝ ĐƠN ĐĂNG KÝ VÀ REQUESTS LÊN TRƯỚC BẤT KỲ ROUTE CHỨA {id} NÀO ---
+
+
+@router.get("/open", response_model=list[InternshipRead])
+def list_open_internships(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[InternshipRead]:
+    """Retrieve all open internship batches available for application."""
+    open_batches = InternshipService.get_open_internships(db)
+    return [InternshipRead.model_validate(item) for item in open_batches]
+
+
+@router.get("/my-applications", response_model=list[InternshipApplicationRead])
+def list_my_applications(
+    current_user: User = Depends(require_roles([UserRole.INTERN])),
+    db: Session = Depends(get_db),
+) -> list[InternshipApplicationRead]:
+    """Intern retrieves all their own internship applications."""
+    return InternshipService.get_my_applications(db, intern_id=current_user.id)
+
+
+@router.get("/applications", response_model=list[InternshipApplicationRead])
+def list_internship_applications(
+    status: str | None = Query(None, description="Filter: PENDING, APPROVED, REJECTED"),
+    internship_id: uuid.UUID | None = Query(None, description="Filter by internship batch ID"),
+    search: str | None = Query(None, description="Search by intern name or email"),
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> list[InternshipApplicationRead]:
+    """Admin retrieves all internship applications with optional filters."""
+    return InternshipService.get_applications(
+        db, status_filter=status, internship_id=internship_id, search=search
+    )
+
+
+@router.get("/applications/{app_id}", response_model=InternshipApplicationRead)
+def get_internship_application(
+    app_id: uuid.UUID,
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> InternshipApplicationRead:
+    """Admin retrieves details of a specific internship application."""
+    return InternshipService.get_application_by_id(db, app_id=app_id)
+
+
+@router.post("/applications/batch-review", response_model=BatchResult)
+def batch_review_applications(
+    payload: BatchReviewPayload,
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> BatchResult:
+    """Admin approves or rejects multiple applications at once."""
+    return InternshipService.batch_review_applications(
+        db, payload=payload, reviewer_id=current_user.id
+    )
+
+
+@router.post("/applications/approve-all", response_model=BatchResult)
+def approve_all_applications(
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> BatchResult:
+    """Admin approves all pending applications in one click."""
+    return InternshipService.approve_all_applications(db, reviewer_id=current_user.id)
+
+
+@router.patch("/applications/{app_id}/review", response_model=InternshipApplicationRead)
+def review_internship_application(
+    app_id: uuid.UUID,
+    payload: InternshipApplicationReview,
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> InternshipApplicationRead:
+    """Admin approves or rejects an intern's application into an internship."""
+    return InternshipService.review_application(
+        db, app_id=app_id, payload=payload, reviewer_id=current_user.id
+    )
 
 
 @router.get("/requests", response_model=list[InternshipRequestRead])
@@ -71,6 +153,25 @@ def list_internship_requests(
         end_date=end_date,
     )
     return [InternshipRequestRead.model_validate(r) for r in requests]
+
+
+@router.post("/requests/batch-review", response_model=BatchResult)
+def batch_review_requests(
+    payload: BatchReviewPayload,
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> BatchResult:
+    """Admin approves or rejects multiple requests at once."""
+    return InternshipService.batch_review_requests(db, payload=payload, reviewer_id=current_user.id)
+
+
+@router.post("/requests/approve-all", response_model=BatchResult)
+def approve_all_requests(
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> BatchResult:
+    """Admin approves all pending requests in one click."""
+    return InternshipService.approve_all_requests(db, reviewer_id=current_user.id)
 
 
 @router.patch("/requests/{request_id}/review", response_model=InternshipRequestRead)
@@ -125,6 +226,21 @@ def update_internship(
     return InternshipRead.model_validate(internship)
 
 
+@router.post(
+    "/{id}/apply", response_model=InternshipApplicationRead, status_code=status.HTTP_201_CREATED
+)
+def apply_for_internship(
+    id: uuid.UUID,
+    payload: InternshipApplicationCreate,
+    current_user: User = Depends(require_roles([UserRole.INTERN])),
+    db: Session = Depends(get_db),
+) -> InternshipApplicationRead:
+    """Intern applies to an open internship batch."""
+    return InternshipService.apply_internship(
+        db, internship_id=id, intern_id=current_user.id, data=payload
+    )
+
+
 @router.get("/{id}/members", response_model=list[InternshipMemberDetailRead])
 def list_internship_members(
     id: uuid.UUID,
@@ -148,6 +264,6 @@ def add_intern_to_internship(
     current_user: User = Depends(require_roles([UserRole.ADMIN])),
     db: Session = Depends(get_db),
 ) -> InternshipMemberDetailRead:
-    """Admin enrolls an intern into the specified internship."""
+    """Admin enrolls an intern (DEPRECATED: Returns 403 Forbidden)."""
     member = InternshipService.add_member_to_internship(db, internship_id=id, data=payload)
     return InternshipMemberDetailRead.model_validate(member)

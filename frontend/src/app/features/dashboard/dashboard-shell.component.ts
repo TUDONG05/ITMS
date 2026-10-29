@@ -33,6 +33,7 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { AuthService } from '../../core/api/auth.service';
 import { EvaluationsComponent } from '../evaluations/evaluations.component';
+import { InternApplyComponent } from '../internships/intern-apply.component';
 import { InternshipManagementComponent } from '../internships/internship-management.component';
 import { LearningComponent } from '../learning/learning.component';
 import { MentorInternManagementComponent } from '../mentor/mentor-intern-management.component';
@@ -80,6 +81,7 @@ const dashboards: Record<Role, Dashboard> = {
     greeting: 'Chào buổi sáng, Nguyễn Văn An!',
     description: 'Theo dõi lộ trình, task và kết quả thực tập của bạn.',
     nav: [
+      { id: 'internships', label: 'Đăng ký thực tập', icon: 'solution' },
       { id: 'roadmap', label: 'Lộ trình học tập', icon: 'read' },
       { id: 'documents', label: 'Tài liệu học tập', icon: 'file-text' },
       { id: 'quizzes', label: 'Bài kiểm tra', icon: 'form' },
@@ -166,7 +168,7 @@ const dashboards: Record<Role, Dashboard> = {
       { id: 'internships', label: 'Quản lý thực tập', icon: 'solution' },
       { id: 'training', label: 'Quản lý đào tạo (LMS)', icon: 'book' },
       { id: 'evaluations', label: 'Quản lý đánh giá', icon: 'star' },
-      { id: 'requests', label: 'Quản lý yêu cầu', icon: 'audit' },
+      { id: 'requests', label: 'Duyệt đơn đăng ký', icon: 'solution' },
       ...common,
     ],
     metrics: [
@@ -228,6 +230,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzTagModule,
     NzTooltipModule,
     EvaluationsComponent,
+    InternApplyComponent,
     InternshipManagementComponent,
     LearningComponent,
     MentorInternManagementComponent,
@@ -730,10 +733,12 @@ const dashboards: Record<Role, Dashboard> = {
               <app-profile />
             } @else if (section() === 'change-password') {
               <app-change-password [embedded]="true" />
-            } @else if (
-              section() === 'internships' && (role() === 'ADMIN' || role() === 'MENTOR')
-            ) {
-              <app-internship-management />
+            } @else if (section() === 'internships') {
+              @if (role() === 'INTERN') {
+                <app-intern-apply />
+              } @else {
+                <app-internship-management />
+              }
             } @else if (section() === 'users' && (role() === 'ADMIN' || role() === 'MENTOR')) {
               <!-- UC-14: Quản lý người dùng -->
               <app-user-management />

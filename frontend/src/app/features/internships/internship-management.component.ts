@@ -191,12 +191,7 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
 
       <!-- Member Management Panel (When an internship is selected) -->
       @if (selectedInternship(); as current) {
-        <nz-card
-          [nzBordered]="false"
-          class="member-card"
-          [nzTitle]="memberCardTitle"
-          [nzExtra]="memberCardExtra"
-        >
+        <nz-card [nzBordered]="false" class="member-card" [nzTitle]="memberCardTitle">
           <ng-template #memberCardTitle>
             <div class="member-panel-header">
               <span nz-icon nzType="team" class="panel-icon"></span>
@@ -207,19 +202,6 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
                 {{ getStatusLabel(current.status) }}
               </nz-tag>
             </div>
-          </ng-template>
-
-          <ng-template #memberCardExtra>
-            <button
-              nz-button
-              nzType="primary"
-              nzSize="small"
-              (click)="openAddMemberModal()"
-              class="btn-add-member-top"
-            >
-              <span nz-icon nzType="user-add"></span>
-              Thêm Intern vào đợt
-            </button>
           </ng-template>
 
           <!-- Member Toolbar with Search Intern -->
@@ -324,9 +306,10 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
                       }}
                     </p>
                     @if (!memberSearchQuery()) {
-                      <button nz-button nzType="dashed" (click)="openAddMemberModal()">
-                        + Thêm Intern đầu tiên
-                      </button>
+                      <p class="text-slate-400 text-xs mt-2">
+                        Thực tập sinh sẽ xuất hiện tại đây sau khi đơn đăng ký được phê duyệt tại
+                        Quản lý yêu cầu.
+                      </p>
                     }
                   </td>
                 </tr>
@@ -412,69 +395,6 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
                   formControlName="description"
                   placeholder="Mô tả mục tiêu, yêu cầu hoặc lộ trình đào tạo của đợt..."
                 ></textarea>
-              </nz-form-control>
-            </nz-form-item>
-          </form>
-        </ng-container>
-      </nz-modal>
-
-      <!-- Modal: Thêm Intern vào Đợt thực tập -->
-      <nz-modal
-        [(nzVisible)]="isAddMemberModalVisible"
-        nzTitle="Thêm Thực tập sinh vào đợt"
-        (nzOnCancel)="closeAddMemberModal()"
-        (nzOnOk)="saveAddMember()"
-        [nzOkLoading]="isSavingMember()"
-        nzWidth="500px"
-      >
-        <ng-container *nzModalContent>
-          <form [formGroup]="addMemberForm" nz-form nzLayout="vertical">
-            <nz-form-item>
-              <nz-form-label nzRequired>Chọn Thực tập sinh (Intern)</nz-form-label>
-              <nz-form-control nzErrorTip="Vui lòng chọn một thực tập sinh">
-                <nz-select
-                  formControlName="intern_id"
-                  nzPlaceHolder="Chọn Intern từ hệ thống"
-                  nzShowSearch
-                >
-                  @for (intern of availableInterns(); track intern.id) {
-                    <nz-option
-                      [nzValue]="intern.id"
-                      [nzLabel]="intern.full_name + ' (' + intern.email + ')'"
-                    ></nz-option>
-                  }
-                </nz-select>
-              </nz-form-control>
-            </nz-form-item>
-
-            <nz-form-item>
-              <nz-form-label>Phân công Mentor (Tùy chọn)</nz-form-label>
-              <nz-form-control>
-                <nz-select
-                  formControlName="mentor_id"
-                  nzPlaceHolder="Chưa phân công (chọn sau)"
-                  nzAllowClear
-                  nzShowSearch
-                >
-                  @for (mentor of availableMentors(); track mentor.id) {
-                    <nz-option
-                      [nzValue]="mentor.id"
-                      [nzLabel]="mentor.full_name + ' (' + mentor.email + ')'"
-                    ></nz-option>
-                  }
-                </nz-select>
-              </nz-form-control>
-            </nz-form-item>
-
-            <nz-form-item>
-              <nz-form-label>Trạng thái tham gia</nz-form-label>
-              <nz-form-control>
-                <nz-select formControlName="status">
-                  <nz-option nzValue="ACTIVE" nzLabel="Đang thực tập (ACTIVE)"></nz-option>
-                  <nz-option nzValue="EXTENDED" nzLabel="Gia hạn (EXTENDED)"></nz-option>
-                  <nz-option nzValue="STOPPED" nzLabel="Tạm dừng (STOPPED)"></nz-option>
-                  <nz-option nzValue="COMPLETED" nzLabel="Hoàn thành (COMPLETED)"></nz-option>
-                </nz-select>
               </nz-form-control>
             </nz-form-item>
           </form>
@@ -1350,9 +1270,6 @@ export class InternshipManagementComponent implements OnInit {
   protected isSavingInternship = signal<boolean>(false);
   protected readonly editingInternship = signal<Internship | null>(null);
 
-  protected isAddMemberModalVisible = false;
-  protected isSavingMember = signal<boolean>(false);
-
   protected isEditMemberModalVisible = false;
   protected isSavingEditMember = signal<boolean>(false);
   protected readonly selectedMemberForEdit = signal<InternshipMember | null>(null);
@@ -1365,12 +1282,6 @@ export class InternshipManagementComponent implements OnInit {
     status: ['DRAFT' as InternshipStatus, [Validators.required]],
     roadmap_id: [null as string | null],
     description: [''],
-  });
-
-  protected readonly addMemberForm = this.fb.group({
-    intern_id: ['', [Validators.required]],
-    mentor_id: [null as string | null],
-    status: ['ACTIVE' as MemberStatus, [Validators.required]],
   });
 
   protected readonly editMemberForm = this.fb.group({
@@ -1561,55 +1472,6 @@ export class InternshipManagementComponent implements OnInit {
         },
       });
     }
-  }
-
-  // --- Modal Thêm Intern ---
-  openAddMemberModal(): void {
-    this.addMemberForm.reset({
-      intern_id: '',
-      mentor_id: null,
-      status: 'ACTIVE',
-    });
-    this.isAddMemberModalVisible = true;
-  }
-
-  closeAddMemberModal(): void {
-    this.isAddMemberModalVisible = false;
-  }
-
-  saveAddMember(): void {
-    const current = this.selectedInternship();
-    if (!current) return;
-
-    if (this.addMemberForm.invalid) {
-      this.addMemberForm.markAllAsTouched();
-      return;
-    }
-
-    const formVal = this.addMemberForm.getRawValue();
-    this.isSavingMember.set(true);
-
-    this.internshipService
-      .addMember(current.id, {
-        intern_id: formVal.intern_id!,
-        mentor_id: formVal.mentor_id,
-        status: formVal.status ?? 'ACTIVE',
-      })
-      .subscribe({
-        next: () => {
-          this.message.success('Đã thêm thực tập sinh vào đợt thành công!');
-          this.isSavingMember.set(false);
-          this.closeAddMemberModal();
-          this.loadMembers(current.id);
-          this.loadInternships(); // Refresh members_count in table
-        },
-        error: (err) => {
-          this.message.error(
-            err?.error?.detail || 'Không thể thêm Intern (có thể đã tồn tại trong đợt).',
-          );
-          this.isSavingMember.set(false);
-        },
-      });
   }
 
   // --- Modal Chỉnh sửa Thực tập sinh ---
