@@ -36,9 +36,10 @@ def test_all_entities_registered():
         "hoi_thoai_ai",
         "tin_nhan_ai",
         "phien_dang_nhap",
+        "don_dang_ky_thuc_tap",
     }
     actual_tables = set(Base.metadata.tables.keys())
-    assert len(actual_tables) == 21
+    assert len(actual_tables) == 22
     assert actual_tables == expected_tables
 
 

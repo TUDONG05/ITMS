@@ -24,10 +24,7 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 
-import {
-  InternshipApplication,
-  InternshipService,
-} from '../../core/api/internship.service';
+import { InternshipApplication, InternshipService } from '../../core/api/internship.service';
 
 @Component({
   selector: 'app-request-management',
@@ -129,7 +126,9 @@ import {
           <div class="batch-action-bar">
             <div class="batch-info">
               <span nz-icon nzType="check-circle" class="text-blue-500"></span>
-              <span>Đã chọn: <strong>{{ selectedAppIds().size }}</strong> đơn đăng ký</span>
+              <span
+                >Đã chọn: <strong>{{ selectedAppIds().size }}</strong> đơn đăng ký</span
+              >
             </div>
             <div class="batch-buttons">
               <button
@@ -138,9 +137,7 @@ import {
                 class="btn-batch-approve"
                 [nzLoading]="isBatchSubmitting()"
                 nz-popconfirm
-                [nzPopconfirmTitle]="
-                  'Phê duyệt ' + selectedAppIds().size + ' đơn đăng ký đã chọn?'
-                "
+                [nzPopconfirmTitle]="'Phê duyệt ' + selectedAppIds().size + ' đơn đăng ký đã chọn?'"
                 (nzOnConfirm)="submitBatchAppReview('APPROVED')"
               >
                 <span nz-icon nzType="check"></span> Duyệt đã chọn ({{ selectedAppIds().size }})
@@ -200,9 +197,7 @@ import {
                     <small class="text-slate-500">{{ app.intern_email }}</small>
                   </td>
                   <td>
-                    <span class="font-medium text-slate-800">{{
-                      app.internship_name || '—'
-                    }}</span>
+                    <span class="font-medium text-slate-800">{{ app.internship_name || '—' }}</span>
                   </td>
                   <td class="reason-cell">
                     {{ app.reason || '—' }}
@@ -288,13 +283,9 @@ import {
                     <p class="time-text">
                       <small>{{ app.intern_email }}</small>
                     </p>
-                    <p>
-                      <strong>Đợt:</strong> {{ app.internship_name || '—' }}
-                    </p>
+                    <p><strong>Đợt:</strong> {{ app.internship_name || '—' }}</p>
                     @if (app.reason) {
-                      <p class="reason-text">
-                        <strong>Lý do:</strong> {{ app.reason }}
-                      </p>
+                      <p class="reason-text"><strong>Lý do:</strong> {{ app.reason }}</p>
                     }
                     <p class="time-text">
                       <small>Nộp lúc: {{ app.created_at | date: 'dd/MM/yyyy HH:mm' }}</small>
@@ -313,9 +304,7 @@ import {
                         nzType="primary"
                         nzBlock
                         nz-popconfirm
-                        [nzPopconfirmTitle]="
-                          'Duyệt đơn của ' + (app.intern_name || 'Intern') + '?'
-                        "
+                        [nzPopconfirmTitle]="'Duyệt đơn của ' + (app.intern_name || 'Intern') + '?'"
                         (nzOnConfirm)="singleApproveApp(app)"
                       >
                         Duyệt đơn

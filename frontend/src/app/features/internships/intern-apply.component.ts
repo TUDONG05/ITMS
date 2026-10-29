@@ -180,7 +180,9 @@ import {
                     @for (app of myApplications(); track app.id) {
                       <div class="mobile-app-card">
                         <div class="mobile-app-header">
-                          <strong class="mobile-app-title">{{ app.internship_name || 'Đợt thực tập' }}</strong>
+                          <strong class="mobile-app-title">{{
+                            app.internship_name || 'Đợt thực tập'
+                          }}</strong>
                           @if (app.status === 'PENDING') {
                             <nz-tag nzColor="warning">Chờ duyệt</nz-tag>
                           } @else if (app.status === 'APPROVED') {
@@ -192,7 +194,9 @@ import {
                         <div class="mobile-app-body">
                           <div class="mobile-app-row">
                             <span class="row-label">Ngày nộp:</span>
-                            <span class="row-val">{{ app.created_at | date: 'dd/MM/yyyy HH:mm' }}</span>
+                            <span class="row-val">{{
+                              app.created_at | date: 'dd/MM/yyyy HH:mm'
+                            }}</span>
                           </div>
                           @if (app.reason) {
                             <div class="mobile-app-row">
@@ -208,7 +212,9 @@ import {
                                   <span nz-icon nzType="check-circle"></span> Đã tiếp nhận vào đợt
                                 </span>
                               } @else if (app.status === 'REJECTED') {
-                                <span class="text-rose-600">{{ app.review_note || 'Chưa đạt yêu cầu' }}</span>
+                                <span class="text-rose-600">{{
+                                  app.review_note || 'Chưa đạt yêu cầu'
+                                }}</span>
                               } @else {
                                 <span class="text-slate-400">Đang chờ Admin xem xét</span>
                               }
