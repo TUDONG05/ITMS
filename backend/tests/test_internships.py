@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 
 from app.db.session import get_session_factory
 from app.main import app
-from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole, UserStatus
-from app.models.internship import Internship
+from app.models.enums import InternshipStatus, UserRole, UserStatus
+from app.models.internship import Internship, InternshipMember
 from app.models.user import User
 
 
@@ -91,6 +91,34 @@ def test_data() -> Generator[dict[str, User]]:
         cleanup_session.close()
 
 
+def _add_member(
+    internship_id: uuid.UUID,
+    intern_id: uuid.UUID,
+    mentor_id: uuid.UUID | None = None,
+    roadmap_id: uuid.UUID | None = None,
+    status: str = "ACTIVE",
+) -> InternshipMember:
+    factory = get_session_factory()
+    with factory() as session:
+        itn = session.get(Internship, internship_id)
+        effective_roadmap = (
+            roadmap_id if roadmap_id is not None else (itn.roadmap_id if itn else None)
+        )
+        member = InternshipMember(
+            internship_id=internship_id,
+            intern_id=intern_id,
+            mentor_id=mentor_id,
+            roadmap_id=effective_roadmap,
+            status=status,
+            start_date=itn.start_date if itn else None,
+            end_date=itn.end_date if itn else None,
+        )
+        session.add(member)
+        session.commit()
+        session.refresh(member)
+        return member
+
+
 def test_admin_create_internship(client: TestClient, test_data: dict[str, User]) -> None:
     admin = test_data["admin"]
     resp = client.post(
@@ -151,18 +179,34 @@ def test_member_inherits_internship_roadmap(client: TestClient, test_data: dict[
             "name": f"Inherited Roadmap Batch {uuid.uuid4().hex[:6]}",
             "start_date": "2026-03-01",
             "end_date": "2026-06-30",
+            "status": "OPEN",
             "roadmap_id": roadmap_id,
         },
     )
+    batch_id = internship_resp.json()["id"]
 
-    enroll_resp = client.post(
-        f"/api/v1/internships/{internship_resp.json()['id']}/members",
-        headers={"X-User-Id": str(admin.id)},
-        json={"intern_id": str(intern.id)},
+    # Intern nộp đơn và Admin duyệt -> kế thừa roadmap
+    apply_resp = client.post(
+        f"/api/v1/internships/{batch_id}/apply",
+        headers={"X-User-Id": str(intern.id)},
+        json={"reason": "Học lộ trình"},
     )
+    assert apply_resp.status_code == 201
+    app_id = apply_resp.json()["id"]
 
-    assert enroll_resp.status_code == 201
-    assert enroll_resp.json()["roadmap_id"] == roadmap_id
+    approve_resp = client.patch(
+        f"/api/v1/internships/applications/{app_id}/review",
+        headers={"X-User-Id": str(admin.id)},
+        json={"status": "APPROVED"},
+    )
+    assert approve_resp.status_code == 200
+
+    members_resp = client.get(
+        f"/api/v1/internships/{batch_id}/members",
+        headers={"X-User-Id": str(admin.id)},
+    )
+    assert members_resp.status_code == 200
+    assert members_resp.json()[0]["roadmap_id"] == roadmap_id
 
 
 def test_updating_internship_roadmap_syncs_existing_members(
@@ -190,11 +234,7 @@ def test_updating_internship_roadmap_syncs_existing_members(
         },
     )
     internship_id = internship_resp.json()["id"]
-    client.post(
-        f"/api/v1/internships/{internship_id}/members",
-        headers={"X-User-Id": str(admin.id)},
-        json={"intern_id": str(intern.id)},
-    )
+    _add_member(uuid.UUID(internship_id), intern.id, roadmap_id=roadmap_ids[0])
 
     update_resp = client.patch(
         f"/api/v1/internships/{internship_id}",
@@ -296,13 +336,8 @@ def test_add_intern_to_internship(client: TestClient, test_data: dict[str, User]
             "mentor_id": str(mentor.id),
         },
     )
-    assert enroll_resp.status_code == 201
-    member = enroll_resp.json()
-    assert member["intern_id"] == str(intern.id)
-    assert member["mentor_id"] == str(mentor.id)
-    assert member["status"] == InternshipMemberStatus.ACTIVE
-    assert member["intern"]["full_name"] == intern.full_name
-    assert member["mentor"]["full_name"] == mentor.full_name
+    assert enroll_resp.status_code == 403
+    assert "bị loại bỏ" in enroll_resp.json()["detail"]
 
 
 def test_cannot_add_mentor_as_intern(client: TestClient, test_data: dict[str, User]) -> None:
@@ -325,8 +360,8 @@ def test_cannot_add_mentor_as_intern(client: TestClient, test_data: dict[str, Us
         headers={"X-User-Id": str(admin.id)},
         json={"intern_id": str(mentor.id)},
     )
-    assert enroll_resp.status_code == 400
-    assert "does not have role INTERN" in enroll_resp.json()["detail"]
+    assert enroll_resp.status_code == 403
+    assert "bị loại bỏ" in enroll_resp.json()["detail"]
 
 
 def test_cannot_add_duplicate_intern(client: TestClient, test_data: dict[str, User]) -> None:
@@ -349,15 +384,8 @@ def test_cannot_add_duplicate_intern(client: TestClient, test_data: dict[str, Us
         headers={"X-User-Id": str(admin.id)},
         json={"intern_id": str(intern.id)},
     )
-    assert resp1.status_code == 201
-
-    resp2 = client.post(
-        f"/api/v1/internships/{internship_id}/members",
-        headers={"X-User-Id": str(admin.id)},
-        json={"intern_id": str(intern.id)},
-    )
-    assert resp2.status_code == 409
-    assert "already enrolled" in resp2.json()["detail"]
+    assert resp1.status_code == 403
+    assert "bị loại bỏ" in resp1.json()["detail"]
 
 
 def test_assign_mentor_success(client: TestClient, test_data: dict[str, User]) -> None:
@@ -377,14 +405,9 @@ def test_assign_mentor_success(client: TestClient, test_data: dict[str, User]) -
     )
     internship_id = create_resp.json()["id"]
 
-    enroll_resp = client.post(
-        f"/api/v1/internships/{internship_id}/members",
-        headers={"X-User-Id": str(admin.id)},
-        json={"intern_id": str(intern.id)},
-    )
-    assert enroll_resp.status_code == 201
-    member_id = enroll_resp.json()["id"]
-    assert enroll_resp.json()["mentor_id"] is None
+    member = _add_member(uuid.UUID(internship_id), intern.id)
+    member_id = str(member.id)
+    assert member.mentor_id is None
 
     # Assign mentor
     assign_resp = client.patch(
@@ -421,12 +444,8 @@ def test_cannot_assign_intern_as_mentor(client: TestClient, test_data: dict[str,
     )
     internship_id = create_resp.json()["id"]
 
-    enroll_resp = client.post(
-        f"/api/v1/internships/{internship_id}/members",
-        headers={"X-User-Id": str(admin.id)},
-        json={"intern_id": str(intern.id)},
-    )
-    member_id = enroll_resp.json()["id"]
+    member = _add_member(uuid.UUID(internship_id), intern.id)
+    member_id = str(member.id)
 
     assign_resp = client.patch(
         f"/api/v1/internship-members/{member_id}/mentor",
@@ -556,11 +575,7 @@ def test_internships_search_and_filter_and_members_count(
     assert resp_beta.status_code == 201
 
     # Enroll intern in Alpha
-    client.post(
-        f"/api/v1/internships/{alpha_id}/members",
-        headers={"X-User-Id": str(admin.id)},
-        json={"intern_id": str(intern.id)},
-    )
+    _add_member(uuid.UUID(alpha_id), intern.id)
 
     # List all: check members_count
     list_all = client.get("/api/v1/internships", headers={"X-User-Id": str(admin.id)})
@@ -606,16 +621,8 @@ def test_internship_member_search(client: TestClient, test_data: dict[str, User]
     internship_id = create_resp.json()["id"]
 
     # Enroll both interns
-    client.post(
-        f"/api/v1/internships/{internship_id}/members",
-        headers={"X-User-Id": str(admin.id)},
-        json={"intern_id": str(intern.id)},
-    )
-    client.post(
-        f"/api/v1/internships/{internship_id}/members",
-        headers={"X-User-Id": str(admin.id)},
-        json={"intern_id": str(intern_2.id)},
-    )
+    _add_member(uuid.UUID(internship_id), intern.id)
+    _add_member(uuid.UUID(internship_id), intern_2.id)
 
     # Search for intern 2 specifically by name substring
     search_resp = client.get(
@@ -646,15 +653,8 @@ def test_update_internship_member_all_fields(
     )
     internship_id = create_resp.json()["id"]
 
-    enroll_resp = client.post(
-        f"/api/v1/internships/{internship_id}/members",
-        headers={"X-User-Id": str(admin.id)},
-        json={
-            "intern_id": str(intern.id),
-        },
-    )
-    assert enroll_resp.status_code == 201
-    member_id = enroll_resp.json()["id"]
+    member = _add_member(uuid.UUID(internship_id), intern.id)
+    member_id = str(member.id)
 
     patch_resp = client.patch(
         f"/api/v1/internship-members/{member_id}",

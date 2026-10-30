@@ -6,10 +6,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole
-from app.models.internship import Internship, InternshipMember, InternshipRequest
+from app.models.internship import (
+    Internship,
+    InternshipApplication,
+    InternshipMember,
+    InternshipRequest,
+)
 from app.models.roadmap import Roadmap
 from app.models.user import User
 from app.schemas.internship import (
+    BatchResult,
+    BatchReviewPayload,
+    InternshipApplicationCreate,
+    InternshipApplicationRead,
+    InternshipApplicationReview,
     InternshipCreate,
     InternshipMemberCreate,
     InternshipMemberUpdate,
@@ -158,73 +168,13 @@ class InternshipService:
         internship_id: uuid.UUID,
         data: InternshipMemberCreate,
     ) -> InternshipMember:
-        internship = InternshipService.get_internship_by_id(db, internship_id)
-
-        # Validate intern exists and has role INTERN
-        intern = db.get(User, data.intern_id)
-        if not intern:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Intern user not found",
-            )
-        if intern.role != UserRole.INTERN:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"User '{data.intern_id}' does not have role INTERN",
-            )
-
-        # Check duplicate member in this internship
-        dup_stmt = select(InternshipMember).where(
-            InternshipMember.internship_id == internship_id,
-            InternshipMember.intern_id == data.intern_id,
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Chức năng thêm trực tiếp thực tập sinh đã bị loại bỏ. "
+                "Thực tập sinh phải tự nộp đơn đăng ký và chờ Admin phê duyệt."
+            ),
         )
-        if db.scalar(dup_stmt) is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Intern '{data.intern_id}' is already enrolled in this internship",
-            )
-
-        # Validate mentor if provided
-        if data.mentor_id is not None:
-            mentor = db.get(User, data.mentor_id)
-            if not mentor:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Mentor user not found",
-                )
-            if mentor.role != UserRole.MENTOR:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"User '{data.mentor_id}' does not have role MENTOR",
-                )
-
-        if (
-            data.start_date is not None
-            and data.end_date is not None
-            and data.end_date < data.start_date
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="end_date must not be before start_date",
-            )
-
-        roadmap_id = InternshipService._validate_roadmap(
-            db, data.roadmap_id or internship.roadmap_id
-        )
-        member = InternshipMember(
-            internship_id=internship_id,
-            intern_id=data.intern_id,
-            mentor_id=data.mentor_id,
-            roadmap_id=roadmap_id,
-            start_date=data.start_date,
-            end_date=data.end_date,
-            status=data.status,
-        )
-        db.add(member)
-        db.commit()
-
-        # Re-fetch with relationships loaded
-        return InternshipService.get_member_by_id(db, member.id)
 
     @staticmethod
     def get_members_by_internship(
@@ -654,3 +604,382 @@ class InternshipService:
         db.commit()
         db.refresh(req)
         return InternshipService.enrich_request(db, req)
+
+    @staticmethod
+    def enrich_application(db: Session, app: InternshipApplication) -> InternshipApplicationRead:
+        internship_name = app.internship.name if app.internship else None
+        if not internship_name and app.internship_id:
+            it = db.get(Internship, app.internship_id)
+            if it:
+                internship_name = it.name
+
+        intern_name = app.intern.full_name if app.intern else None
+        intern_email = app.intern.email if app.intern else None
+        if (not intern_name or not intern_email) and app.intern_id:
+            u = db.get(User, app.intern_id)
+            if u:
+                intern_name = u.full_name
+                intern_email = u.email
+
+        reviewer_name = app.reviewer.full_name if app.reviewer else None
+        if not reviewer_name and app.reviewed_by:
+            rev = db.get(User, app.reviewed_by)
+            if rev:
+                reviewer_name = rev.full_name
+
+        return InternshipApplicationRead(
+            id=app.id,
+            internship_id=app.internship_id,
+            intern_id=app.intern_id,
+            status=app.status,
+            reason=app.reason,
+            reviewed_by=app.reviewed_by,
+            review_note=app.review_note,
+            created_at=app.created_at,
+            reviewed_at=app.reviewed_at,
+            internship_name=internship_name,
+            intern_name=intern_name,
+            intern_email=intern_email,
+            reviewer_name=reviewer_name,
+        )
+
+    @staticmethod
+    def get_open_internships(db: Session) -> list[Internship]:
+        stmt = (
+            select(Internship)
+            .where(Internship.status == InternshipStatus.OPEN)
+            .order_by(Internship.start_date.asc())
+        )
+        return list(db.scalars(stmt).all())
+
+    @staticmethod
+    def apply_internship(
+        db: Session,
+        internship_id: uuid.UUID,
+        intern_id: uuid.UUID,
+        data: InternshipApplicationCreate,
+    ) -> InternshipApplicationRead:
+        internship = db.get(Internship, internship_id)
+        if not internship:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Đợt thực tập không tồn tại.",
+            )
+
+        if internship.status != InternshipStatus.OPEN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Chỉ có thể đăng ký các đợt thực tập đang mở (OPEN).",
+            )
+
+        # Kiểm tra intern đã là thành viên trong đợt chưa
+        mem_stmt = select(InternshipMember).where(
+            InternshipMember.internship_id == internship_id,
+            InternshipMember.intern_id == intern_id,
+        )
+        if db.scalar(mem_stmt) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Bạn đã là thành viên của đợt thực tập này.",
+            )
+
+        # Kiểm tra đơn đăng ký hiện có
+        app_stmt = select(InternshipApplication).where(
+            InternshipApplication.internship_id == internship_id,
+            InternshipApplication.intern_id == intern_id,
+        )
+        existing_app = db.scalar(app_stmt)
+        if existing_app:
+            if existing_app.status == "PENDING":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Bạn đã gửi đơn đăng ký cho đợt thực tập này và đang chờ duyệt.",
+                )
+            elif existing_app.status == "APPROVED":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Đơn đăng ký của bạn cho đợt này đã được phê duyệt.",
+                )
+            elif existing_app.status == "REJECTED":
+                # Nộp lại đơn mới
+                clean_reason = data.reason.strip() if data.reason and data.reason.strip() else None
+                existing_app.status = "PENDING"
+                existing_app.reason = clean_reason
+                existing_app.reviewed_by = None
+                existing_app.review_note = None
+                existing_app.reviewed_at = None
+                existing_app.created_at = datetime.now(UTC)
+                db.commit()
+                db.refresh(existing_app)
+                return InternshipService.enrich_application(db, existing_app)
+
+        clean_reason = data.reason.strip() if data.reason and data.reason.strip() else None
+        new_app = InternshipApplication(
+            internship_id=internship_id,
+            intern_id=intern_id,
+            reason=clean_reason,
+            status="PENDING",
+        )
+        db.add(new_app)
+        db.commit()
+        db.refresh(new_app)
+        return InternshipService.enrich_application(db, new_app)
+
+    @staticmethod
+    def get_my_applications(db: Session, intern_id: uuid.UUID) -> list[InternshipApplicationRead]:
+        stmt = (
+            select(InternshipApplication)
+            .where(InternshipApplication.intern_id == intern_id)
+            .options(
+                selectinload(InternshipApplication.internship),
+                selectinload(InternshipApplication.intern),
+                selectinload(InternshipApplication.reviewer),
+            )
+            .order_by(InternshipApplication.created_at.desc())
+        )
+        apps = list(db.scalars(stmt).all())
+        return [InternshipService.enrich_application(db, a) for a in apps]
+
+    @staticmethod
+    def get_applications(
+        db: Session,
+        status_filter: str | None = None,
+        internship_id: uuid.UUID | None = None,
+        search: str | None = None,
+    ) -> list[InternshipApplicationRead]:
+        stmt = (
+            select(InternshipApplication)
+            .join(InternshipApplication.intern)
+            .options(
+                selectinload(InternshipApplication.internship),
+                selectinload(InternshipApplication.intern),
+                selectinload(InternshipApplication.reviewer),
+            )
+            .order_by(InternshipApplication.created_at.desc())
+        )
+        if status_filter:
+            stmt = stmt.where(InternshipApplication.status == status_filter)
+        if internship_id:
+            stmt = stmt.where(InternshipApplication.internship_id == internship_id)
+        if search:
+            stmt = stmt.where(
+                User.full_name.ilike(f"%{search.strip()}%")
+                | User.email.ilike(f"%{search.strip()}%")
+            )
+        apps = list(db.scalars(stmt).all())
+        return [InternshipService.enrich_application(db, a) for a in apps]
+
+    @staticmethod
+    def get_application_by_id(db: Session, app_id: uuid.UUID) -> InternshipApplicationRead:
+        stmt = (
+            select(InternshipApplication)
+            .where(InternshipApplication.id == app_id)
+            .options(
+                selectinload(InternshipApplication.internship),
+                selectinload(InternshipApplication.intern),
+                selectinload(InternshipApplication.reviewer),
+            )
+        )
+        app = db.scalar(stmt)
+        if not app:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Đơn đăng ký không tồn tại.",
+            )
+        return InternshipService.enrich_application(db, app)
+
+    @staticmethod
+    def review_application(
+        db: Session,
+        app_id: uuid.UUID,
+        payload: InternshipApplicationReview,
+        reviewer_id: uuid.UUID,
+    ) -> InternshipApplicationRead:
+        app = db.scalar(
+            select(InternshipApplication)
+            .where(InternshipApplication.id == app_id)
+            .with_for_update()
+        )
+        if not app:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Đơn đăng ký không tồn tại.",
+            )
+        if app.status != "PENDING":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Đơn đăng ký đã được xử lý trước đó (trạng thái: {app.status}).",
+            )
+
+        if payload.status == "APPROVED":
+            internship = db.get(Internship, app.internship_id)
+            if not internship or internship.status == InternshipStatus.CANCELLED:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Đợt thực tập đã bị hủy hoặc không còn khả dụng.",
+                )
+
+            # Chống thêm trùng (concurrency check)
+            dup_check = (
+                select(InternshipMember)
+                .where(
+                    InternshipMember.internship_id == app.internship_id,
+                    InternshipMember.intern_id == app.intern_id,
+                )
+                .with_for_update()
+            )
+            if db.scalar(dup_check) is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Thực tập sinh đã là thành viên của đợt thực tập này.",
+                )
+
+            # Thêm vào thành viên chính thức, kế thừa lộ trình từ đợt
+            new_member = InternshipMember(
+                internship_id=app.internship_id,
+                intern_id=app.intern_id,
+                roadmap_id=internship.roadmap_id,
+                start_date=internship.start_date,
+                end_date=internship.end_date,
+                status=InternshipMemberStatus.ACTIVE,
+            )
+            db.add(new_member)
+
+        app.status = payload.status
+        app.reviewed_by = reviewer_id
+        app.review_note = payload.review_note
+        app.reviewed_at = datetime.now(UTC)
+
+        db.commit()
+        db.refresh(app)
+        return InternshipService.enrich_application(db, app)
+
+    @staticmethod
+    def batch_review_applications(
+        db: Session,
+        payload: BatchReviewPayload,
+        reviewer_id: uuid.UUID,
+    ) -> BatchResult:
+        if not payload.ids:
+            return BatchResult(processed_count=0, message="Không có đơn đăng ký nào được chọn.")
+
+        processed = 0
+        now = datetime.now(UTC)
+        for app_id in payload.ids:
+            app = db.scalar(
+                select(InternshipApplication)
+                .where(InternshipApplication.id == app_id)
+                .with_for_update()
+            )
+            if not app or app.status != "PENDING":
+                continue
+
+            if payload.status == "APPROVED":
+                internship = db.get(Internship, app.internship_id)
+                if not internship or internship.status == InternshipStatus.CANCELLED:
+                    continue
+
+                dup = db.scalar(
+                    select(InternshipMember)
+                    .where(
+                        InternshipMember.internship_id == app.internship_id,
+                        InternshipMember.intern_id == app.intern_id,
+                    )
+                    .with_for_update()
+                )
+                if dup is not None:
+                    continue
+
+                new_member = InternshipMember(
+                    internship_id=app.internship_id,
+                    intern_id=app.intern_id,
+                    roadmap_id=internship.roadmap_id,
+                    start_date=internship.start_date,
+                    end_date=internship.end_date,
+                    status=InternshipMemberStatus.ACTIVE,
+                )
+                db.add(new_member)
+
+            app.status = payload.status
+            app.reviewed_by = reviewer_id
+            app.review_note = payload.review_note
+            app.reviewed_at = now
+            processed += 1
+
+        db.commit()
+        action_text = "phê duyệt" if payload.status == "APPROVED" else "từ chối"
+        return BatchResult(
+            processed_count=processed,
+            message=f"Đã {action_text} thành công {processed} đơn đăng ký.",
+        )
+
+    @staticmethod
+    def approve_all_applications(db: Session, reviewer_id: uuid.UUID) -> BatchResult:
+        stmt = (
+            select(InternshipApplication.id)
+            .where(InternshipApplication.status == "PENDING")
+            .with_for_update()
+        )
+        pending_ids = list(db.scalars(stmt).all())
+        payload = BatchReviewPayload(ids=pending_ids, status="APPROVED")
+        return InternshipService.batch_review_applications(db, payload, reviewer_id)
+
+    @staticmethod
+    def batch_review_requests(
+        db: Session,
+        payload: BatchReviewPayload,
+        reviewer_id: uuid.UUID,
+    ) -> BatchResult:
+        if not payload.ids:
+            return BatchResult(processed_count=0, message="Không có yêu cầu nào được chọn.")
+
+        processed = 0
+        now = datetime.now(UTC)
+        for req_id in payload.ids:
+            req = db.scalar(
+                select(InternshipRequest).where(InternshipRequest.id == req_id).with_for_update()
+            )
+            if not req or req.status != "PENDING":
+                continue
+
+            req.status = payload.status
+            req.review_note = payload.review_note
+            req.reviewed_by = reviewer_id
+            req.reviewed_at = now
+
+            if payload.status == "APPROVED":
+                member = db.scalar(
+                    select(InternshipMember)
+                    .where(InternshipMember.id == req.internship_member_id)
+                    .with_for_update()
+                )
+                if member:
+                    if req.type == "EXTEND":
+                        member.status = InternshipMemberStatus.EXTENDED
+                        if req.requested_end_date:
+                            member.end_date = req.requested_end_date
+                    elif req.type == "STOP":
+                        member.status = InternshipMemberStatus.STOPPED
+                    elif req.type == "COMPLETE":
+                        member.status = InternshipMemberStatus.COMPLETED
+                    member.updated_at = now
+
+            processed += 1
+
+        db.commit()
+        action_text = "phê duyệt" if payload.status == "APPROVED" else "từ chối"
+        return BatchResult(
+            processed_count=processed,
+            message=f"Đã {action_text} thành công {processed} yêu cầu.",
+        )
+
+    @staticmethod
+    def approve_all_requests(db: Session, reviewer_id: uuid.UUID) -> BatchResult:
+        stmt = (
+            select(InternshipRequest.id)
+            .where(InternshipRequest.status == "PENDING")
+            .with_for_update()
+        )
+        pending_ids = list(db.scalars(stmt).all())
+        payload = BatchReviewPayload(ids=pending_ids, status="APPROVED")
+        return InternshipService.batch_review_requests(db, payload, reviewer_id)

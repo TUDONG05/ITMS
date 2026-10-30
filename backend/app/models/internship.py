@@ -175,3 +175,53 @@ class InternshipRequest(Base):
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class InternshipApplication(Base):
+    __tablename__ = "don_dang_ky_thuc_tap"
+    __table_args__ = (
+        UniqueConstraint("dot_thuc_tap_id", "thuc_tap_sinh_id", name="uq_don_dang_ky_dot_intern"),
+        CheckConstraint(
+            "trang_thai IN ('PENDING', 'APPROVED', 'REJECTED')",
+            name="ck_don_dang_ky_trang_thai",
+        ),
+        Index("ix_don_dang_ky_trang_thai", "trang_thai"),
+        Index("ix_don_dang_ky_thuc_tap_sinh_id", "thuc_tap_sinh_id"),
+        Index("ix_don_dang_ky_dot_thuc_tap_id", "dot_thuc_tap_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    internship_id: Mapped[uuid.UUID] = mapped_column(
+        "dot_thuc_tap_id",
+        UUID(as_uuid=True),
+        ForeignKey("dot_thuc_tap.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    intern_id: Mapped[uuid.UUID] = mapped_column(
+        "thuc_tap_sinh_id",
+        UUID(as_uuid=True),
+        ForeignKey("nguoi_dung.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column("trang_thai", String(20), nullable=False, default="PENDING")
+    reason: Mapped[str | None] = mapped_column("ly_do", Text, nullable=True)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        "nguoi_duyet_id",
+        UUID(as_uuid=True),
+        ForeignKey("nguoi_dung.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    review_note: Mapped[str | None] = mapped_column("ghi_chu_duyet", Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        "ngay_tao",
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        "ngay_duyet", DateTime(timezone=True), nullable=True
+    )
+
+    internship: Mapped[Internship] = relationship("Internship", foreign_keys=[internship_id])
+    intern: Mapped[User] = relationship("User", foreign_keys=[intern_id])
+    reviewer: Mapped[User | None] = relationship("User", foreign_keys=[reviewed_by])
