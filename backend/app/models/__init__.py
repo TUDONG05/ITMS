@@ -10,7 +10,7 @@ from app.models.internship import (
 )
 from app.models.knowledge import AIConversation, AIMessage
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
-from app.models.task import Task, TaskComment, TaskSubmission
+from app.models.task import Task, TaskAssignee, TaskComment, TaskSubmission
 from app.models.user import User
 
 __all__ = [
@@ -33,6 +33,7 @@ __all__ = [
     "QuizAttempt",
     "Roadmap",
     "Task",
+    "TaskAssignee",
     "TaskComment",
     "TaskSubmission",
     "User",

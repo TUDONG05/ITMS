@@ -8,7 +8,7 @@ from app.main import app
 from app.models.enums import UserRole, UserStatus
 from app.models.internship import Internship, InternshipMember
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
-from app.models.task import Task
+from app.models.task import Task, TaskAssignee
 from app.models.user import User
 from app.schemas.dashboard import DashboardMetricRead, DashboardRead, DashboardTaskBreakdownRead
 
@@ -143,13 +143,13 @@ def test_dashboard_scopes_tasks_to_the_authenticated_mentor_and_intern() -> None
     session.add_all(
         [
             Task(
-                internship_member_id=member_one.id,
+                assignees=[TaskAssignee(internship_member_id=member_one.id)],
                 created_by=mentor_one.id,
                 title="Mentor one task",
                 status="TODO",
             ),
             Task(
-                internship_member_id=member_two.id,
+                assignees=[TaskAssignee(internship_member_id=member_two.id)],
                 created_by=mentor_two.id,
                 title="Mentor two task",
                 status="TODO",
@@ -173,7 +173,9 @@ def test_dashboard_scopes_tasks_to_the_authenticated_mentor_and_intern() -> None
         assert intern_response.json()["recent_items"][0]["title"] == "Mentor one task"
     finally:
         session.query(Task).filter(
-            Task.internship_member_id.in_([member_one.id, member_two.id])
+            Task.assignees.any(
+                TaskAssignee.internship_member_id.in_([member_one.id, member_two.id])
+            )
         ).delete(synchronize_session=False)
         session.query(InternshipMember).filter(
             InternshipMember.id.in_([member_one.id, member_two.id])

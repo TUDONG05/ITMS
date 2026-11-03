@@ -4,10 +4,22 @@ import { Observable } from 'rxjs';
 
 export type TaskStatus = 'TODO' | 'SUBMITTED' | 'REVISION_REQUIRED' | 'COMPLETED' | 'CANCELLED';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH';
+export type TaskAssignmentMode = 'GROUP' | 'INDIVIDUAL';
+
+export interface TaskAssignee {
+  internship_member_id: string;
+  intern_id: string;
+  intern_name: string;
+  internship_id: string;
+  internship_name: string;
+  status: TaskStatus;
+}
 
 export interface Task {
   id: string;
-  internship_member_id: string;
+  internship_member_ids: string[];
+  assignees: TaskAssignee[];
+  assignment_mode: TaskAssignmentMode;
   created_by: string;
   title: string;
   description?: string | null;
@@ -28,6 +40,8 @@ export interface Task {
 export interface TaskSubmission {
   id: string;
   task_id: string;
+  internship_member_id: string | null;
+  intern_name: string | null;
   content?: string | null;
   file_url?: string | null;
   status: string;
@@ -82,7 +96,8 @@ export class TaskService {
   }
 
   createTask(payload: {
-    internship_member_id: string;
+    internship_member_ids: string[];
+    assignment_mode: TaskAssignmentMode;
     title: string;
     description?: string | null;
     deadline?: string | null;
@@ -123,7 +138,11 @@ export class TaskService {
 
   reviewTask(
     id: string,
-    payload: { decision: 'COMPLETED' | 'REVISION_REQUIRED'; review_comment?: string | null },
+    payload: {
+      decision: 'COMPLETED' | 'REVISION_REQUIRED';
+      review_comment?: string | null;
+      internship_member_id?: string;
+    },
   ): Observable<TaskSubmission> {
     return this.http.post<TaskSubmission>(`/api/v1/tasks/${id}/review`, payload);
   }

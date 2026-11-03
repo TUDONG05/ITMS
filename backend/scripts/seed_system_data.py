@@ -46,6 +46,7 @@ from app.models import (
     QuizAttempt,
     Roadmap,
     Task,
+    TaskAssignee,
     TaskComment,
     TaskSubmission,
     User,
@@ -340,7 +341,6 @@ def main() -> None:
                 Task,
                 seed_id(f"task:{key}"),
                 {
-                    "internship_member_id": members[intern_key].id,
                     "title": title,
                     "created_by": members[intern_key].mentor_id,
                     "description": f"Thực hiện công việc: {title}.",
@@ -348,6 +348,13 @@ def main() -> None:
                     "priority": priority,
                     "status": status,
                 },
+            )
+            db.flush()
+            upsert_by(
+                db,
+                TaskAssignee,
+                {"task_id": tasks[key].id, "internship_member_id": members[intern_key].id},
+                {"status": status},
             )
         db.flush()
 

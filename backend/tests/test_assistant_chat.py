@@ -18,7 +18,7 @@ from app.models.interaction import Notification, NotificationRead
 from app.models.internship import Internship, InternshipMember
 from app.models.knowledge import AIConversation, AIMessage
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
-from app.models.task import Task
+from app.models.task import Task, TaskAssignee
 from app.models.user import User
 from app.services.assistant import SYSTEM_PROMPT, AssistantService
 from app.services.assistant_tools import (
@@ -130,14 +130,14 @@ def assistant_data() -> Generator[dict[str, object]]:
     )
     session.add(progress)
     own_task = Task(
-        internship_member_id=member_a.id,
+        assignees=[TaskAssignee(internship_member_id=member_a.id)],
         created_by=mentor.id,
         title="Task visible to intern A",
         status="TODO",
         deadline=datetime.now(UTC) + timedelta(days=2),
     )
     foreign_task = Task(
-        internship_member_id=member_b.id,
+        assignees=[TaskAssignee(internship_member_id=member_b.id)],
         created_by=mentor_b.id,
         title="Secret task of intern B",
         status="TODO",
@@ -214,9 +214,9 @@ def assistant_data() -> Generator[dict[str, object]]:
     session.query(LearningProgress).filter(
         LearningProgress.internship_member_id.in_([member_a.id, member_b.id])
     ).delete(synchronize_session=False)
-    session.query(Task).filter(Task.internship_member_id.in_([member_a.id, member_b.id])).delete(
-        synchronize_session=False
-    )
+    session.query(Task).filter(
+        Task.assignees.any(TaskAssignee.internship_member_id.in_([member_a.id, member_b.id]))
+    ).delete(synchronize_session=False)
     session.query(InternshipMember).filter(
         InternshipMember.id.in_([member_a.id, member_b.id])
     ).delete(synchronize_session=False)
@@ -640,7 +640,7 @@ def test_task_tool_reports_exact_total_when_rows_are_limited(
     session.add_all(
         [
             Task(
-                internship_member_id=member.id,
+                assignees=[TaskAssignee(internship_member_id=member.id)],
                 created_by=mentor.id,
                 title=f"Extra task {index}",
                 status="TODO",
