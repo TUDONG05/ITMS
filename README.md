@@ -39,7 +39,7 @@ ITMS là hệ thống quản lý thực tập sinh hoàn chỉnh dành cho ba va
 | Vai trò    | Khả năng chính                                                                                                                                                                                                 |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Admin**  | Quản lý người dùng, vai trò và trạng thái tài khoản; quản lý đợt thực tập, thành viên và phân công Mentor; vận hành LMS; quản lý tiêu chí đánh giá; duyệt yêu cầu vòng đời thực tập; tạo và quản lý thông báo. |
-| **Mentor** | Theo dõi Intern phụ trách, lộ trình và kết quả quiz; giao task, review bài nộp và trao đổi; lập/công bố đánh giá; gửi đề xuất gia hạn, dừng hoặc hoàn thành thực tập; xem lịch sử trạng thái và phân công.     |
+| **Mentor** | Theo dõi Intern phụ trách, lộ trình và kết quả quiz; giao một task cho nhiều Intern theo chế độ làm chung hoặc làm độc lập, review bài nộp và trao đổi; lập/công bố đánh giá; gửi đề xuất gia hạn, dừng hoặc hoàn thành thực tập; xem lịch sử trạng thái và phân công. |
 | **Intern** | Học theo roadmap, mở tài liệu, cập nhật tiến độ; làm quiz và xem kết quả; nhận task, nộp/sửa/xóa bài nộp và bình luận; xem đánh giá đã công bố và thông báo cá nhân.                                           |
 
 ## Kiến trúc

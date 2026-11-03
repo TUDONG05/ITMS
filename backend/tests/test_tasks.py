@@ -9,7 +9,10 @@ from app.db.session import get_session_factory
 from app.main import app
 from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole, UserStatus
 from app.models.internship import Internship, InternshipMember
+from app.models.task import Task, TaskAssignee
 from app.models.user import User
+from app.services.assistant_tools import AssistantToolService
+from app.services.dashboard import DashboardService
 
 
 @pytest.fixture
@@ -115,6 +118,280 @@ def _create_task(client, mentor, member_id, title="Task 1"):
     )
     assert resp.status_code == 200, resp.text
     return resp.json()
+
+
+def _shareable_members(task_test_data):
+    """Give the fixture's second member to the same mentor for shared-task tests."""
+    with get_session_factory()() as session:
+        member = session.get(InternshipMember, task_test_data["member_b"].id)
+        member.mentor_id = task_test_data["mentor_a"].id
+        session.commit()
+    return [str(task_test_data[key].id) for key in ("member_a", "member_b")]
+
+
+def test_shared_task_is_one_record_visible_to_every_assignee(client, task_test_data):
+    ids = _shareable_members(task_test_data)
+    mentor = task_test_data["mentor_a"]
+    response = client.post(
+        "/api/v1/tasks",
+        headers={"X-User-Id": str(mentor.id)},
+        json={
+            "title": "Shared group task",
+            "internship_member_ids": ids + ids,
+            "deadline": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
+        },
+    )
+    assert response.status_code == 200, response.text
+    task = response.json()
+    assert set(task["internship_member_ids"]) == set(ids)
+    assert {a["intern_name"] for a in task["assignees"]} == {"Intern A", "Intern B"}
+    with get_session_factory()() as session:
+        assert session.query(Task).filter(Task.id == uuid.UUID(task["id"])).count() == 1
+        assert (
+            session.query(TaskAssignee)
+            .filter(TaskAssignee.task_id == uuid.UUID(task["id"]))
+            .count()
+            == 2
+        )
+        member_ids = [uuid.UUID(member_id) for member_id in ids]
+        assert DashboardService._tasks(session, member_ids).count() == 1
+        tools = AssistantToolService()
+        tasks = tools.get_tasks(session, mentor, {})
+        deadlines = tools.get_deadlines(session, mentor, {})
+        assert tasks["total_count"] == deadlines["total_count"] == 1
+        assert tasks["returned_count"] == deadlines["returned_count"] == 1
+        assert {a["intern_name"] for a in tasks["tasks"][0]["assignees"]} == {
+            "Intern A",
+            "Intern B",
+        }
+    for role in ("intern_a", "intern_b", "mentor_a"):
+        headers = {"X-User-Id": str(task_test_data[role].id)}
+        detail = client.get(f"/api/v1/tasks/{task['id']}", headers=headers)
+        assert detail.status_code == 200
+        assert detail.json()["id"] == task["id"]
+        assert len(detail.json()["assignees"]) == 2
+        listing = client.get("/api/v1/tasks", headers=headers).json()
+        assert sum(t["id"] == task["id"] for t in listing) == 1
+    denied = client.get(
+        f"/api/v1/tasks/{task['id']}",
+        headers={"X-User-Id": str(task_test_data["mentor_b"].id)},
+    )
+    assert denied.status_code == 403
+
+
+def test_shared_assignment_rejects_foreign_member_atomically(client, task_test_data):
+    title = "Foreign recipient must prevent creation"
+    ids = [str(task_test_data[key].id) for key in ("member_a", "member_b")]
+    response = client.post(
+        "/api/v1/tasks",
+        headers={"X-User-Id": str(task_test_data["mentor_a"].id)},
+        json={"title": title, "internship_member_ids": ids},
+    )
+    assert response.status_code == 403
+    with get_session_factory()() as session:
+        assert session.query(Task).filter(Task.title == title).count() == 0
+
+
+def test_shared_task_search_and_filters_include_every_assignee(client, task_test_data):
+    ids = _shareable_members(task_test_data)
+    headers = {"X-User-Id": str(task_test_data["mentor_a"].id)}
+    created = client.post(
+        "/api/v1/tasks",
+        headers=headers,
+        json={"title": "Shared search task", "internship_member_ids": ids},
+    ).json()
+    for params in (
+        {"search": "Intern B"},
+        {"member_id": ids[1]},
+        {"internship_id": str(task_test_data["internship"].id)},
+    ):
+        listing = client.get("/api/v1/tasks", headers=headers, params=params)
+        assert listing.status_code == 200
+        assert sum(t["id"] == created["id"] for t in listing.json()) == 1
+
+
+def test_shared_task_requires_a_nonempty_recipient_list(client, task_test_data):
+    headers = {"X-User-Id": str(task_test_data["mentor_a"].id)}
+    for recipient in ({"internship_member_ids": []}, {"internship_member_ids": None}, {}):
+        response = client.post(
+            "/api/v1/tasks", headers=headers, json={"title": "No recipients", **recipient}
+        )
+        assert response.status_code == 422
+
+
+def test_group_mode_shares_one_submission_and_review(client, task_test_data):
+    ids = _shareable_members(task_test_data)
+    headers = {
+        key: {"X-User-Id": str(task_test_data[key].id)}
+        for key in ("mentor_a", "intern_a", "intern_b")
+    }
+    task = client.post(
+        "/api/v1/tasks",
+        headers=headers["mentor_a"],
+        json={
+            "title": "Group mode",
+            "internship_member_ids": ids,
+            "assignment_mode": "GROUP",
+        },
+    ).json()
+    url = f"/api/v1/tasks/{task['id']}"
+    first = client.post(
+        url + "/submit", headers=headers["intern_a"], json={"content": "First draft"}
+    )
+    second = client.post(
+        url + "/submit", headers=headers["intern_b"], json={"content": "Group final"}
+    )
+    assert first.status_code == second.status_code == 200
+    assert first.json()["id"] == second.json()["id"]
+    assert second.json()["internship_member_id"] is None
+    for intern in ("intern_a", "intern_b"):
+        detail = client.get(url, headers=headers[intern]).json()
+        assert len(detail["submissions"]) == 1
+        assert detail["submissions"][0]["content"] == "Group final"
+    review = client.post(
+        url + "/review", headers=headers["mentor_a"], json={"decision": "COMPLETED"}
+    )
+    assert review.status_code == 200
+    detail = client.get(url, headers=headers["intern_b"]).json()
+    assert detail["status"] == "COMPLETED"
+    assert {a["status"] for a in detail["assignees"]} == {"COMPLETED"}
+
+
+def test_individual_mode_scopes_submissions_and_completes_only_when_all_reviewed(
+    client, task_test_data
+):
+    ids = _shareable_members(task_test_data)
+    headers = {
+        key: {"X-User-Id": str(task_test_data[key].id)}
+        for key in ("mentor_a", "intern_a", "intern_b")
+    }
+    task = client.post(
+        "/api/v1/tasks",
+        headers=headers["mentor_a"],
+        json={
+            "title": "Individual mode",
+            "internship_member_ids": ids,
+            "assignment_mode": "INDIVIDUAL",
+            "deadline": (datetime.now(UTC) - timedelta(days=1)).isoformat(),
+        },
+    ).json()
+    assert task["assignment_mode"] == "INDIVIDUAL"
+    url = f"/api/v1/tasks/{task['id']}"
+    first = client.post(url + "/submit", headers=headers["intern_a"], json={"content": "A private"})
+    assert first.status_code == 200
+    assert first.json()["internship_member_id"] == ids[0]
+    assert first.json()["intern_name"] == "Intern A"
+    assert client.get(url, headers=headers["intern_b"]).json()["submissions"] == []
+    assert client.delete(url + "/submission", headers=headers["intern_b"]).status_code == 404
+    second = client.post(
+        url + "/submit", headers=headers["intern_b"], json={"content": "B private"}
+    )
+    assert second.status_code == 200
+    assert second.json()["id"] != first.json()["id"]
+    assert len(client.get(url, headers=headers["mentor_a"]).json()["submissions"]) == 2
+    assert (
+        client.post(
+            url + "/review", headers=headers["mentor_a"], json={"decision": "COMPLETED"}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            url + "/review",
+            headers=headers["mentor_a"],
+            json={
+                "decision": "COMPLETED",
+                "internship_member_id": str(uuid.uuid4()),
+            },
+        ).status_code
+        == 400
+    )
+    reviewed = client.post(
+        url + "/review",
+        headers=headers["mentor_a"],
+        json={
+            "decision": "COMPLETED",
+            "internship_member_id": ids[0],
+        },
+    )
+    assert reviewed.status_code == 200
+    a_detail = client.get(url, headers=headers["intern_a"]).json()
+    assert a_detail["status"] == "SUBMITTED"
+    assert not a_detail["is_overdue"]
+    assert len(a_detail["submissions"]) == 1
+    assert a_detail["submissions"][0]["content"] == "A private"
+    dashboard = client.get("/api/v1/dashboard", headers=headers["intern_a"])
+    assert dashboard.status_code == 200
+    assert dashboard.json()["task_breakdown"]["completed"] == 1
+    assert dashboard.json()["task_breakdown"]["overdue"] == 0
+    assert dashboard.json()["recent_items"][0]["status"] == "COMPLETED"
+    with get_session_factory()() as session:
+        tools = AssistantToolService()
+        tasks = tools.get_tasks(session, task_test_data["intern_a"], {"status": "COMPLETED"})
+        deadlines = tools.get_deadlines(session, task_test_data["intern_a"], {"range": "OVERDUE"})
+        assert tasks["total_count"] == 1
+        assert tasks["tasks"][0]["status"] == "COMPLETED"
+        assert deadlines["total_count"] == 0
+    assert (
+        client.post(
+            url + "/submit", headers=headers["intern_a"], json={"content": "Overwrite accepted"}
+        ).status_code
+        == 400
+    )
+    assert client.delete(url + "/submission", headers=headers["intern_a"]).status_code == 400
+    completed = client.get(
+        "/api/v1/tasks", headers=headers["intern_a"], params={"status": "COMPLETED"}
+    ).json()
+    assert any(t["id"] == task["id"] for t in completed)
+    overdue = client.get(
+        "/api/v1/tasks", headers=headers["intern_a"], params={"overdue": True}
+    ).json()
+    assert not any(t["id"] == task["id"] for t in overdue)
+    revision = client.post(
+        url + "/review",
+        headers=headers["mentor_a"],
+        json={
+            "decision": "REVISION_REQUIRED",
+            "internship_member_id": ids[1],
+        },
+    )
+    assert revision.status_code == 200
+    assert client.get(url, headers=headers["mentor_a"]).json()["status"] == "REVISION_REQUIRED"
+    assert client.delete(url + "/submission", headers=headers["intern_b"]).status_code == 204
+    assert client.get(url, headers=headers["mentor_a"]).json()["status"] == "TODO"
+    assert (
+        client.post(
+            url + "/submit", headers=headers["intern_b"], json={"content": "B final"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            url + "/review",
+            headers=headers["mentor_a"],
+            json={
+                "decision": "COMPLETED",
+                "internship_member_id": ids[1],
+            },
+        ).status_code
+        == 200
+    )
+    final = client.get(url, headers=headers["mentor_a"]).json()
+    assert final["status"] == "COMPLETED"
+    assert {a["status"] for a in final["assignees"]} == {"COMPLETED"}
+
+
+def test_invalid_assignment_mode_is_rejected(client, task_test_data):
+    response = client.post(
+        "/api/v1/tasks",
+        headers={"X-User-Id": str(task_test_data["mentor_a"].id)},
+        json={
+            "title": "Wrong mode",
+            "assignment_mode": "UNKNOWN",
+            "internship_member_ids": [str(task_test_data["member_a"].id)],
+        },
+    )
+    assert response.status_code == 422
 
 
 def test_full_flow_assign_submit_review_complete(client, task_test_data):

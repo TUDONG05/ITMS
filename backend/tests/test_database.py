@@ -27,6 +27,7 @@ def test_all_entities_registered():
         "cau_hoi",
         "lan_lam_bai",
         "cong_viec",
+        "phan_cong_cong_viec",
         "bai_nop_cong_viec",
         "binh_luan_cong_viec",
         "tieu_chi_danh_gia",
@@ -39,7 +40,7 @@ def test_all_entities_registered():
         "don_dang_ky_thuc_tap",
     }
     actual_tables = set(Base.metadata.tables.keys())
-    assert len(actual_tables) == 22
+    assert len(actual_tables) == len(expected_tables)
     assert actual_tables == expected_tables
 
 

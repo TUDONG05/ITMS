@@ -67,9 +67,7 @@
       <thead>
         <tr>
           <th>Task</th>
-          @if (isMentorSide()) {
-            <th>Intern</th>
-          }
+          <th>Intern được giao</th>
           <th>Đợt thực tập</th>
           <th>Hạn</th>
           <th>Ưu tiên</th>
@@ -87,10 +85,17 @@
               <small class="sub"
                 >Nộp: {{ t.submissions_count }} · Trao đổi: {{ t.comments_count }}</small
               >
+              <nz-tag>{{
+                t.assignment_mode === 'INDIVIDUAL' ? 'Làm độc lập' : 'Làm chung'
+              }}</nz-tag>
             </td>
-            @if (isMentorSide()) {
-              <td data-label="Intern">{{ t.intern_name ?? '-' }}</td>
-            }
+            <td data-label="Intern được giao">
+              <div class="task-assignees">
+                @for (assignee of t.assignees; track assignee.internship_member_id) {
+                  <nz-tag>{{ assignee.intern_name }}</nz-tag>
+                }
+              </div>
+            </td>
             <td data-label="Đợt thực tập">{{ t.internship_name ?? '-' }}</td>
             <td data-label="Hạn">
               {{ t.deadline ? (t.deadline | date: 'HH:mm dd/MM') : '-' }}
@@ -103,7 +108,9 @@
             </td>
             <td data-label="Ưu tiên">{{ t.priority ?? '-' }}</td>
             <td data-label="Trạng thái">
-              <nz-tag [nzColor]="statusColor(t.status)">{{ statusLabel(t.status) }}</nz-tag>
+              <nz-tag [nzColor]="statusColor(taskStatus(t))">{{
+                statusLabel(taskStatus(t))
+              }}</nz-tag>
             </td>
             <td data-label="Thao tác" class="actions-col">
               <button nz-button nzType="link" (click)="openDetail(t.id)">Xem</button>
@@ -135,87 +142,139 @@
   [nzOkText]="editingTask() ? 'Lưu' : 'Giao task'"
   nzCancelText="Đóng"
   [nzOkLoading]="isSaving()"
+  [nzOkDisabled]="isUploading()"
+  [nzCancelDisabled]="isSaving()"
+  [nzClosable]="!isSaving()"
+  [nzMaskClosable]="!isSaving()"
+  [nzKeyboard]="!isSaving()"
   [nzWidth]="'min(520px, calc(100vw - 16px))'"
   (nzOnOk)="saveForm()"
   (nzOnCancel)="isFormOpen.set(false)"
 >
   <ng-container *nzModalContent>
-    @if (!editingTask()) {
-      <div class="field-label">Intern nhận task</div>
-      <nz-select
-        style="width: 100%; margin-bottom: 12px"
-        nzPlaceHolder="Chọn intern"
-        nzShowSearch
-        [ngModel]="form().internship_member_id"
-        (ngModelChange)="form.set({ ...form(), internship_member_id: $event })"
-      >
-        @for (m of interns(); track m.id) {
-          <nz-option
-            [nzValue]="m.id"
-            [nzLabel]="m.intern_name + ' — ' + m.internship_name"
-          ></nz-option>
-        }
-      </nz-select>
-    }
-    <div class="field-label">Tiêu đề</div>
-    <input
-      nz-input
-      style="margin-bottom: 12px"
-      placeholder="VD: Xây dựng API đăng nhập"
-      [ngModel]="form().title"
-      (ngModelChange)="form.set({ ...form(), title: $event })"
-    />
-    <div class="field-label">Mô tả / tiêu chí</div>
-    <textarea
-      nz-input
-      rows="4"
-      style="margin-bottom: 12px"
-      placeholder="Yêu cầu chi tiết..."
-      [ngModel]="form().description"
-      (ngModelChange)="form.set({ ...form(), description: $event })"
-    ></textarea>
-    <div class="field-label">Tài liệu đính kèm</div>
-    <div class="attach-box">
-      <input
-        type="file"
-        [disabled]="isUploading()"
-        (change)="onTaskFileSelected($event)"
-        aria-label="Chọn tệp đính kèm task"
-      />
-      @if (isUploading()) {
-        <small class="muted">Đang tải lên...</small>
-      }
-      @if (form().attachment_url) {
-        <div class="attach-item">
-          <span nz-icon nzType="paper-clip"></span>
-          <span class="attach-name">{{ form().attachment_name || form().attachment_url }}</span>
-          <button nz-button nzType="link" nzDanger (click)="clearAttachment()">Xóa</button>
+    <fieldset class="task-form-fields" [disabled]="isSaving()">
+      @if (!editingTask()) {
+        <div class="assignment-row">
+          <div>
+            <div class="field-label">Đợt thực tập</div>
+            <nz-select
+              nzPlaceHolder="Tất cả đợt"
+              nzAllowClear
+              nzShowSearch
+              [nzDisabled]="isSaving()"
+              [ngModel]="assignmentInternshipFilter()"
+              (ngModelChange)="onAssignmentInternshipChange($event)"
+            >
+              @for (p of internships(); track p.id) {
+                <nz-option [nzValue]="p.id" [nzLabel]="p.name"></nz-option>
+              }
+            </nz-select>
+          </div>
+          <div>
+            <div class="field-label">Intern nhận task</div>
+            <nz-select
+              nzMode="multiple"
+              nzPlaceHolder="Chọn các intern"
+              nzShowSearch
+              nzAllowClear
+              [nzMaxTagCount]="2"
+              nzNotFoundContent="Không có intern trong đợt này"
+              [nzDisabled]="isSaving()"
+              [ngModel]="form().internship_member_ids"
+              (ngModelChange)="form.set({ ...form(), internship_member_ids: $event })"
+            >
+              @for (m of assignmentInterns(); track m.id) {
+                <nz-option
+                  [nzValue]="m.id"
+                  [nzLabel]="m.intern_name + ' — ' + m.internship_name"
+                ></nz-option>
+              }
+            </nz-select>
+          </div>
+        </div>
+        <div class="assignment-mode">
+          <div class="field-label">Cách thực hiện</div>
+          <nz-radio-group
+            [ngModel]="form().assignment_mode"
+            (ngModelChange)="form.set({ ...form(), assignment_mode: $event })"
+            [nzDisabled]="isSaving()"
+          >
+            <!-- NG-ZORRO renders the associated radio input inside each label. -->
+            <!-- eslint-disable-next-line @angular-eslint/template/label-has-associated-control -->
+            <label nz-radio nzValue="GROUP">Làm chung</label>
+            <!-- eslint-disable-next-line @angular-eslint/template/label-has-associated-control -->
+            <label nz-radio nzValue="INDIVIDUAL">Làm độc lập</label>
+          </nz-radio-group>
+          <small class="sub">
+            {{
+              form().assignment_mode === 'GROUP'
+                ? 'Cả nhóm dùng chung một bài nộp và kết quả review.'
+                : 'Mỗi intern nộp bài và nhận kết quả review riêng.'
+            }}
+          </small>
         </div>
       }
-    </div>
-    <div class="form-row">
-      <div>
-        <div class="field-label">Deadline</div>
+      <div class="field-label">Tiêu đề</div>
+      <input
+        nz-input
+        style="margin-bottom: 12px"
+        placeholder="VD: Xây dựng API đăng nhập"
+        [ngModel]="form().title"
+        (ngModelChange)="form.set({ ...form(), title: $event })"
+      />
+      <div class="field-label">Mô tả / tiêu chí</div>
+      <textarea
+        nz-input
+        rows="4"
+        style="margin-bottom: 12px"
+        placeholder="Yêu cầu chi tiết..."
+        [ngModel]="form().description"
+        (ngModelChange)="form.set({ ...form(), description: $event })"
+      ></textarea>
+      <div class="field-label">Tài liệu đính kèm</div>
+      <div class="attach-box">
         <input
-          nz-input
-          type="datetime-local"
-          [ngModel]="form().deadline"
-          (ngModelChange)="form.set({ ...form(), deadline: $event })"
+          type="file"
+          [disabled]="isUploading()"
+          (change)="onTaskFileSelected($event)"
+          aria-label="Chọn tệp đính kèm task"
         />
+        @if (isUploading()) {
+          <small class="muted">Đang tải lên...</small>
+        }
+        @if (form().attachment_url) {
+          <div class="attach-item">
+            <span nz-icon nzType="paper-clip"></span>
+            <span class="attach-name">{{ form().attachment_name || form().attachment_url }}</span>
+            <button nz-button nzType="link" nzDanger (click)="clearAttachment()">Xóa</button>
+          </div>
+        }
       </div>
-      <div>
-        <div class="field-label">Ưu tiên</div>
-        <nz-select
-          style="width: 100%"
-          [ngModel]="form().priority"
-          (ngModelChange)="form.set({ ...form(), priority: $event })"
-        >
-          <nz-option nzValue="LOW" nzLabel="LOW"></nz-option>
-          <nz-option nzValue="MEDIUM" nzLabel="MEDIUM"></nz-option>
-          <nz-option nzValue="HIGH" nzLabel="HIGH"></nz-option>
-        </nz-select>
+      <div class="form-row">
+        <div>
+          <div class="field-label">Deadline</div>
+          <input
+            nz-input
+            type="datetime-local"
+            [ngModel]="form().deadline"
+            (ngModelChange)="form.set({ ...form(), deadline: $event })"
+          />
+        </div>
+        <div>
+          <div class="field-label">Ưu tiên</div>
+          <nz-select
+            style="width: 100%"
+            [nzDisabled]="isSaving()"
+            [ngModel]="form().priority"
+            (ngModelChange)="form.set({ ...form(), priority: $event })"
+          >
+            <nz-option nzValue="LOW" nzLabel="LOW"></nz-option>
+            <nz-option nzValue="MEDIUM" nzLabel="MEDIUM"></nz-option>
+            <nz-option nzValue="HIGH" nzLabel="HIGH"></nz-option>
+          </nz-select>
+        </div>
       </div>
-    </div>
+    </fieldset>
   </ng-container>
 </nz-modal>
 
@@ -232,9 +291,16 @@
       <div class="loading"><nz-spin nzSimple></nz-spin></div>
     } @else if (detail(); as d) {
       <h3>{{ d.title }}</h3>
+      <nz-tag>{{ d.assignment_mode === 'INDIVIDUAL' ? 'Làm độc lập' : 'Làm chung' }}</nz-tag>
+      <div class="task-assignees task-assignees--detail">
+        <span class="field-label">Intern được giao:</span>
+        @for (assignee of d.assignees; track assignee.internship_member_id) {
+          <nz-tag [title]="assignee.internship_name">{{ assignee.intern_name }}</nz-tag>
+        }
+      </div>
       <p class="muted">{{ d.description || 'Không có mô tả' }}</p>
       <p>
-        <nz-tag [nzColor]="statusColor(d.status)">{{ statusLabel(d.status) }}</nz-tag>
+        <nz-tag [nzColor]="statusColor(taskStatus(d))">{{ statusLabel(taskStatus(d)) }}</nz-tag>
         <span class="muted"
           >Hạn: {{ d.deadline ? (d.deadline | date: 'HH:mm dd/MM/yyyy') : '-' }}</span
         >
@@ -251,11 +317,14 @@
       }
 
       <h4>Bài nộp</h4>
-      @if (!d.submissions.length) {
+      @if (!visibleSubmissions(d).length) {
         <p class="muted">Chưa có bài nộp.</p>
       } @else {
-        @for (s of d.submissions; track s.id) {
+        @for (s of visibleSubmissions(d); track s.id) {
           <div class="submission">
+            @if (d.assignment_mode === 'INDIVIDUAL') {
+              <b>{{ s.intern_name }}</b>
+            }
             <nz-tag
               [nzColor]="
                 s.status === 'ACCEPTED'
@@ -281,8 +350,8 @@
               <small class="muted">Nộp lúc {{ s.submitted_at | date: 'HH:mm dd/MM/yyyy' }}</small>
               @if (
                 !isMentorSide() &&
-                d.status !== 'COMPLETED' &&
-                d.status !== 'CANCELLED' &&
+                taskStatus(d) !== 'COMPLETED' &&
+                taskStatus(d) !== 'CANCELLED' &&
                 !isEditingSubmission()
               ) {
                 <div class="submission-actions">
@@ -309,9 +378,9 @@
 
       @if (
         !isMentorSide() &&
-        d.status !== 'COMPLETED' &&
-        d.status !== 'CANCELLED' &&
-        (!d.submissions.length || isEditingSubmission())
+        taskStatus(d) !== 'COMPLETED' &&
+        taskStatus(d) !== 'CANCELLED' &&
+        (!visibleSubmissions(d).length || isEditingSubmission())
       ) {
         <h4>{{ isEditingSubmission() ? 'Sửa bài nộp' : 'Nộp bài' }}</h4>
         <textarea
@@ -367,11 +436,27 @@
 
       @if (
         isMentorSide() &&
-        d.submissions.length &&
-        d.status !== 'COMPLETED' &&
-        d.status !== 'CANCELLED'
+        reviewTargets(d).length &&
+        taskStatus(d) !== 'COMPLETED' &&
+        taskStatus(d) !== 'CANCELLED'
       ) {
         <h4>Review bài nộp</h4>
+        @if (d.assignment_mode === 'INDIVIDUAL') {
+          <div class="field-label">Intern cần review</div>
+          <nz-select
+            style="width: 100%; margin-bottom: 8px"
+            nzPlaceHolder="Chọn intern"
+            [ngModel]="reviewMemberId()"
+            (ngModelChange)="reviewMemberId.set($event); reviewComment.set('')"
+          >
+            @for (submission of reviewTargets(d); track submission.id) {
+              <nz-option
+                [nzValue]="submission.internship_member_id"
+                [nzLabel]="submission.intern_name ?? 'Intern'"
+              ></nz-option>
+            }
+          </nz-select>
+        }
         <nz-select
           style="width: 100%; margin-bottom: 8px"
           [ngModel]="reviewDecision()"

@@ -19,6 +19,7 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
+import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTableModule } from 'ng-zorro-antd/table';
@@ -27,7 +28,14 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { AuthService } from '../../core/api/auth.service';
 import { Internship, InternshipService } from '../../core/api/internship.service';
 import { MentorInternListItem, MentorService } from '../../core/api/mentor.service';
-import { Task, TaskDetail, TaskService, TaskSubmission } from '../../core/api/task.service';
+import {
+  Task,
+  TaskAssignmentMode,
+  TaskDetail,
+  TaskService,
+  TaskStatus,
+  TaskSubmission,
+} from '../../core/api/task.service';
 
 const STATUS_LABEL: Record<string, string> = {
   TODO: 'Chưa nộp',
@@ -60,6 +68,7 @@ const STATUS_COLOR: Record<string, string> = {
     NzInputModule,
     NzModalModule,
     NzPopconfirmModule,
+    NzRadioModule,
     NzSelectModule,
     NzSpinModule,
     NzTableModule,
@@ -94,8 +103,10 @@ export class TaskManagementComponent implements OnInit {
   protected readonly isSaving = signal(false);
   protected readonly isUploading = signal(false);
   protected readonly editingTask = signal<Task | null>(null);
+  protected readonly assignmentInternshipFilter = signal<string | null>(null);
   protected readonly form = signal<{
-    internship_member_id: string;
+    internship_member_ids: string[];
+    assignment_mode: TaskAssignmentMode;
     title: string;
     description: string;
     deadline: string;
@@ -103,7 +114,8 @@ export class TaskManagementComponent implements OnInit {
     attachment_url: string;
     attachment_name: string;
   }>({
-    internship_member_id: '',
+    internship_member_ids: [],
+    assignment_mode: 'GROUP',
     title: '',
     description: '',
     deadline: '',
@@ -113,6 +125,12 @@ export class TaskManagementComponent implements OnInit {
   });
 
   protected readonly interns = signal<MentorInternListItem[]>([]);
+  protected readonly assignmentInterns = computed(() => {
+    const internshipId = this.assignmentInternshipFilter();
+    return this.interns().filter(
+      (intern) => !internshipId || intern.internship_id === internshipId,
+    );
+  });
   protected readonly submitContent = signal('');
   protected readonly submitLink = signal('');
   protected readonly submitFileUrl = signal('');
@@ -120,6 +138,7 @@ export class TaskManagementComponent implements OnInit {
   protected readonly isEditingSubmission = signal(false);
   protected readonly reviewDecision = signal<'COMPLETED' | 'REVISION_REQUIRED'>('COMPLETED');
   protected readonly reviewComment = signal('');
+  protected readonly reviewMemberId = signal<string | null>(null);
   protected readonly commentContent = signal('');
   protected readonly isSubmitting = signal(false);
   protected readonly isDeletingSubmission = signal(false);
@@ -144,6 +163,28 @@ export class TaskManagementComponent implements OnInit {
 
   protected statusColor(s: string): string {
     return STATUS_COLOR[s] ?? 'default';
+  }
+
+  protected taskStatus(task: Task): TaskStatus {
+    if (!this.isMentorSide() && task.assignment_mode === 'INDIVIDUAL') {
+      return (
+        task.assignees.find((assignee) => assignee.intern_id === this.authService.currentUser()?.id)
+          ?.status ?? task.status
+      );
+    }
+    return task.status;
+  }
+
+  protected visibleSubmissions(task: TaskDetail): TaskSubmission[] {
+    if (this.isMentorSide() || task.assignment_mode !== 'INDIVIDUAL') return task.submissions;
+    const memberId = task.assignees.find(
+      (assignee) => assignee.intern_id === this.authService.currentUser()?.id,
+    )?.internship_member_id;
+    return task.submissions.filter((submission) => submission.internship_member_id === memberId);
+  }
+
+  protected reviewTargets(task: TaskDetail): TaskSubmission[] {
+    return task.submissions.filter((submission) => submission.status !== 'ACCEPTED');
   }
 
   protected onSearchChange(value: string): void {
@@ -190,8 +231,10 @@ export class TaskManagementComponent implements OnInit {
   // ── Create / Edit ──
   protected openCreate(): void {
     this.editingTask.set(null);
+    this.assignmentInternshipFilter.set(this.internshipFilter() || null);
     this.form.set({
-      internship_member_id: '',
+      internship_member_ids: [],
+      assignment_mode: 'GROUP',
       title: '',
       description: '',
       deadline: '',
@@ -205,7 +248,8 @@ export class TaskManagementComponent implements OnInit {
   protected openEdit(task: Task): void {
     this.editingTask.set(task);
     this.form.set({
-      internship_member_id: task.internship_member_id,
+      internship_member_ids: [...task.internship_member_ids],
+      assignment_mode: task.assignment_mode,
       title: task.title,
       description: task.description ?? '',
       deadline: task.deadline ? task.deadline.slice(0, 16) : '',
@@ -214,6 +258,15 @@ export class TaskManagementComponent implements OnInit {
       attachment_name: task.attachment_url?.split('/').pop() ?? '',
     });
     this.isFormOpen.set(true);
+  }
+
+  protected onAssignmentInternshipChange(internshipId: string | null): void {
+    this.assignmentInternshipFilter.set(internshipId);
+    const allowedIds = new Set(this.assignmentInterns().map((intern) => intern.id));
+    this.form.update((form) => ({
+      ...form,
+      internship_member_ids: form.internship_member_ids.filter((id) => allowedIds.has(id)),
+    }));
   }
 
   protected onTaskFileSelected(event: Event): void {
@@ -267,18 +320,18 @@ export class TaskManagementComponent implements OnInit {
   }
 
   protected saveForm(): void {
+    if (this.isSaving() || this.isUploading()) return;
     const f = this.form();
     if (!f.title.trim()) {
       this.message.warning('Vui lòng nhập tiêu đề task');
       return;
     }
-    if (!this.editingTask() && !f.internship_member_id) {
+    if (!this.editingTask() && !f.internship_member_ids.length) {
       this.message.warning('Vui lòng chọn intern nhận task');
       return;
     }
     this.isSaving.set(true);
     const payload = {
-      internship_member_id: f.internship_member_id,
       title: f.title.trim(),
       description: f.description?.trim() || null,
       deadline: f.deadline ? new Date(f.deadline).toISOString() : null,
@@ -287,14 +340,12 @@ export class TaskManagementComponent implements OnInit {
     };
     const editing = this.editingTask();
     const req = editing
-      ? this.taskService.updateTask(editing.id, {
-          title: payload.title,
-          description: payload.description,
-          deadline: payload.deadline,
-          priority: payload.priority,
-          attachment_url: payload.attachment_url,
-        })
-      : this.taskService.createTask(payload);
+      ? this.taskService.updateTask(editing.id, payload)
+      : this.taskService.createTask({
+          ...payload,
+          internship_member_ids: [...new Set(f.internship_member_ids)],
+          assignment_mode: f.assignment_mode,
+        });
     req.subscribe({
       next: () => {
         this.message.success(editing ? 'Đã cập nhật task' : 'Đã giao task');
@@ -332,6 +383,16 @@ export class TaskManagementComponent implements OnInit {
     this.taskService.getTask(id).subscribe({
       next: (d) => {
         this.detail.set(d);
+        if (d.assignment_mode === 'INDIVIDUAL') {
+          const targets = this.reviewTargets(d);
+          if (
+            !targets.some((submission) => submission.internship_member_id === this.reviewMemberId())
+          ) {
+            this.reviewMemberId.set(targets[0]?.internship_member_id ?? null);
+          }
+        } else {
+          this.reviewMemberId.set(null);
+        }
         this.isDetailLoading.set(false);
         this.cdr.markForCheck();
       },
@@ -433,11 +494,18 @@ export class TaskManagementComponent implements OnInit {
   protected reviewWork(): void {
     const d = this.detail();
     if (!d) return;
+    if (d.assignment_mode === 'INDIVIDUAL' && !this.reviewMemberId()) {
+      this.message.warning('Vui lòng chọn intern cần review');
+      return;
+    }
     this.isSubmitting.set(true);
     this.taskService
       .reviewTask(d.id, {
         decision: this.reviewDecision(),
         review_comment: this.reviewComment().trim() || null,
+        ...(d.assignment_mode === 'INDIVIDUAL'
+          ? { internship_member_id: this.reviewMemberId()! }
+          : {}),
       })
       .subscribe({
         next: () => {

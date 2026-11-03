@@ -13,7 +13,7 @@ from app.models.evaluation import Evaluation
 from app.models.exam import Quiz, QuizAttempt
 from app.models.internship import Internship, InternshipMember
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
-from app.models.task import Task
+from app.models.task import Task, TaskAssignee, task_status_for_members
 from app.models.user import User
 from app.services.notification import NotificationService
 
@@ -286,21 +286,38 @@ class AssistantToolService:
 
         return {"assignments": assignments}
 
+    @staticmethod
+    def _task_recipients(db: Session, task: Task, member_ids: list) -> dict:
+        recipients = db.execute(
+            select(InternshipMember.intern_id, User.full_name)
+            .join(User, User.id == InternshipMember.intern_id)
+            .join(TaskAssignee, TaskAssignee.internship_member_id == InternshipMember.id)
+            .where(TaskAssignee.task_id == task.id, InternshipMember.id.in_(member_ids))
+            .order_by(InternshipMember.id)
+        ).all()
+        return {
+            "intern_id": str(recipients[0][0]) if recipients else None,
+            "intern_name": ", ".join(name for _, name in recipients),
+            "assignees": [
+                {"intern_id": str(intern_id), "intern_name": name} for intern_id, name in recipients
+            ],
+        }
+
     def get_tasks(self, db: Session, user: User, arguments: dict[str, Any]) -> dict:
         member_ids = self._member_ids(db, user, arguments)
         if not member_ids:
             return {"tasks": [], "total_count": 0, "returned_count": 0, "truncated": False}
-        query = (
-            select(Task, InternshipMember.intern_id, User.full_name)
-            .join(InternshipMember, InternshipMember.id == Task.internship_member_id)
-            .join(User, User.id == InternshipMember.intern_id)
-            .where(Task.internship_member_id.in_(member_ids))
+        status_column = (
+            task_status_for_members(member_ids) if user.role == UserRole.INTERN else Task.status
+        )
+        query = select(Task, status_column).where(
+            Task.assignees.any(TaskAssignee.internship_member_id.in_(member_ids))
         )
         status = str(arguments.get("status") or "").upper()
         if status:
             if status not in TASK_STATUSES:
                 raise ApiError(422, "INVALID_TOOL_ARGUMENT", "status task không hợp lệ.")
-            query = query.where(Task.status == status)
+            query = query.where(status_column == status)
         total_count = int(db.scalar(select(func.count()).select_from(query.subquery())) or 0)
         tasks = db.execute(
             query.order_by(Task.deadline.asc().nulls_last(), Task.created_at.desc()).limit(
@@ -314,14 +331,13 @@ class AssistantToolService:
             "tasks": [
                 {
                     "id": str(task.id),
-                    "intern_id": str(intern_id),
-                    "intern_name": intern_name,
+                    **self._task_recipients(db, task, member_ids),
                     "title": task.title,
-                    "status": task.status,
+                    "status": effective_status,
                     "priority": task.priority,
                     "deadline": task.deadline,
                 }
-                for task, intern_id, intern_name in tasks
+                for task, effective_status in tasks
             ],
         }
 
@@ -337,15 +353,13 @@ class AssistantToolService:
             }
         now = datetime.now(UTC)
         range_name = str(arguments.get("range") or "NEXT_7_DAYS").upper()
-        query = (
-            select(Task, InternshipMember.intern_id, User.full_name)
-            .join(InternshipMember, InternshipMember.id == Task.internship_member_id)
-            .join(User, User.id == InternshipMember.intern_id)
-            .where(
-                Task.internship_member_id.in_(member_ids),
-                Task.deadline.is_not(None),
-                Task.status.not_in(("COMPLETED", "CANCELLED")),
-            )
+        status_column = (
+            task_status_for_members(member_ids) if user.role == UserRole.INTERN else Task.status
+        )
+        query = select(Task, status_column).where(
+            Task.assignees.any(TaskAssignee.internship_member_id.in_(member_ids)),
+            Task.deadline.is_not(None),
+            status_column.not_in(("COMPLETED", "CANCELLED")),
         )
         if range_name == "OVERDUE":
             query = query.where(Task.deadline < now)
@@ -372,16 +386,15 @@ class AssistantToolService:
             "deadlines": [
                 {
                     "task_id": str(task.id),
-                    "intern_id": str(intern_id),
-                    "intern_name": intern_name,
+                    **self._task_recipients(db, task, member_ids),
                     "title": task.title,
                     "deadline": task.deadline,
-                    "status": task.status,
+                    "status": effective_status,
                     "deadline_state": "OVERDUE"
                     if task.deadline and task.deadline < now
                     else "UPCOMING",
                 }
-                for task, intern_id, intern_name in tasks
+                for task, effective_status in tasks
             ],
         }
 

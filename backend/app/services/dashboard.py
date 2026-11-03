@@ -11,7 +11,7 @@ from app.models.evaluation import Evaluation
 from app.models.exam import QuizAttempt
 from app.models.internship import Internship, InternshipMember, InternshipRequest
 from app.models.roadmap import LearningProgress
-from app.models.task import Task
+from app.models.task import Task, TaskAssignee, task_status_for_members
 from app.models.user import User
 from app.schemas.dashboard import (
     DashboardMetricRead,
@@ -145,6 +145,7 @@ class DashboardService:
         member_ids = members.with_entities(InternshipMember.id)
         active_members = members.filter(InternshipMember.status.in_(ACTIVE_MEMBER_STATUSES))
         tasks = DashboardService._tasks(db, member_ids)
+        status_column = task_status_for_members(member_ids)
         latest_score = (
             db.query(Evaluation.total_score)
             .filter(
@@ -163,12 +164,12 @@ class DashboardService:
             DashboardMetricRead(
                 key="unsubmitted_tasks",
                 label="Task chưa nộp",
-                value=tasks.filter(Task.status == "TODO").count(),
+                value=tasks.filter(status_column == "TODO").count(),
             ),
             DashboardMetricRead(
                 key="tasks_needing_action",
                 label="Task cần xử lý",
-                value=tasks.filter(Task.status.in_(("SUBMITTED", "REVISION_REQUIRED"))).count(),
+                value=tasks.filter(status_column.in_(("SUBMITTED", "REVISION_REQUIRED"))).count(),
             ),
             DashboardMetricRead(
                 key="completed_quizzes",
@@ -191,9 +192,9 @@ class DashboardService:
         return DashboardRead(
             role=UserRole.INTERN,
             metrics=metrics,
-            task_breakdown=DashboardService._task_breakdown(tasks),
+            task_breakdown=DashboardService._task_breakdown(tasks, status_column),
             progress=DashboardService._progress(db, member_ids),
-            recent_items=DashboardService._recent_tasks(tasks),
+            recent_items=DashboardService._recent_tasks(tasks, status_column),
         )
 
     @staticmethod
@@ -208,19 +209,23 @@ class DashboardService:
 
     @staticmethod
     def _tasks(db: Session, member_ids) -> Query[Task]:
-        return db.query(Task).filter(Task.internship_member_id.in_(member_ids))
+        return db.query(Task).filter(
+            Task.assignees.any(TaskAssignee.internship_member_id.in_(member_ids))
+        )
 
     @staticmethod
-    def _task_breakdown(tasks: Query[Task]) -> DashboardTaskBreakdownRead:
+    def _task_breakdown(
+        tasks: Query[Task], status_column=Task.status
+    ) -> DashboardTaskBreakdownRead:
         statuses = ("TODO", "SUBMITTED", "REVISION_REQUIRED", "COMPLETED")
         counts = {status: 0 for status in statuses}
-        for status, count in tasks.with_entities(Task.status, func.count(Task.id)).group_by(
-            Task.status
+        for status, count in tasks.with_entities(status_column, func.count(Task.id)).group_by(
+            status_column
         ):
             if status in counts:
                 counts[status] = count
         overdue = tasks.filter(
-            Task.status.in_(OPEN_TASK_STATUSES),
+            status_column.in_(OPEN_TASK_STATUSES),
             Task.deadline.is_not(None),
             Task.deadline < datetime.now(UTC),
         ).count()
@@ -248,16 +253,21 @@ class DashboardService:
         )
 
     @staticmethod
-    def _recent_tasks(tasks: Query[Task]) -> list[DashboardRecentItemRead]:
+    def _recent_tasks(
+        tasks: Query[Task], status_column=Task.status
+    ) -> list[DashboardRecentItemRead]:
         rows = (
-            tasks.order_by(Task.deadline.asc().nulls_last(), Task.created_at.desc()).limit(5).all()
+            tasks.with_entities(Task, status_column)
+            .order_by(Task.deadline.asc().nulls_last(), Task.created_at.desc())
+            .limit(5)
+            .all()
         )
         return [
             DashboardRecentItemRead(
                 title=task.title,
                 subtitle=f"Ưu tiên: {task.priority}" if task.priority else None,
-                status=task.status,
+                status=effective_status,
                 due_at=task.deadline,
             )
-            for task in rows
+            for task, effective_status in rows
         ]
