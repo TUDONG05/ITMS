@@ -56,10 +56,6 @@
   flex-wrap: wrap;
 }
 
-.toolbar--actions-only {
-  justify-content: flex-end;
-}
-
 .filter-select {
   width: 190px;
 }
@@ -172,55 +168,29 @@
   margin: 10px 0 0;
 }
 
-@media (max-width: 768px) {
-  .eval-card {
-    border-radius: 8px;
-  }
-
-  .toolbar,
-  .toolbar__actions,
-  .field-row {
-    align-items: stretch;
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .toolbar--actions-only {
-    align-items: stretch;
-  }
-
-  .filter-select,
-  .field-row .field {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .eval-head {
-    flex-direction: column;
-  }
-
-  .score-row {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  input[nz-input],
-  textarea[nz-input],
-  nz-select {
-    font-size: 16px;
-  }
+.verdict-box {
+  margin: 8px 0 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fafbfd;
 }
 
-@media (max-width: 390px) {
-  .eval-score__value {
-    font-size: 28px;
-  }
+.verdict-box--pass {
+  background: #f6ffed;
+  color: #237804;
+}
 
-  .actions-col > * {
-    min-height: 40px;
-  }
+.verdict-box--fail {
+  background: #fff2f0;
+  color: #a8071a;
+}
 
-  .score-row > nz-input-number {
-    width: 100% !important;
-  }
+.verdict-box__label {
+  margin-right: 6px;
+}
+
+.verdict-box__reason {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
 }

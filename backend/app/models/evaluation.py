@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, Text
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,10 +45,32 @@ class EvaluationCriterion(Base):
 class Evaluation(Base):
     __tablename__ = "danh_gia"
     __table_args__ = (
-        CheckConstraint("loai_danh_gia IN ('PERIODIC', 'FINAL')", name="ck_evaluations_type"),
+        CheckConstraint(
+            "loai_danh_gia IN ('WEEKLY', 'PERIODIC', 'FINAL')", name="ck_evaluations_type"
+        ),
         CheckConstraint("status IN ('DRAFT', 'PUBLISHED')", name="ck_evaluations_status"),
+        CheckConstraint(
+            "ket_luan IS NULL OR ket_luan IN ('PASS', 'FAIL')", name="ck_evaluations_verdict"
+        ),
+        CheckConstraint(
+            "ket_luan IS NULL OR loai_danh_gia = 'FINAL'", name="ck_evaluations_verdict_final"
+        ),
+        # Nhận xét tuần bắt buộc có khoảng thời gian hợp lệ; các loại khác không có.
+        CheckConstraint(
+            "(loai_danh_gia = 'WEEKLY' AND tuan_bat_dau IS NOT NULL AND tuan_ket_thuc IS NOT NULL "
+            "AND tuan_ket_thuc >= tuan_bat_dau) OR "
+            "(loai_danh_gia <> 'WEEKLY' AND tuan_bat_dau IS NULL AND tuan_ket_thuc IS NULL)",
+            name="ck_evaluations_week_range",
+        ),
         Index("ix_evaluations_member_id", "thanh_vien_id"),
         Index("ix_evaluations_mentor_id", "nguoi_huong_dan_id"),
+        # Mỗi thành viên thực tập chỉ có một đánh giá cuối cùng.
+        Index(
+            "uq_evaluations_final_per_member",
+            "thanh_vien_id",
+            unique=True,
+            postgresql_where=text("loai_danh_gia = 'FINAL'"),
+        ),
     )
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     internship_member_id: Mapped[uuid.UUID] = mapped_column(
@@ -57,6 +89,10 @@ class Evaluation(Base):
     criteria_scores: Mapped[list[Any]] = mapped_column("diem_tieu_chi", JSONB, nullable=False)
     total_score: Mapped[float | None] = mapped_column("tong_diem", Numeric(5, 2), nullable=True)
     comment: Mapped[str | None] = mapped_column("nhan_xet", Text, nullable=True)
+    week_start: Mapped[date | None] = mapped_column("tuan_bat_dau", Date, nullable=True)
+    week_end: Mapped[date | None] = mapped_column("tuan_ket_thuc", Date, nullable=True)
+    verdict: Mapped[str | None] = mapped_column("ket_luan", String(10), nullable=True)
+    verdict_reason: Mapped[str | None] = mapped_column("ly_do_ket_luan", Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="DRAFT")
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

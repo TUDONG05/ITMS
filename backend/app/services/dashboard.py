@@ -149,7 +149,9 @@ class DashboardService:
         latest_score = (
             db.query(Evaluation.total_score)
             .filter(
-                Evaluation.internship_member_id.in_(member_ids), Evaluation.status == "PUBLISHED"
+                Evaluation.internship_member_id.in_(member_ids),
+                Evaluation.status == "PUBLISHED",
+                Evaluation.total_score.is_not(None),
             )
             .order_by(Evaluation.published_at.desc())
             .first()

@@ -121,4 +121,43 @@ describe('EvaluationService', () => {
     expect(publish.request.body).toEqual({});
     publish.flush({});
   });
+
+  it('gửi nhận xét tuần với khoảng thời gian và lọc theo loại WEEKLY', () => {
+    service.listEvaluations({ type: 'WEEKLY' }).subscribe();
+    const list = httpMock.expectOne(
+      (req) => req.url === '/api/v1/evaluations' && req.method === 'GET',
+    );
+    expect(list.request.params.get('evaluation_type')).toBe('WEEKLY');
+    list.flush([]);
+
+    const payload = {
+      internship_member_id: 'm1',
+      evaluation_type: 'WEEKLY' as const,
+      scores: [],
+      comment: 'Tuần này làm tốt',
+      week_start: '2026-09-14',
+      week_end: '2026-09-20',
+    };
+    service.createEvaluation(payload).subscribe();
+    const create = httpMock.expectOne('/api/v1/evaluations');
+    expect(create.request.body).toEqual(payload);
+    create.flush({});
+  });
+
+  it('gửi kết luận Đạt/Chưa đạt kèm lý do cho đánh giá cuối cùng', () => {
+    service
+      .updateEvaluation('e1', {
+        evaluation_type: 'FINAL',
+        scores: [],
+        comment: null,
+        verdict: 'FAIL',
+        verdict_reason: 'Chưa đạt yêu cầu về tiến độ',
+      })
+      .subscribe();
+    const update = httpMock.expectOne('/api/v1/evaluations/e1');
+    expect(update.request.method).toBe('PUT');
+    expect(update.request.body.verdict).toBe('FAIL');
+    expect(update.request.body.verdict_reason).toBe('Chưa đạt yêu cầu về tiến độ');
+    update.flush({});
+  });
 });

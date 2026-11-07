@@ -20,6 +20,11 @@ from app.services.evaluation import compute_total
 
 CRITERIA_URL = "/api/v1/evaluation-criteria"
 EVAL_URL = "/api/v1/evaluations"
+FINAL_OK = {
+    "evaluation_type": "FINAL",
+    "verdict": "PASS",
+    "verdict_reason": "Hoàn thành tốt chương trình thực tập",
+}
 
 # ---------------------------------------------------------------------------
 # Tính tổng điểm (không cần database)
@@ -357,11 +362,11 @@ def test_update_draft(client, ev):
     updated = client.put(
         f"{EVAL_URL}/{evaluation_id}",
         headers=h,
-        json={"scores": _scores(ev, a=10, b=20), "evaluation_type": "FINAL", "comment": "Mới"},
+        json={"scores": _scores(ev, a=10, b=20), "evaluation_type": "PERIODIC", "comment": "Mới"},
     )
     assert updated.status_code == 200, updated.text
     assert updated.json()["total_score"] == 10.0
-    assert updated.json()["evaluation_type"] == "FINAL"
+    assert updated.json()["evaluation_type"] == "PERIODIC"
     assert updated.json()["comment"] == "Mới"
 
     # Không gửi scores thì giữ nguyên điểm; comment = null thì xóa nhận xét.
@@ -448,7 +453,7 @@ def test_intern_sees_only_own_published_evaluations(client, ev):
     mentor = _h(ev["mentor1"])
     intern = _h(ev["intern_a"])
     draft_id = _create(client, ev).json()["id"]
-    published_id = _create(client, ev, evaluation_type="FINAL").json()["id"]
+    published_id = _create(client, ev, **FINAL_OK).json()["id"]
     client.post(f"{EVAL_URL}/{published_id}/publish", headers=mentor)
     other_intern_id = _create(client, ev, mentor="mentor2", member="member_b").json()["id"]
     client.post(f"{EVAL_URL}/{other_intern_id}/publish", headers=_h(ev["mentor2"]))
@@ -491,7 +496,7 @@ def test_admin_reads_drafts_but_cannot_write(client, ev):
 def test_list_filters(client, ev):
     mentor = _h(ev["mentor1"])
     draft_id = _create(client, ev).json()["id"]
-    final_id = _create(client, ev, evaluation_type="FINAL").json()["id"]
+    final_id = _create(client, ev, **FINAL_OK).json()["id"]
     client.post(f"{EVAL_URL}/{final_id}/publish", headers=mentor)
 
     published = client.get(EVAL_URL, params={"status": "PUBLISHED"}, headers=mentor).json()
@@ -533,3 +538,336 @@ def test_legacy_seed_format_is_readable(client, ev):
     assert score["name"] == ev["crit_a"].name
     assert score["max_score"] == 10
     assert score["score"] == 8.5
+
+
+# ── Nhận xét tuần (WEEKLY) ──────────────────────────────────────────────────
+
+
+def _weekly(
+    client,
+    ev,
+    *,
+    start="2026-09-14",
+    end="2026-09-20",
+    mentor="mentor1",
+    member="member_a",
+    comment="Tuần này hoàn thành tốt",
+    **extra,
+):
+    payload = {
+        "internship_member_id": str(ev[member].id),
+        "evaluation_type": "WEEKLY",
+        "week_start": start,
+        "week_end": end,
+        "comment": comment,
+        **extra,
+    }
+    return client.post(EVAL_URL, headers=_h(ev[mentor]), json=payload)
+
+
+def test_weekly_create_has_range_and_no_scores(client, ev):
+    resp = _weekly(client, ev)
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["evaluation_type"] == "WEEKLY"
+    assert body["week_start"] == "2026-09-14"
+    assert body["week_end"] == "2026-09-20"
+    assert body["comment"] == "Tuần này hoàn thành tốt"
+    assert body["scores"] == []
+    assert body["total_score"] is None
+    assert body["verdict"] is None
+    assert body["status"] == "DRAFT"
+    assert body["intern_name"] == "Eval ia"
+
+
+def test_weekly_requires_valid_week_range(client, ev):
+    h = _h(ev["mentor1"])
+    missing = client.post(
+        EVAL_URL,
+        headers=h,
+        json={
+            "internship_member_id": str(ev["member_a"].id),
+            "evaluation_type": "WEEKLY",
+            "comment": "x",
+        },
+    )
+    assert missing.status_code == 422
+    assert missing.json()["error"]["code"] == "WEEK_RANGE_REQUIRED"
+
+    reversed_range = _weekly(client, ev, start="2026-09-20", end="2026-09-14")
+    assert reversed_range.status_code == 422
+    assert reversed_range.json()["error"]["code"] == "WEEK_RANGE_INVALID"
+
+    too_long = _weekly(client, ev, start="2026-09-14", end="2026-10-05")
+    assert too_long.status_code == 422
+    assert too_long.json()["error"]["code"] == "WEEK_RANGE_TOO_LONG"
+
+    # Đúng 14 ngày vẫn hợp lệ; một ngày đơn lẻ cũng hợp lệ.
+    assert _weekly(client, ev, start="2026-10-01", end="2026-10-14").status_code == 201
+    assert _weekly(client, ev, start="2026-11-01", end="2026-11-01").status_code == 201
+
+
+def test_weekly_rejects_scores_and_verdict(client, ev):
+    with_scores = _weekly(client, ev, scores=_scores(ev))
+    assert with_scores.status_code == 422
+    assert with_scores.json()["error"]["code"] == "WEEKLY_NO_SCORES"
+    with_verdict = _weekly(client, ev, verdict="PASS")
+    assert with_verdict.status_code == 422
+    assert with_verdict.json()["error"]["code"] == "VERDICT_NOT_ALLOWED"
+
+
+def test_week_range_and_verdict_only_for_their_types(client, ev):
+    with_week = _create(client, ev, week_start="2026-09-14", week_end="2026-09-20")
+    assert with_week.status_code == 422
+    assert with_week.json()["error"]["code"] == "WEEK_NOT_ALLOWED"
+    verdict_on_periodic = _create(client, ev, verdict="PASS")
+    assert verdict_on_periodic.status_code == 422
+    assert verdict_on_periodic.json()["error"]["code"] == "VERDICT_NOT_ALLOWED"
+    reason_on_periodic = _create(client, ev, verdict_reason="Lý do")
+    assert reason_on_periodic.status_code == 422
+
+
+def test_weekly_overlap_is_rejected_per_intern(client, ev):
+    assert _weekly(client, ev).status_code == 201
+    overlap = _weekly(client, ev, start="2026-09-20", end="2026-09-26")
+    assert overlap.status_code == 409
+    assert overlap.json()["error"]["code"] == "WEEK_OVERLAP"
+    assert overlap.json()["error"]["details"]["week_start"] == "2026-09-14"
+
+    # Tuần liền kề không trùng; Intern khác cùng tuần không bị ảnh hưởng.
+    assert _weekly(client, ev, start="2026-09-21", end="2026-09-27").status_code == 201
+    other = _weekly(client, ev, mentor="mentor2", member="member_b")
+    assert other.status_code == 201
+
+
+def test_weekly_update_draft_checks_overlap_and_type(client, ev):
+    h = _h(ev["mentor1"])
+    first = _weekly(client, ev).json()["id"]
+    second = _weekly(client, ev, start="2026-09-21", end="2026-09-27").json()["id"]
+
+    # Giữ nguyên khoảng của chính mình thì không tự xung đột.
+    same = client.put(
+        f"{EVAL_URL}/{first}",
+        headers=h,
+        json={"week_start": "2026-09-14", "week_end": "2026-09-20"},
+    )
+    assert same.status_code == 200, same.text
+    clash = client.put(
+        f"{EVAL_URL}/{second}",
+        headers=h,
+        json={"week_start": "2026-09-18", "week_end": "2026-09-24"},
+    )
+    assert clash.status_code == 409
+    assert clash.json()["error"]["code"] == "WEEK_OVERLAP"
+
+    moved = client.put(
+        f"{EVAL_URL}/{second}",
+        headers=h,
+        json={"week_start": "2026-09-28", "week_end": "2026-10-04", "comment": "Cập nhật"},
+    )
+    assert moved.status_code == 200
+    assert moved.json()["week_start"] == "2026-09-28"
+    assert moved.json()["comment"] == "Cập nhật"
+
+    with_scores = client.put(f"{EVAL_URL}/{first}", headers=h, json={"scores": _scores(ev)})
+    assert with_scores.status_code == 422
+    assert with_scores.json()["error"]["code"] == "WEEKLY_NO_SCORES"
+    change_type = client.put(f"{EVAL_URL}/{first}", headers=h, json={"evaluation_type": "PERIODIC"})
+    assert change_type.status_code == 422
+    assert change_type.json()["error"]["code"] == "TYPE_IMMUTABLE"
+
+
+def test_weekly_publish_requires_content_and_locks(client, ev):
+    h = _h(ev["mentor1"])
+    weekly_id = _weekly(client, ev, comment=None).json()["id"]
+    blocked = client.post(f"{EVAL_URL}/{weekly_id}/publish", headers=h)
+    assert blocked.status_code == 409
+    assert blocked.json()["error"]["code"] == "WEEKLY_CONTENT_REQUIRED"
+
+    client.put(f"{EVAL_URL}/{weekly_id}", headers=h, json={"comment": "   "})
+    assert client.post(f"{EVAL_URL}/{weekly_id}/publish", headers=h).status_code == 409
+
+    client.put(f"{EVAL_URL}/{weekly_id}", headers=h, json={"comment": "Làm tốt tuần này"})
+    published = client.post(f"{EVAL_URL}/{weekly_id}/publish", headers=h)
+    assert published.status_code == 200, published.text
+    assert published.json()["status"] == "PUBLISHED"
+    assert published.json()["total_score"] is None
+    assert published.json()["published_at"]
+
+    edit = client.put(f"{EVAL_URL}/{weekly_id}", headers=h, json={"comment": "sửa"})
+    assert edit.status_code == 409
+    assert edit.json()["error"]["code"] == "EVALUATION_ALREADY_PUBLISHED"
+
+
+def test_weekly_does_not_need_any_criteria(client, ev):
+    for key in ("crit_a", "crit_b"):
+        client.put(
+            f"{CRITERIA_URL}/{ev[key].id}", headers=_h(ev["admin"]), json={"status": "INACTIVE"}
+        )
+    weekly_id = _weekly(client, ev).json()["id"]
+    published = client.post(f"{EVAL_URL}/{weekly_id}/publish", headers=_h(ev["mentor1"]))
+    assert published.status_code == 200, published.text
+
+
+def test_intern_sees_only_published_weekly_of_self(client, ev):
+    mentor = _h(ev["mentor1"])
+    intern = _h(ev["intern_a"])
+    draft_id = _weekly(client, ev, start="2026-09-21", end="2026-09-27").json()["id"]
+    published_id = _weekly(client, ev).json()["id"]
+    client.post(f"{EVAL_URL}/{published_id}/publish", headers=mentor)
+    other_id = _weekly(client, ev, mentor="mentor2", member="member_b").json()["id"]
+    client.post(f"{EVAL_URL}/{other_id}/publish", headers=_h(ev["mentor2"]))
+
+    listing = client.get(EVAL_URL, params={"evaluation_type": "WEEKLY"}, headers=intern).json()
+    assert [e["id"] for e in listing] == [published_id]
+    assert listing[0]["week_start"] == "2026-09-14"
+    assert listing[0]["comment"] == "Tuần này hoàn thành tốt"
+    assert client.get(f"{EVAL_URL}/{draft_id}", headers=intern).status_code == 404
+    assert client.get(f"{EVAL_URL}/{other_id}", headers=intern).status_code == 404
+
+
+def test_other_mentor_cannot_touch_weekly(client, ev):
+    weekly_id = _weekly(client, ev).json()["id"]
+    h2 = _h(ev["mentor2"])
+    assert client.get(f"{EVAL_URL}/{weekly_id}", headers=h2).status_code == 404
+    assert (
+        client.put(f"{EVAL_URL}/{weekly_id}", headers=h2, json={"comment": "x"}).status_code == 404
+    )
+    assert client.post(f"{EVAL_URL}/{weekly_id}/publish", headers=h2).status_code == 404
+    assert _weekly(client, ev, mentor="mentor2", member="member_a").status_code == 404
+
+
+# ── Đánh giá cuối cùng (FINAL): Đạt / Chưa đạt kèm lý do ───────────────────
+
+
+def test_final_publish_requires_verdict_and_reason(client, ev):
+    h = _h(ev["mentor1"])
+    final_id = _create(client, ev, evaluation_type="FINAL").json()["id"]
+    no_verdict = client.post(f"{EVAL_URL}/{final_id}/publish", headers=h)
+    assert no_verdict.status_code == 409
+    assert no_verdict.json()["error"]["code"] == "FINAL_VERDICT_REQUIRED"
+
+    client.put(f"{EVAL_URL}/{final_id}", headers=h, json={"verdict": "PASS"})
+    assert client.post(f"{EVAL_URL}/{final_id}/publish", headers=h).status_code == 409
+
+    client.put(f"{EVAL_URL}/{final_id}", headers=h, json={"verdict_reason": "  Hoàn thành tốt  "})
+    published = client.post(f"{EVAL_URL}/{final_id}/publish", headers=h)
+    assert published.status_code == 200, published.text
+    body = published.json()
+    assert body["status"] == "PUBLISHED"
+    assert body["verdict"] == "PASS"
+    assert body["verdict_reason"] == "Hoàn thành tốt"
+    assert body["total_score"] == 7.8
+
+
+def test_final_still_needs_complete_scores(client, ev):
+    final_id = _create(client, ev, scores=_scores(ev, b=None), **FINAL_OK).json()["id"]
+    resp = client.post(f"{EVAL_URL}/{final_id}/publish", headers=_h(ev["mentor1"]))
+    assert resp.status_code == 409
+    assert resp.json()["error"]["code"] == "INCOMPLETE_EVALUATION"
+
+
+def test_intern_sees_fail_verdict_with_reason(client, ev):
+    final = _create(
+        client,
+        ev,
+        evaluation_type="FINAL",
+        verdict="FAIL",
+        verdict_reason="Chưa đạt yêu cầu về tiến độ",
+    ).json()
+    client.post(f"{EVAL_URL}/{final['id']}/publish", headers=_h(ev["mentor1"]))
+    seen = client.get(f"{EVAL_URL}/{final['id']}", headers=_h(ev["intern_a"])).json()
+    assert seen["verdict"] == "FAIL"
+    assert seen["verdict_reason"] == "Chưa đạt yêu cầu về tiến độ"
+    assert seen["evaluation_type"] == "FINAL"
+
+
+def test_only_one_final_per_intern(client, ev):
+    assert _create(client, ev, **FINAL_OK).status_code == 201
+    duplicate = _create(client, ev, **FINAL_OK)
+    assert duplicate.status_code == 409
+    assert duplicate.json()["error"]["code"] == "FINAL_EXISTS"
+    other = _create(client, ev, mentor="mentor2", member="member_b", **FINAL_OK)
+    assert other.status_code == 201
+    # Vẫn tạo được các loại đánh giá khác cho cùng Intern.
+    assert _create(client, ev).status_code == 201
+    assert _weekly(client, ev).status_code == 201
+
+
+def test_evaluation_type_cannot_change_after_creation(client, ev):
+    evaluation_id = _create(client, ev).json()["id"]
+    resp = client.put(
+        f"{EVAL_URL}/{evaluation_id}", headers=_h(ev["mentor1"]), json={"evaluation_type": "FINAL"}
+    )
+    assert resp.status_code == 422
+    assert resp.json()["error"]["code"] == "TYPE_IMMUTABLE"
+
+
+def test_list_filters_include_weekly_type(client, ev):
+    mentor = _h(ev["mentor1"])
+    periodic_id = _create(client, ev).json()["id"]
+    weekly_id = _weekly(client, ev).json()["id"]
+    weekly = client.get(EVAL_URL, params={"evaluation_type": "WEEKLY"}, headers=mentor).json()
+    assert [e["id"] for e in weekly] == [weekly_id]
+    periodic = client.get(EVAL_URL, params={"evaluation_type": "PERIODIC"}, headers=mentor).json()
+    assert [e["id"] for e in periodic] == [periodic_id]
+    admin = client.get(EVAL_URL, params={"evaluation_type": "WEEKLY"}, headers=_h(ev["admin"]))
+    assert weekly_id in {e["id"] for e in admin.json()}
+
+
+def test_latest_dashboard_score_ignores_weekly_comments(client, ev):
+    mentor = _h(ev["mentor1"])
+    scored = _create(client, ev).json()["id"]
+    client.post(f"{EVAL_URL}/{scored}/publish", headers=mentor)
+    weekly = _weekly(client, ev).json()["id"]
+    client.post(f"{EVAL_URL}/{weekly}/publish", headers=mentor)
+
+    board = client.get("/api/v1/dashboard", headers=_h(ev["intern_a"])).json()
+    metric = next(m for m in board["metrics"] if m["key"] == "latest_evaluation_score")
+    assert metric["value"] == 7.8
+
+
+def test_database_constraints_guard_the_new_rules(ev):
+    from sqlalchemy.exc import IntegrityError
+
+    session = ev["session"]
+    now = datetime.now(UTC)
+
+    def add(**kwargs):
+        base = {
+            "internship_member_id": ev["member_a"].id,
+            "mentor_id": ev["mentor1"].id,
+            "criteria_scores": [],
+            "status": "DRAFT",
+            "created_at": now,
+            "updated_at": now,
+        }
+        session.add(Evaluation(**{**base, **kwargs}))
+
+    invalid_rows = [
+        {"evaluation_type": "WEEKLY"},
+        {
+            "evaluation_type": "WEEKLY",
+            "week_start": date(2026, 9, 20),
+            "week_end": date(2026, 9, 14),
+        },
+        {
+            "evaluation_type": "PERIODIC",
+            "week_start": date(2026, 9, 14),
+            "week_end": date(2026, 9, 20),
+        },
+        {"evaluation_type": "PERIODIC", "verdict": "PASS"},
+        {"evaluation_type": "FINAL", "verdict": "MAYBE"},
+    ]
+    for row in invalid_rows:
+        add(**row)
+        with pytest.raises(IntegrityError):
+            session.commit()
+        session.rollback()
+
+    add(evaluation_type="FINAL")
+    session.commit()
+    add(evaluation_type="FINAL")  # đánh giá cuối cùng thứ hai của cùng một Intern
+    with pytest.raises(IntegrityError):
+        session.commit()
+    session.rollback()
