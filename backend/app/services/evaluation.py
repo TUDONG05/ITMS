@@ -1,5 +1,7 @@
 """Nghiệp vụ UC-12: Quản lý đánh giá.
 
+Loại đánh giá: WEEKLY (nhận xét tuần), PERIODIC (định kỳ), FINAL (cuối cùng, Đạt/Chưa đạt).
+
 Quy định (docs/s0-01-api-access-control.md, mục 4 và 6):
 - Admin quản lý tiêu chí/thang điểm/trọng số; chỉ được ĐỌC đánh giá (kể cả nháp) để giám sát,
   không sửa hay công bố.
@@ -9,10 +11,11 @@ Quy định (docs/s0-01-api-access-control.md, mục 4 và 6):
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
@@ -37,6 +40,7 @@ from app.schemas.evaluation import (
 )
 
 TOTAL_SCALE = 10  # Tổng điểm luôn quy về thang 10.
+WEEKLY_MAX_DAYS = 14  # Một nhận xét tuần không dài quá số ngày này.
 
 
 def _now() -> datetime:
@@ -319,7 +323,7 @@ class EvaluationService:
             query = query.where(Evaluation.internship_member_id == member_id)
         if status in ("DRAFT", "PUBLISHED"):
             query = query.where(Evaluation.status == status)
-        if evaluation_type in ("PERIODIC", "FINAL"):
+        if evaluation_type in ("WEEKLY", "PERIODIC", "FINAL"):
             query = query.where(Evaluation.evaluation_type == evaluation_type)
         rows = list(db.scalars(query.order_by(Evaluation.updated_at.desc())))
         return EvaluationService._to_reads(db, rows)
@@ -386,6 +390,10 @@ class EvaluationService:
                         _f(evaluation.total_score) if evaluation.total_score is not None else None
                     ),
                     comment=evaluation.comment,
+                    week_start=evaluation.week_start,
+                    week_end=evaluation.week_end,
+                    verdict=evaluation.verdict,
+                    verdict_reason=evaluation.verdict_reason,
                     status=evaluation.status,
                     published_at=evaluation.published_at,
                     created_at=evaluation.created_at,
@@ -428,26 +436,161 @@ class EvaluationService:
 
     # ------------------------------------------------------------------
     # Mentor lập, sửa nháp, công bố
+    #
+    # Ba loại đánh giá dùng chung một vòng đời (nháp, công bố):
+    # - WEEKLY: nhận xét theo tuần (ngày bắt đầu, ngày kết thúc, nội dung), không chấm điểm.
+    # - PERIODIC: đánh giá định kỳ, chấm điểm theo tiêu chí.
+    # - FINAL: đánh giá cuối cùng, chấm điểm theo tiêu chí kèm kết luận Đạt/Chưa đạt và lý do.
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _clean(text: str | None) -> str | None:
+        return (text or "").strip() or None
+
+    @staticmethod
+    def _validate_type_fields(
+        evaluation_type: str,
+        week_start: date | None,
+        week_end: date | None,
+        has_verdict: bool,
+        has_scores: bool,
+    ) -> None:
+        """Kiểm tra các trường đặc thù theo loại đánh giá."""
+        if evaluation_type == "WEEKLY":
+            if week_start is None or week_end is None:
+                raise ApiError(
+                    422,
+                    "WEEK_RANGE_REQUIRED",
+                    "Nhận xét tuần cần có ngày bắt đầu và ngày kết thúc.",
+                )
+            if week_end < week_start:
+                raise ApiError(
+                    422,
+                    "WEEK_RANGE_INVALID",
+                    "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.",
+                )
+            if (week_end - week_start).days + 1 > WEEKLY_MAX_DAYS:
+                raise ApiError(
+                    422,
+                    "WEEK_RANGE_TOO_LONG",
+                    f"Một nhận xét tuần không dài quá {WEEKLY_MAX_DAYS} ngày.",
+                    {"max_days": WEEKLY_MAX_DAYS},
+                )
+            if has_scores:
+                raise ApiError(
+                    422, "WEEKLY_NO_SCORES", "Nhận xét tuần không chấm điểm theo tiêu chí."
+                )
+        elif week_start is not None or week_end is not None:
+            raise ApiError(
+                422,
+                "WEEK_NOT_ALLOWED",
+                "Chỉ nhận xét tuần mới có ngày bắt đầu và ngày kết thúc.",
+            )
+        if has_verdict and evaluation_type != "FINAL":
+            raise ApiError(
+                422,
+                "VERDICT_NOT_ALLOWED",
+                "Chỉ đánh giá cuối cùng mới có kết luận Đạt/Chưa đạt và lý do.",
+            )
+
+    @staticmethod
+    def _ensure_no_week_overlap(
+        db: Session,
+        member_id: uuid.UUID,
+        start: date,
+        end: date,
+        exclude_id: uuid.UUID | None = None,
+    ) -> None:
+        query = select(Evaluation).where(
+            Evaluation.internship_member_id == member_id,
+            Evaluation.evaluation_type == "WEEKLY",
+            Evaluation.week_start <= end,
+            Evaluation.week_end >= start,
+        )
+        if exclude_id is not None:
+            query = query.where(Evaluation.id != exclude_id)
+        clash = db.scalar(query.limit(1))
+        if clash is not None and clash.week_start and clash.week_end:
+            raise ApiError(
+                409,
+                "WEEK_OVERLAP",
+                "Intern này đã có nhận xét tuần trùng khoảng thời gian đã chọn.",
+                {
+                    "week_start": clash.week_start.isoformat(),
+                    "week_end": clash.week_end.isoformat(),
+                },
+            )
+
+    @staticmethod
+    def _ensure_single_final(
+        db: Session, member_id: uuid.UUID, exclude_id: uuid.UUID | None = None
+    ) -> None:
+        query = select(Evaluation.id).where(
+            Evaluation.internship_member_id == member_id,
+            Evaluation.evaluation_type == "FINAL",
+        )
+        if exclude_id is not None:
+            query = query.where(Evaluation.id != exclude_id)
+        if db.scalar(query.limit(1)) is not None:
+            raise ApiError(409, "FINAL_EXISTS", "Intern này đã có đánh giá cuối cùng.")
+
+    @staticmethod
+    def _commit(db: Session) -> None:
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise ApiError(
+                409,
+                "EVALUATION_CONFLICT",
+                "Không lưu được đánh giá do xung đột dữ liệu, vui lòng thử lại.",
+            ) from None
 
     @staticmethod
     def create_evaluation(db: Session, user: User, payload: EvaluationCreate) -> EvaluationRead:
         member = EvaluationService._mentor_member(db, user, payload.internship_member_id)
-        items, total = EvaluationService._resolve_scores(db, payload.scores, require_complete=False)
+        kind = payload.evaluation_type
+        reason = EvaluationService._clean(payload.verdict_reason)
+        EvaluationService._validate_type_fields(
+            kind,
+            payload.week_start,
+            payload.week_end,
+            has_verdict=payload.verdict is not None or reason is not None,
+            has_scores=bool(payload.scores),
+        )
+        if kind == "WEEKLY":
+            EvaluationService._ensure_no_week_overlap(
+                db,
+                member.id,
+                payload.week_start,
+                payload.week_end,  # type: ignore[arg-type]
+            )
+            items: list[dict[str, Any]] = []
+            total: float | None = None
+        else:
+            if kind == "FINAL":
+                EvaluationService._ensure_single_final(db, member.id)
+            items, total = EvaluationService._resolve_scores(
+                db, payload.scores, require_complete=False
+            )
         now = _now()
         evaluation = Evaluation(
             internship_member_id=member.id,
             mentor_id=user.id,
-            evaluation_type=payload.evaluation_type,
+            evaluation_type=kind,
             criteria_scores=items,
             total_score=total,
-            comment=(payload.comment or "").strip() or None,
+            comment=EvaluationService._clean(payload.comment),
+            week_start=payload.week_start,
+            week_end=payload.week_end,
+            verdict=payload.verdict,
+            verdict_reason=reason,
             status="DRAFT",
             created_at=now,
             updated_at=now,
         )
         db.add(evaluation)
-        db.commit()
+        EvaluationService._commit(db)
         db.refresh(evaluation)
         return EvaluationService._to_reads(db, [evaluation])[0]
 
@@ -457,47 +600,100 @@ class EvaluationService:
     ) -> EvaluationRead:
         evaluation = EvaluationService._get_mentor_draft(db, user, evaluation_id)
         data = payload.model_dump(exclude_unset=True)
-        if data.get("evaluation_type") is not None:
-            evaluation.evaluation_type = data["evaluation_type"]
+        kind = evaluation.evaluation_type
+        if data.get("evaluation_type") not in (None, kind):
+            raise ApiError(
+                422,
+                "TYPE_IMMUTABLE",
+                "Không đổi được loại đánh giá của bản nháp. Hãy tạo đánh giá mới.",
+            )
+        week_start = data["week_start"] if "week_start" in data else evaluation.week_start
+        week_end = data["week_end"] if "week_end" in data else evaluation.week_end
+        verdict = data["verdict"] if "verdict" in data else evaluation.verdict
+        reason = (
+            EvaluationService._clean(data["verdict_reason"])
+            if "verdict_reason" in data
+            else evaluation.verdict_reason
+        )
+        EvaluationService._validate_type_fields(
+            kind,
+            week_start,
+            week_end,
+            has_verdict=verdict is not None or reason is not None,
+            has_scores=bool(payload.scores),
+        )
+        if kind == "WEEKLY":
+            EvaluationService._ensure_no_week_overlap(
+                db,
+                evaluation.internship_member_id,
+                week_start,
+                week_end,
+                evaluation.id,  # type: ignore[arg-type]
+            )
+        evaluation.week_start = week_start
+        evaluation.week_end = week_end
+        evaluation.verdict = verdict
+        evaluation.verdict_reason = reason
         if "comment" in data:
-            evaluation.comment = (data["comment"] or "").strip() or None
-        if payload.scores is not None:
+            evaluation.comment = EvaluationService._clean(data["comment"])
+        if payload.scores is not None and kind != "WEEKLY":
             items, total = EvaluationService._resolve_scores(
                 db, payload.scores, require_complete=False
             )
             evaluation.criteria_scores = items
             evaluation.total_score = total
         evaluation.updated_at = _now()
-        db.commit()
+        EvaluationService._commit(db)
         db.refresh(evaluation)
         return EvaluationService._to_reads(db, [evaluation])[0]
 
     @staticmethod
     def publish_evaluation(db: Session, user: User, evaluation_id: uuid.UUID) -> EvaluationRead:
         evaluation = EvaluationService._get_mentor_draft(db, user, evaluation_id)
-        stored: list[ScoreInput] = []
-        for entry in evaluation.criteria_scores or []:
-            if not isinstance(entry, dict):
-                continue
-            try:
-                stored.append(
-                    ScoreInput(
-                        criterion_id=uuid.UUID(str(entry.get("criterion_id"))),
-                        score=_f(entry.get("score")),
-                    )
+        kind = evaluation.evaluation_type
+        items: list[dict[str, Any]]
+        total: float | None
+        if kind == "WEEKLY":
+            if EvaluationService._clean(evaluation.comment) is None:
+                raise ApiError(
+                    409,
+                    "WEEKLY_CONTENT_REQUIRED",
+                    "Cần nhập nội dung nhận xét tuần trước khi công bố.",
                 )
-            except (ValueError, TypeError):
-                continue
-        # Chấm lại theo tiêu chí đang áp dụng tại thời điểm công bố; tiêu chí đã ngừng bị bỏ qua.
-        active_ids = {criterion.id for criterion in EvaluationService._active_criteria(db)}
-        retained = [item for item in stored if item.criterion_id in active_ids]
-        items, total = EvaluationService._resolve_scores(db, retained, require_complete=True)
+            items, total = [], None
+        else:
+            if kind == "FINAL" and (
+                evaluation.verdict is None
+                or EvaluationService._clean(evaluation.verdict_reason) is None
+            ):
+                raise ApiError(
+                    409,
+                    "FINAL_VERDICT_REQUIRED",
+                    "Đánh giá cuối cùng cần có kết luận Đạt/Chưa đạt và lý do trước khi công bố.",
+                )
+            stored: list[ScoreInput] = []
+            for entry in evaluation.criteria_scores or []:
+                if not isinstance(entry, dict):
+                    continue
+                try:
+                    stored.append(
+                        ScoreInput(
+                            criterion_id=uuid.UUID(str(entry.get("criterion_id"))),
+                            score=_f(entry.get("score")),
+                        )
+                    )
+                except (ValueError, TypeError):
+                    continue
+            # Chấm lại theo tiêu chí đang áp dụng lúc công bố; tiêu chí đã ngừng bị bỏ qua.
+            active_ids = {criterion.id for criterion in EvaluationService._active_criteria(db)}
+            retained = [item for item in stored if item.criterion_id in active_ids]
+            items, total = EvaluationService._resolve_scores(db, retained, require_complete=True)
         now = _now()
         evaluation.criteria_scores = items
         evaluation.total_score = total
         evaluation.status = "PUBLISHED"
         evaluation.published_at = now
         evaluation.updated_at = now
-        db.commit()
+        EvaluationService._commit(db)
         db.refresh(evaluation)
         return EvaluationService._to_reads(db, [evaluation])[0]

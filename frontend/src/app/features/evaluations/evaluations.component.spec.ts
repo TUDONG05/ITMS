@@ -24,6 +24,10 @@ function evaluation(overrides: Partial<Evaluation>): Evaluation {
     ],
     total_score: 8.8,
     comment: 'Chủ động, tiến bộ tốt',
+    week_start: null,
+    week_end: null,
+    verdict: null,
+    verdict_reason: null,
     status: 'PUBLISHED',
     published_at: '2026-09-22T09:00:00Z',
     created_at: '2026-09-20T09:00:00Z',
@@ -154,6 +158,78 @@ describe('EvaluationsComponent', () => {
       .flush({ items: [], total_active_weight: 100 });
     fixture.detectChanges();
 
-    expect(text()).not.toContain('Tổng trọng số các tiêu chí đang áp dụng');
+    expect(text()).not.toContain('Tổng trọng số các tiêu chí đang áp dụng là');
+  });
+
+  it('Intern xem nhận xét tuần với khoảng thời gian và nội dung, không có điểm', () => {
+    createAs('INTERN');
+    httpMock.expectOne('/api/v1/evaluations').flush([
+      evaluation({
+        id: 'w1',
+        evaluation_type: 'WEEKLY',
+        week_start: '2026-09-14',
+        week_end: '2026-09-20',
+        scores: [],
+        total_score: null,
+        comment: 'Hoàn thành đúng hạn hai task trong tuần',
+      }),
+    ]);
+    fixture.detectChanges();
+
+    expect(text()).toContain('Nhận xét tuần');
+    expect(text()).toContain('14/09/2026');
+    expect(text()).toContain('20/09/2026');
+    expect(text()).toContain('Nội dung nhận xét của Mentor');
+    expect(text()).toContain('Hoàn thành đúng hạn hai task trong tuần');
+    expect(text()).not.toContain('/ 10');
+  });
+
+  it('Intern thấy kết luận Chưa đạt kèm lý do ở đánh giá cuối cùng', () => {
+    createAs('INTERN');
+    httpMock.expectOne('/api/v1/evaluations').flush([
+      evaluation({
+        id: 'f1',
+        evaluation_type: 'FINAL',
+        verdict: 'FAIL',
+        verdict_reason: 'Chưa đạt yêu cầu về tiến độ hoàn thành task',
+      }),
+    ]);
+    fixture.detectChanges();
+
+    expect(text()).toContain('Đánh giá cuối cùng');
+    expect(text()).toContain('Kết luận:');
+    expect(text()).toContain('Chưa đạt');
+    expect(text()).toContain('Lý do: Chưa đạt yêu cầu về tiến độ hoàn thành task');
+    expect(text()).toContain('8.8');
+  });
+
+  it('Mentor thấy khoảng tuần và kết luận trong bảng, có bộ lọc theo loại', () => {
+    createAs('MENTOR');
+    httpMock.expectOne('/api/v1/evaluations').flush([
+      evaluation({
+        id: 'w1',
+        evaluation_type: 'WEEKLY',
+        week_start: '2026-09-14',
+        week_end: '2026-09-20',
+        scores: [],
+        total_score: null,
+        status: 'DRAFT',
+        published_at: null,
+      }),
+      evaluation({ id: 'f1', evaluation_type: 'FINAL', verdict: 'PASS', verdict_reason: 'Tốt' }),
+    ]);
+    fixture.detectChanges();
+
+    const rows = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr'),
+    ) as HTMLElement[];
+    const weeklyRow = rows.find((row) => row.textContent?.includes('Nhận xét tuần'));
+    const finalRow = rows.find((row) => row.textContent?.includes('Đánh giá cuối cùng'));
+
+    expect(weeklyRow?.textContent).toContain('14/09 - 20/09/2026');
+    expect(weeklyRow?.textContent).toContain('Sửa');
+    expect(finalRow?.textContent).toContain('Đạt');
+    expect(finalRow?.textContent).toContain('8.8');
+    expect(text()).toContain('Lọc theo loại');
   });
 });
