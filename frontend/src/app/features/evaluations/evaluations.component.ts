@@ -32,6 +32,8 @@ import {
   EvaluationService,
   EvaluationStatus,
   EvaluationType,
+  EvaluationTypeFields,
+  Verdict,
   previewTotal,
 } from '../../core/api/evaluation.service';
 import { AuthService } from '../../core/api/auth.service';
@@ -39,9 +41,33 @@ import { MentorInternListItem, MentorService } from '../../core/api/mentor.servi
 import { EvaluationCriteriaComponent } from './evaluation-criteria.component';
 
 const TYPE_LABEL: Record<EvaluationType, string> = {
+  WEEKLY: 'Nhận xét tuần',
   PERIODIC: 'Đánh giá định kỳ',
-  FINAL: 'Đánh giá cuối kỳ',
+  FINAL: 'Đánh giá cuối cùng',
 };
+
+const VERDICT_LABEL: Record<Verdict, string> = {
+  PASS: 'Đạt',
+  FAIL: 'Chưa đạt',
+};
+
+/** Một nhận xét tuần không dài quá số ngày này (khớp quy tắc của máy chủ). */
+const WEEKLY_MAX_DAYS = 14;
+
+function toIsoDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/** Tuần hiện tại, từ Thứ Hai đến Chủ Nhật, theo giờ địa phương. */
+function currentWeek(): { start: string; end: string } {
+  const today = new Date();
+  const offset = (today.getDay() + 6) % 7;
+  const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  return { start: toIsoDate(monday), end: toIsoDate(sunday) };
+}
 
 const STATUS_LABEL: Record<EvaluationStatus, string> = {
   DRAFT: 'Bản nháp',
@@ -97,6 +123,7 @@ export class EvaluationsComponent implements OnInit {
   protected readonly isLoading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly statusFilter = signal<EvaluationStatus | ''>('');
+  protected readonly typeFilter = signal<EvaluationType | ''>('');
 
   protected readonly detail = signal<Evaluation | null>(null);
   protected readonly isDetailOpen = signal(false);
@@ -113,6 +140,17 @@ export class EvaluationsComponent implements OnInit {
   protected readonly evaluationType = signal<EvaluationType>('PERIODIC');
   protected readonly scoreMap = signal<Record<string, number | null>>({});
   protected readonly comment = signal('');
+  protected readonly weekStart = signal('');
+  protected readonly weekEnd = signal('');
+  protected readonly verdict = signal<Verdict | null>(null);
+  protected readonly verdictReason = signal('');
+
+  protected readonly isWeeklyType = computed(() => this.evaluationType() === 'WEEKLY');
+  protected readonly isFinalType = computed(() => this.evaluationType() === 'FINAL');
+  protected readonly verdictOptions = (Object.keys(VERDICT_LABEL) as Verdict[]).map((value) => ({
+    value,
+    label: VERDICT_LABEL[value],
+  }));
 
   protected readonly typeOptions = (Object.keys(TYPE_LABEL) as EvaluationType[]).map((value) => ({
     value,
@@ -130,7 +168,7 @@ export class EvaluationsComponent implements OnInit {
   protected readonly previewScore = computed(() => {
     const criteria = this.criteria();
     const scores = this.scoreMap();
-    if (criteria.length === 0) return null;
+    if (this.isWeeklyType() || criteria.length === 0) return null;
     const items: { score: number; max_score: number; weight: number }[] = [];
     for (const criterion of criteria) {
       const value = scores[criterion.id];
@@ -147,16 +185,18 @@ export class EvaluationsComponent implements OnInit {
   protected load(): void {
     this.isLoading.set(true);
     this.loadError.set(null);
-    this.evaluationService.listEvaluations({ status: this.statusFilter() }).subscribe({
-      next: (data) => {
-        this.evaluations.set(data);
-        this.isLoading.set(false);
-      },
-      error: (err) => {
-        this.isLoading.set(false);
-        this.loadError.set(apiMessage(err, 'Không tải được danh sách đánh giá.'));
-      },
-    });
+    this.evaluationService
+      .listEvaluations({ status: this.statusFilter(), type: this.typeFilter() })
+      .subscribe({
+        next: (data) => {
+          this.evaluations.set(data);
+          this.isLoading.set(false);
+        },
+        error: (err) => {
+          this.isLoading.set(false);
+          this.loadError.set(apiMessage(err, 'Không tải được danh sách đánh giá.'));
+        },
+      });
   }
 
   protected setStatusFilter(value: EvaluationStatus | ''): void {
@@ -164,9 +204,22 @@ export class EvaluationsComponent implements OnInit {
     this.load();
   }
 
+  protected setTypeFilter(value: EvaluationType | ''): void {
+    this.typeFilter.set(value ?? '');
+    this.load();
+  }
+
   // ── Hiển thị ──
   protected typeLabel(type: EvaluationType): string {
     return TYPE_LABEL[type];
+  }
+
+  protected verdictLabel(verdict: Verdict): string {
+    return VERDICT_LABEL[verdict];
+  }
+
+  protected verdictColor(verdict: Verdict): string {
+    return verdict === 'PASS' ? 'success' : 'error';
   }
 
   protected statusLabel(status: EvaluationStatus): string {
@@ -198,6 +251,10 @@ export class EvaluationsComponent implements OnInit {
     this.evaluationType.set('PERIODIC');
     this.scoreMap.set({});
     this.comment.set('');
+    this.weekStart.set('');
+    this.weekEnd.set('');
+    this.verdict.set(null);
+    this.verdictReason.set('');
     this.editorError.set(null);
     this.openEditor();
   }
@@ -210,8 +267,22 @@ export class EvaluationsComponent implements OnInit {
       Object.fromEntries(evaluation.scores.map((item) => [item.criterion_id, item.score])),
     );
     this.comment.set(evaluation.comment ?? '');
+    this.weekStart.set(evaluation.week_start ?? '');
+    this.weekEnd.set(evaluation.week_end ?? '');
+    this.verdict.set(evaluation.verdict);
+    this.verdictReason.set(evaluation.verdict_reason ?? '');
     this.editorError.set(null);
     this.openEditor();
+  }
+
+  /** Đổi loại đánh giá khi lập mới; với nhận xét tuần thì gợi ý sẵn tuần hiện tại. */
+  protected setEvaluationType(type: EvaluationType): void {
+    this.evaluationType.set(type);
+    if (type === 'WEEKLY' && !this.weekStart() && !this.weekEnd()) {
+      const week = currentWeek();
+      this.weekStart.set(week.start);
+      this.weekEnd.set(week.end);
+    }
   }
 
   private openEditor(): void {
@@ -258,6 +329,7 @@ export class EvaluationsComponent implements OnInit {
 
   private buildScores(): { criterion_id: string; score: number }[] | null {
     const scores: { criterion_id: string; score: number }[] = [];
+    if (this.isWeeklyType()) return scores;
     for (const criterion of this.criteria()) {
       const value = this.scoreMap()[criterion.id];
       if (value === null || value === undefined) continue;
@@ -288,22 +360,31 @@ export class EvaluationsComponent implements OnInit {
       this.editorError.set('Vui lòng chọn Intern cần đánh giá.');
       return;
     }
+    const type = this.evaluationType();
+    const problem = this.validateType(type, publish);
+    if (problem) {
+      this.editorError.set(problem);
+      return;
+    }
     const scores = this.buildScores();
     if (scores === null) return;
     const comment = this.comment().trim() || null;
+    const typeFields = this.typeFields(type);
 
     this.isSaving.set(true);
     const save$ = existingId
       ? this.evaluationService.updateEvaluation(existingId, {
-          evaluation_type: this.evaluationType(),
+          evaluation_type: type,
           scores,
           comment,
+          ...typeFields,
         })
       : this.evaluationService.createEvaluation({
           internship_member_id: memberId as string,
-          evaluation_type: this.evaluationType(),
+          evaluation_type: type,
           scores,
           comment,
+          ...typeFields,
         });
 
     save$.subscribe({
@@ -330,6 +411,36 @@ export class EvaluationsComponent implements OnInit {
         this.editorError.set(apiMessage(err, 'Không lưu được đánh giá.'));
       },
     });
+  }
+
+  private validateType(type: EvaluationType, publish: boolean): string | null {
+    if (type === 'WEEKLY') {
+      const start = this.weekStart();
+      const end = this.weekEnd();
+      if (!start || !end) return 'Vui lòng chọn ngày bắt đầu và ngày kết thúc của tuần.';
+      if (end < start) return 'Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.';
+      const days = (Date.parse(end) - Date.parse(start)) / 86_400_000 + 1;
+      if (days > WEEKLY_MAX_DAYS) {
+        return `Một nhận xét tuần không dài quá ${WEEKLY_MAX_DAYS} ngày.`;
+      }
+      if (publish && !this.comment().trim()) {
+        return 'Vui lòng nhập nội dung nhận xét tuần trước khi công bố.';
+      }
+    }
+    if (type === 'FINAL' && publish) {
+      if (!this.verdict()) return 'Vui lòng chọn kết luận Đạt hoặc Chưa đạt.';
+      if (!this.verdictReason().trim()) return 'Vui lòng nhập lý do của kết luận.';
+    }
+    return null;
+  }
+
+  private typeFields(type: EvaluationType): EvaluationTypeFields {
+    return {
+      week_start: type === 'WEEKLY' ? this.weekStart() : null,
+      week_end: type === 'WEEKLY' ? this.weekEnd() : null,
+      verdict: type === 'FINAL' ? this.verdict() : null,
+      verdict_reason: type === 'FINAL' ? this.verdictReason().trim() || null : null,
+    };
   }
 
   private finishSave(successMessage: string): void {
