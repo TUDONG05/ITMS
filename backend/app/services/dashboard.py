@@ -273,4 +273,3 @@ class DashboardService:
             )
             for task, effective_status in rows
         ]
-        
