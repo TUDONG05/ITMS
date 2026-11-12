@@ -389,7 +389,7 @@ class EvaluationService:
                     total_score=(
                         _f(evaluation.total_score) if evaluation.total_score is not None else None
                     ),
-                    comment=evaluation.comment,
+                    comment=None if evaluation.evaluation_type == "FINAL" else evaluation.comment,
                     week_start=evaluation.week_start,
                     week_end=evaluation.week_end,
                     verdict=evaluation.verdict,
@@ -580,7 +580,7 @@ class EvaluationService:
             evaluation_type=kind,
             criteria_scores=items,
             total_score=total,
-            comment=EvaluationService._clean(payload.comment),
+            comment=None if kind == "FINAL" else EvaluationService._clean(payload.comment),
             week_start=payload.week_start,
             week_end=payload.week_end,
             verdict=payload.verdict,
@@ -634,7 +634,9 @@ class EvaluationService:
         evaluation.week_end = week_end
         evaluation.verdict = verdict
         evaluation.verdict_reason = reason
-        if "comment" in data:
+        if kind == "FINAL":
+            evaluation.comment = None
+        elif "comment" in data:
             evaluation.comment = EvaluationService._clean(data["comment"])
         if payload.scores is not None and kind != "WEEKLY":
             items, total = EvaluationService._resolve_scores(
@@ -691,6 +693,8 @@ class EvaluationService:
         now = _now()
         evaluation.criteria_scores = items
         evaluation.total_score = total
+        if kind == "FINAL":
+            evaluation.comment = None
         evaluation.status = "PUBLISHED"
         evaluation.published_at = now
         evaluation.updated_at = now

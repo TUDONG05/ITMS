@@ -1,8 +1,11 @@
 import uuid
 from collections.abc import Generator
 from datetime import UTC, date, datetime
+from importlib import import_module
 
 import pytest
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select, update
 
@@ -765,6 +768,69 @@ def test_final_still_needs_complete_scores(client, ev):
     resp = client.post(f"{EVAL_URL}/{final_id}/publish", headers=_h(ev["mentor1"]))
     assert resp.status_code == 409
     assert resp.json()["error"]["code"] == "INCOMPLETE_EVALUATION"
+
+
+def test_final_discards_comments_on_create_and_update(client, ev):
+    created = _create(client, ev, comment="Unwanted comment", **FINAL_OK)
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["comment"] is None
+    evaluation_id = uuid.UUID(body["id"])
+    session = ev["session"]
+    assert session.get(Evaluation, evaluation_id).comment is None
+
+    updated = client.put(
+        f"{EVAL_URL}/{evaluation_id}",
+        headers=_h(ev["mentor1"]),
+        json={"comment": "Another unwanted comment"},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["comment"] is None
+    session.expire_all()
+    assert session.get(Evaluation, evaluation_id).comment is None
+
+
+@pytest.mark.parametrize("action", ["update", "publish"])
+def test_final_clears_legacy_comment_when_saved(client, ev, action):
+    body = _create(client, ev, **FINAL_OK).json()
+    session = ev["session"]
+    evaluation = session.get(Evaluation, uuid.UUID(body["id"]))
+    evaluation.comment = "Legacy final comment"
+    session.commit()
+
+    read = client.get(f"{EVAL_URL}/{body['id']}", headers=_h(ev["mentor1"]))
+    assert read.json()["comment"] is None
+    if action == "update":
+        saved = client.put(f"{EVAL_URL}/{body['id']}", headers=_h(ev["mentor1"]), json={})
+    else:
+        saved = client.post(f"{EVAL_URL}/{body['id']}/publish", headers=_h(ev["mentor1"]))
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["comment"] is None
+    assert saved.json()["verdict_reason"] == FINAL_OK["verdict_reason"]
+    session.refresh(evaluation)
+    assert evaluation.comment is None
+
+
+def test_final_comment_migration_preserves_other_types_and_verdict(client, ev, monkeypatch):
+    final = _create(client, ev, **FINAL_OK).json()
+    periodic = _create(client, ev, comment="Periodic comment").json()
+    weekly = _weekly(client, ev, comment="Weekly comment").json()
+    session = ev["session"]
+    stored_final = session.get(Evaluation, uuid.UUID(final["id"]))
+    stored_final.comment = "Obsolete final comment"
+    session.commit()
+    migration = import_module("migrations.versions.0013_final_no_comment")
+    monkeypatch.setattr(
+        migration, "op", Operations(MigrationContext.configure(session.connection()))
+    )
+    migration.upgrade()
+    session.expire_all()
+    assert session.get(Evaluation, uuid.UUID(final["id"])).comment is None
+    assert (
+        session.get(Evaluation, uuid.UUID(final["id"])).verdict_reason == FINAL_OK["verdict_reason"]
+    )
+    assert session.get(Evaluation, uuid.UUID(periodic["id"])).comment == "Periodic comment"
+    assert session.get(Evaluation, uuid.UUID(weekly["id"])).comment == "Weekly comment"
 
 
 def test_intern_sees_fail_verdict_with_reason(client, ev):

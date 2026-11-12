@@ -67,6 +67,7 @@ class EvaluationCreate(BaseSchema):
     internship_member_id: uuid.UUID
     evaluation_type: EvaluationType = "PERIODIC"
     scores: list[ScoreInput] = Field(default_factory=list, max_length=50)
+    # WEEKLY/PERIODIC only; FINAL comments are discarded in favor of verdict_reason.
     comment: str | None = Field(default=None, max_length=5000)
     # Nhận xét tuần (WEEKLY): bắt buộc có khoảng thời gian; nội dung nằm ở comment.
     week_start: date | None = None
@@ -81,6 +82,7 @@ class EvaluationUpdate(BaseSchema):
     evaluation_type: EvaluationType | None = None
     # None: giữ nguyên điểm đã lưu. Có giá trị: thay toàn bộ bảng điểm của bản nháp.
     scores: list[ScoreInput] | None = Field(default=None, max_length=50)
+    # Ignored for FINAL, including comments saved by older clients.
     comment: str | None = Field(default=None, max_length=5000)
     week_start: date | None = None
     week_end: date | None = None

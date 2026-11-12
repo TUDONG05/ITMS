@@ -583,7 +583,9 @@ class AssistantToolService:
                     "total_score": float(item.total_score)
                     if item.total_score is not None
                     else None,
-                    "comment": _bounded_text(item.comment),
+                    "comment": None
+                    if item.evaluation_type == "FINAL"
+                    else _bounded_text(item.comment),
                     "published_at": item.published_at,
                 }
                 for item, intern_id, intern_name in rows

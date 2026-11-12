@@ -79,6 +79,53 @@ describe('EvaluationsComponent', () => {
     sessionStorage.clear();
   });
 
+  it('does not render legacy final comments for interns', () => {
+    createAs('INTERN');
+    httpMock
+      .expectOne('/api/v1/evaluations')
+      .flush([
+        evaluation({
+          evaluation_type: 'FINAL',
+          comment: 'Legacy final comment',
+          verdict: 'PASS',
+          verdict_reason: 'Completed',
+        }),
+      ]);
+    fixture.detectChanges();
+    expect(text()).toContain('Completed');
+    expect(text()).not.toContain('Legacy final comment');
+  });
+
+  it('omits comments when saving an existing final draft', async () => {
+    createAs('MENTOR');
+    const draft = evaluation({
+      id: 'final-draft',
+      evaluation_type: 'FINAL',
+      status: 'DRAFT',
+      comment: 'Legacy final comment',
+    });
+    httpMock.expectOne('/api/v1/evaluations').flush([draft]);
+    fixture.detectChanges();
+    const edit = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Sửa',
+    );
+    expect(edit).toBeDefined();
+    edit!.click();
+    httpMock.expectOne('/api/v1/evaluation-criteria').flush({ items: [], total_active_weight: 0 });
+    httpMock.expectOne('/api/v1/mentor/interns').flush([]);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const save = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Lưu nháp',
+    );
+    expect(save).toBeDefined();
+    save!.click();
+    const request = httpMock.expectOne('/api/v1/evaluations/final-draft');
+    expect(request.request.body).not.toHaveProperty('comment');
+    request.flush({ ...draft, comment: null });
+    httpMock.expectOne('/api/v1/evaluations').flush([]);
+  });
+
   it('Intern xem điểm, bảng tiêu chí và nhận xét của đánh giá đã công bố', () => {
     createAs('INTERN');
     httpMock.expectOne('/api/v1/evaluations').flush([evaluation({})]);
