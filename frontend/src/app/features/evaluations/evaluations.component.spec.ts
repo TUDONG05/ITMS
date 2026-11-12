@@ -81,16 +81,14 @@ describe('EvaluationsComponent', () => {
 
   it('does not render legacy final comments for interns', () => {
     createAs('INTERN');
-    httpMock
-      .expectOne('/api/v1/evaluations')
-      .flush([
-        evaluation({
-          evaluation_type: 'FINAL',
-          comment: 'Legacy final comment',
-          verdict: 'PASS',
-          verdict_reason: 'Completed',
-        }),
-      ]);
+    httpMock.expectOne('/api/v1/evaluations').flush([
+      evaluation({
+        evaluation_type: 'FINAL',
+        comment: 'Legacy final comment',
+        verdict: 'PASS',
+        verdict_reason: 'Completed',
+      }),
+    ]);
     fixture.detectChanges();
     expect(text()).toContain('Completed');
     expect(text()).not.toContain('Legacy final comment');
