@@ -72,7 +72,7 @@
             *ngTemplateOutlet="scoresTable; context: { $implicit: evaluation }"
           ></ng-container>
         }
-        @if (evaluation.comment) {
+        @if (evaluation.evaluation_type !== 'FINAL' && evaluation.comment) {
           <div class="comment">
             <span class="comment__label">
               {{
@@ -315,7 +315,7 @@
         </p>
         <ng-container *ngTemplateOutlet="scoresTable; context: { $implicit: item }"></ng-container>
       }
-      @if (item.comment) {
+      @if (item.evaluation_type !== 'FINAL' && item.comment) {
         <div class="comment">
           <span class="comment__label">
             {{ item.evaluation_type === 'WEEKLY' ? 'Nội dung nhận xét' : 'Nhận xét' }}
@@ -467,19 +467,19 @@
               (ngModelChange)="verdictReason.set($event)"
             ></textarea>
           </div>
+        } @else {
+          <div class="field">
+            <span class="field-label">Nhận xét</span>
+            <textarea
+              nz-input
+              rows="4"
+              maxlength="5000"
+              placeholder="Nhận xét của Mentor"
+              [ngModel]="comment()"
+              (ngModelChange)="comment.set($event)"
+            ></textarea>
+          </div>
         }
-
-        <div class="field">
-          <span class="field-label">Nhận xét</span>
-          <textarea
-            nz-input
-            rows="4"
-            maxlength="5000"
-            placeholder="Nhận xét của Mentor"
-            [ngModel]="comment()"
-            (ngModelChange)="comment.set($event)"
-          ></textarea>
-        </div>
       }
     }
     @if (editorError()) {

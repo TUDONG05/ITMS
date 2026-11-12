@@ -266,7 +266,7 @@ export class EvaluationsComponent implements OnInit {
     this.scoreMap.set(
       Object.fromEntries(evaluation.scores.map((item) => [item.criterion_id, item.score])),
     );
-    this.comment.set(evaluation.comment ?? '');
+    this.comment.set(evaluation.evaluation_type === 'FINAL' ? '' : (evaluation.comment ?? ''));
     this.weekStart.set(evaluation.week_start ?? '');
     this.weekEnd.set(evaluation.week_end ?? '');
     this.verdict.set(evaluation.verdict);
@@ -368,7 +368,7 @@ export class EvaluationsComponent implements OnInit {
     }
     const scores = this.buildScores();
     if (scores === null) return;
-    const comment = this.comment().trim() || null;
+    const commentFields = type === 'FINAL' ? {} : { comment: this.comment().trim() || null };
     const typeFields = this.typeFields(type);
 
     this.isSaving.set(true);
@@ -376,14 +376,14 @@ export class EvaluationsComponent implements OnInit {
       ? this.evaluationService.updateEvaluation(existingId, {
           evaluation_type: type,
           scores,
-          comment,
+          ...commentFields,
           ...typeFields,
         })
       : this.evaluationService.createEvaluation({
           internship_member_id: memberId as string,
           evaluation_type: type,
           scores,
-          comment,
+          ...commentFields,
           ...typeFields,
         });
 

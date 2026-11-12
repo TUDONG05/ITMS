@@ -192,7 +192,7 @@ Phân quyền bổ sung:
 
 Kết quả có metadata và `evaluations`. Mỗi đánh giá gồm `id`, `intern_id`, `intern_name`, `type`, `status`, `total_score`, `comment`, `published_at`.
 
-`comment` được giới hạn tối đa 2.000 ký tự trước khi gửi sang AI.
+`comment` được giới hạn tối đa 2.000 ký tự trước khi gửi sang AI; với đánh giá cuối cùng (`FINAL`), trường này luôn là `null`.
 
 Ví dụ: “Đánh giá mới nhất của tôi là gì?”
 

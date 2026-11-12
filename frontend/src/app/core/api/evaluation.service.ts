@@ -80,13 +80,13 @@ export interface EvaluationCreatePayload extends EvaluationTypeFields {
   internship_member_id: string;
   evaluation_type: EvaluationType;
   scores: ScoreInput[];
-  comment: string | null;
+  comment?: string | null;
 }
 
 export interface EvaluationUpdatePayload extends EvaluationTypeFields {
   evaluation_type: EvaluationType;
   scores: ScoreInput[];
-  comment: string | null;
+  comment?: string | null;
 }
 
 export interface EvaluationFilters {
