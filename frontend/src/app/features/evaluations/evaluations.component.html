@@ -467,19 +467,19 @@
               (ngModelChange)="verdictReason.set($event)"
             ></textarea>
           </div>
+        } @else {
+          <div class="field">
+            <span class="field-label">Nhận xét</span>
+            <textarea
+              nz-input
+              rows="4"
+              maxlength="5000"
+              placeholder="Nhận xét của Mentor"
+              [ngModel]="comment()"
+              (ngModelChange)="comment.set($event)"
+            ></textarea>
+          </div>
         }
-
-        <div class="field">
-          <span class="field-label">Nhận xét</span>
-          <textarea
-            nz-input
-            rows="4"
-            maxlength="5000"
-            placeholder="Nhận xét của Mentor"
-            [ngModel]="comment()"
-            (ngModelChange)="comment.set($event)"
-          ></textarea>
-        </div>
       }
     }
     @if (editorError()) {
