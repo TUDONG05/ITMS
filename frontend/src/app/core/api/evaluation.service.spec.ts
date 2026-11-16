@@ -94,7 +94,7 @@ describe('EvaluationService', () => {
   it('lập nháp, sửa nháp và công bố đánh giá', () => {
     const draft = {
       internship_member_id: 'm1',
-      evaluation_type: 'PERIODIC' as const,
+      evaluation_type: 'FINAL' as const,
       scores: [{ criterion_id: 'c1', score: 8 }],
       comment: 'Tốt',
     };
@@ -144,20 +144,20 @@ describe('EvaluationService', () => {
     create.flush({});
   });
 
-  it('gửi kết luận Đạt/Chưa đạt kèm lý do cho đánh giá cuối cùng', () => {
+  it('gửi kết luận Đạt/Chưa đạt kèm nhận xét cho đánh giá cuối cùng', () => {
     service
       .updateEvaluation('e1', {
         evaluation_type: 'FINAL',
         scores: [],
-        comment: null,
+        comment: 'Chưa đạt yêu cầu về tiến độ',
         verdict: 'FAIL',
-        verdict_reason: 'Chưa đạt yêu cầu về tiến độ',
       })
       .subscribe();
     const update = httpMock.expectOne('/api/v1/evaluations/e1');
     expect(update.request.method).toBe('PUT');
     expect(update.request.body.verdict).toBe('FAIL');
-    expect(update.request.body.verdict_reason).toBe('Chưa đạt yêu cầu về tiến độ');
+    expect(update.request.body.comment).toBe('Chưa đạt yêu cầu về tiến độ');
+    expect(update.request.body.verdict_reason).toBeUndefined();
     update.flush({});
   });
 });

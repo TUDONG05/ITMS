@@ -92,7 +92,6 @@ class Evaluation(Base):
     week_start: Mapped[date | None] = mapped_column("tuan_bat_dau", Date, nullable=True)
     week_end: Mapped[date | None] = mapped_column("tuan_ket_thuc", Date, nullable=True)
     verdict: Mapped[str | None] = mapped_column("ket_luan", String(10), nullable=True)
-    verdict_reason: Mapped[str | None] = mapped_column("ly_do_ket_luan", Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="DRAFT")
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

@@ -57,9 +57,6 @@
           >
             <span class="verdict-box__label">Kết luận:</span>
             <strong>{{ verdictLabel(evaluation.verdict) }}</strong>
-            @if (evaluation.verdict_reason) {
-              <p class="verdict-box__reason">Lý do: {{ evaluation.verdict_reason }}</p>
-            }
           </div>
         }
         @if (evaluation.total_score !== null) {
@@ -299,9 +296,6 @@
         >
           <span class="verdict-box__label">Kết luận:</span>
           <strong>{{ verdictLabel(item.verdict) }}</strong>
-          @if (item.verdict_reason) {
-            <p class="verdict-box__reason">Lý do: {{ item.verdict_reason }}</p>
-          }
         </div>
       }
       @if (item.evaluation_type !== 'WEEKLY') {
@@ -367,6 +361,9 @@
           >
             @for (option of typeOptions; track option.value) {
               <nz-option [nzValue]="option.value" [nzLabel]="option.label"></nz-option>
+            }
+            @if (evaluationType() === 'PERIODIC') {
+              <nz-option nzValue="PERIODIC" nzLabel="Đánh giá định kỳ (cũ)" nzDisabled></nz-option>
             }
           </nz-select>
         </div>
@@ -456,21 +453,12 @@
               </nz-select>
             </div>
           </div>
-          <div class="field">
-            <span class="field-label">Lý do kết luận</span>
-            <textarea
-              nz-input
-              rows="3"
-              maxlength="5000"
-              placeholder="Lý do Đạt hoặc Chưa đạt"
-              [ngModel]="verdictReason()"
-              (ngModelChange)="verdictReason.set($event)"
-            ></textarea>
-          </div>
         }
 
         <div class="field">
-          <span class="field-label">Nhận xét</span>
+          <span class="field-label">{{
+            isFinalType() ? 'Nhận xét (nêu lý do của kết luận)' : 'Nhận xét'
+          }}</span>
           <textarea
             nz-input
             rows="4"

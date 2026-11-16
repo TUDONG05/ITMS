@@ -87,7 +87,7 @@ def delete_criterion(
 def list_evaluations(
     member_id: uuid.UUID | None = Query(None, description="Lọc theo thành viên thực tập"),
     status: str | None = Query(None, description="DRAFT hoặc PUBLISHED"),
-    evaluation_type: str | None = Query(None, description="PERIODIC hoặc FINAL"),
+    evaluation_type: str | None = Query(None, description="WEEKLY hoặc FINAL"),
     current_user: User = Depends(_all_roles),
     db: Session = Depends(get_db),
 ) -> list[EvaluationRead]:

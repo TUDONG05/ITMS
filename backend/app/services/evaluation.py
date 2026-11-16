@@ -1,6 +1,7 @@
 """Nghiệp vụ UC-12: Quản lý đánh giá.
 
-Loại đánh giá: WEEKLY (nhận xét tuần), PERIODIC (định kỳ), FINAL (cuối cùng, Đạt/Chưa đạt).
+Loại đánh giá: WEEKLY (nhận xét tuần) và FINAL (cuối cùng, Đạt/Chưa đạt kèm nhận xét).
+Loại PERIODIC (định kỳ) đã ngừng dùng: chỉ còn đọc được dữ liệu cũ, không tạo mới.
 
 Quy định (docs/s0-01-api-access-control.md, mục 4 và 6):
 - Admin quản lý tiêu chí/thang điểm/trọng số; chỉ được ĐỌC đánh giá (kể cả nháp) để giám sát,
@@ -393,7 +394,6 @@ class EvaluationService:
                     week_start=evaluation.week_start,
                     week_end=evaluation.week_end,
                     verdict=evaluation.verdict,
-                    verdict_reason=evaluation.verdict_reason,
                     status=evaluation.status,
                     published_at=evaluation.published_at,
                     created_at=evaluation.created_at,
@@ -439,7 +439,7 @@ class EvaluationService:
     #
     # Ba loại đánh giá dùng chung một vòng đời (nháp, công bố):
     # - WEEKLY: nhận xét theo tuần (ngày bắt đầu, ngày kết thúc, nội dung), không chấm điểm.
-    # - PERIODIC: đánh giá định kỳ, chấm điểm theo tiêu chí.
+    # - PERIODIC: đã ngừng dùng, chỉ còn đọc/sửa bản nháp cũ; không tạo mới.
     # - FINAL: đánh giá cuối cùng, chấm điểm theo tiêu chí kèm kết luận Đạt/Chưa đạt và lý do.
     # ------------------------------------------------------------------
 
@@ -550,12 +550,11 @@ class EvaluationService:
     def create_evaluation(db: Session, user: User, payload: EvaluationCreate) -> EvaluationRead:
         member = EvaluationService._mentor_member(db, user, payload.internship_member_id)
         kind = payload.evaluation_type
-        reason = EvaluationService._clean(payload.verdict_reason)
         EvaluationService._validate_type_fields(
             kind,
             payload.week_start,
             payload.week_end,
-            has_verdict=payload.verdict is not None or reason is not None,
+            has_verdict=payload.verdict is not None,
             has_scores=bool(payload.scores),
         )
         if kind == "WEEKLY":
@@ -584,7 +583,6 @@ class EvaluationService:
             week_start=payload.week_start,
             week_end=payload.week_end,
             verdict=payload.verdict,
-            verdict_reason=reason,
             status="DRAFT",
             created_at=now,
             updated_at=now,
@@ -610,16 +608,11 @@ class EvaluationService:
         week_start = data["week_start"] if "week_start" in data else evaluation.week_start
         week_end = data["week_end"] if "week_end" in data else evaluation.week_end
         verdict = data["verdict"] if "verdict" in data else evaluation.verdict
-        reason = (
-            EvaluationService._clean(data["verdict_reason"])
-            if "verdict_reason" in data
-            else evaluation.verdict_reason
-        )
         EvaluationService._validate_type_fields(
             kind,
             week_start,
             week_end,
-            has_verdict=verdict is not None or reason is not None,
+            has_verdict=verdict is not None,
             has_scores=bool(payload.scores),
         )
         if kind == "WEEKLY":
@@ -633,7 +626,6 @@ class EvaluationService:
         evaluation.week_start = week_start
         evaluation.week_end = week_end
         evaluation.verdict = verdict
-        evaluation.verdict_reason = reason
         if "comment" in data:
             evaluation.comment = EvaluationService._clean(data["comment"])
         if payload.scores is not None and kind != "WEEKLY":
@@ -663,13 +655,13 @@ class EvaluationService:
             items, total = [], None
         else:
             if kind == "FINAL" and (
-                evaluation.verdict is None
-                or EvaluationService._clean(evaluation.verdict_reason) is None
+                evaluation.verdict is None or EvaluationService._clean(evaluation.comment) is None
             ):
                 raise ApiError(
                     409,
                     "FINAL_VERDICT_REQUIRED",
-                    "Đánh giá cuối cùng cần có kết luận Đạt/Chưa đạt và lý do trước khi công bố.",
+                    "Đánh giá cuối cùng cần có kết luận Đạt/Chưa đạt và nhận xét "
+                    "(lý do) trước khi công bố.",
                 )
             stored: list[ScoreInput] = []
             for entry in evaluation.criteria_scores or []:

@@ -11,7 +11,9 @@ from app.schemas.base import BaseSchema
 CriterionName = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
 ]
+# PERIODIC chỉ còn để đọc dữ liệu cũ; đánh giá mới chỉ được tạo loại WEEKLY hoặc FINAL.
 EvaluationType = Literal["WEEKLY", "PERIODIC", "FINAL"]
+CreatableEvaluationType = Literal["WEEKLY", "FINAL"]
 Verdict = Literal["PASS", "FAIL"]
 CriterionStatus = Literal["ACTIVE", "INACTIVE"]
 
@@ -65,15 +67,14 @@ class ScoreInput(BaseSchema):
 
 class EvaluationCreate(BaseSchema):
     internship_member_id: uuid.UUID
-    evaluation_type: EvaluationType = "PERIODIC"
+    evaluation_type: CreatableEvaluationType
     scores: list[ScoreInput] = Field(default_factory=list, max_length=50)
     comment: str | None = Field(default=None, max_length=5000)
     # Nhận xét tuần (WEEKLY): bắt buộc có khoảng thời gian; nội dung nằm ở comment.
     week_start: date | None = None
     week_end: date | None = None
-    # Đánh giá cuối cùng (FINAL): kết luận Đạt/Chưa đạt và lý do.
+    # Đánh giá cuối cùng (FINAL): kết luận Đạt/Chưa đạt; lý do ghi trong nhận xét (comment).
     verdict: Verdict | None = None
-    verdict_reason: str | None = Field(default=None, max_length=5000)
 
 
 class EvaluationUpdate(BaseSchema):
@@ -85,7 +86,6 @@ class EvaluationUpdate(BaseSchema):
     week_start: date | None = None
     week_end: date | None = None
     verdict: Verdict | None = None
-    verdict_reason: str | None = Field(default=None, max_length=5000)
 
 
 class ScoreRead(BaseSchema):
@@ -111,7 +111,6 @@ class EvaluationRead(BaseSchema):
     week_start: date | None = None
     week_end: date | None = None
     verdict: str | None = None  # PASS | FAIL (chỉ đánh giá cuối cùng)
-    verdict_reason: str | None = None
     status: str  # DRAFT | PUBLISHED
     published_at: datetime | None = None
     created_at: datetime

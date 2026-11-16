@@ -27,7 +27,6 @@ function evaluation(overrides: Partial<Evaluation>): Evaluation {
     week_start: null,
     week_end: null,
     verdict: null,
-    verdict_reason: null,
     status: 'PUBLISHED',
     published_at: '2026-09-22T09:00:00Z',
     created_at: '2026-09-20T09:00:00Z',
@@ -85,7 +84,7 @@ describe('EvaluationsComponent', () => {
     fixture.detectChanges();
 
     expect(text()).toContain('Kết quả đánh giá');
-    expect(text()).toContain('Đánh giá định kỳ');
+    expect(text()).toContain('Đánh giá định kỳ (cũ)');
     expect(text()).toContain('8.8');
     expect(text()).toContain('Chuyên môn');
     expect(text()).toContain('Chủ động, tiến bộ tốt');
@@ -184,14 +183,14 @@ describe('EvaluationsComponent', () => {
     expect(text()).not.toContain('/ 10');
   });
 
-  it('Intern thấy kết luận Chưa đạt kèm lý do ở đánh giá cuối cùng', () => {
+  it('Intern thấy kết luận Chưa đạt và nhận xét nêu lý do ở đánh giá cuối cùng', () => {
     createAs('INTERN');
     httpMock.expectOne('/api/v1/evaluations').flush([
       evaluation({
         id: 'f1',
         evaluation_type: 'FINAL',
         verdict: 'FAIL',
-        verdict_reason: 'Chưa đạt yêu cầu về tiến độ hoàn thành task',
+        comment: 'Chưa đạt yêu cầu về tiến độ hoàn thành task',
       }),
     ]);
     fixture.detectChanges();
@@ -199,7 +198,8 @@ describe('EvaluationsComponent', () => {
     expect(text()).toContain('Đánh giá cuối cùng');
     expect(text()).toContain('Kết luận:');
     expect(text()).toContain('Chưa đạt');
-    expect(text()).toContain('Lý do: Chưa đạt yêu cầu về tiến độ hoàn thành task');
+    expect(text()).toContain('Chưa đạt yêu cầu về tiến độ hoàn thành task');
+    expect(text()).not.toContain('Lý do:');
     expect(text()).toContain('8.8');
   });
 
@@ -216,7 +216,7 @@ describe('EvaluationsComponent', () => {
         status: 'DRAFT',
         published_at: null,
       }),
-      evaluation({ id: 'f1', evaluation_type: 'FINAL', verdict: 'PASS', verdict_reason: 'Tốt' }),
+      evaluation({ id: 'f1', evaluation_type: 'FINAL', verdict: 'PASS' }),
     ]);
     fixture.detectChanges();
 

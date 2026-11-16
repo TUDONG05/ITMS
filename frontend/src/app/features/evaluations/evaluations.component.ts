@@ -27,6 +27,7 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 
 import { apiMessage } from '../../core/api/api-error';
 import {
+  CreatableEvaluationType,
   Evaluation,
   EvaluationCriterion,
   EvaluationService,
@@ -42,7 +43,7 @@ import { EvaluationCriteriaComponent } from './evaluation-criteria.component';
 
 const TYPE_LABEL: Record<EvaluationType, string> = {
   WEEKLY: 'Nhận xét tuần',
-  PERIODIC: 'Đánh giá định kỳ',
+  PERIODIC: 'Đánh giá định kỳ (cũ)',
   FINAL: 'Đánh giá cuối cùng',
 };
 
@@ -137,13 +138,12 @@ export class EvaluationsComponent implements OnInit {
   protected readonly editingId = signal<string | null>(null);
   protected readonly editorError = signal<string | null>(null);
   protected readonly memberId = signal<string | null>(null);
-  protected readonly evaluationType = signal<EvaluationType>('PERIODIC');
+  protected readonly evaluationType = signal<EvaluationType>('WEEKLY');
   protected readonly scoreMap = signal<Record<string, number | null>>({});
   protected readonly comment = signal('');
   protected readonly weekStart = signal('');
   protected readonly weekEnd = signal('');
   protected readonly verdict = signal<Verdict | null>(null);
-  protected readonly verdictReason = signal('');
 
   protected readonly isWeeklyType = computed(() => this.evaluationType() === 'WEEKLY');
   protected readonly isFinalType = computed(() => this.evaluationType() === 'FINAL');
@@ -152,10 +152,10 @@ export class EvaluationsComponent implements OnInit {
     label: VERDICT_LABEL[value],
   }));
 
-  protected readonly typeOptions = (Object.keys(TYPE_LABEL) as EvaluationType[]).map((value) => ({
-    value,
-    label: TYPE_LABEL[value],
-  }));
+  /** Chỉ cho chọn hai loại còn dùng; loại định kỳ cũ chỉ hiển thị ở dữ liệu có sẵn. */
+  protected readonly typeOptions = (['WEEKLY', 'FINAL'] as CreatableEvaluationType[]).map(
+    (value) => ({ value, label: TYPE_LABEL[value] }),
+  );
 
   protected readonly internOptions = computed(() =>
     this.interns().map((item) => ({
@@ -248,13 +248,13 @@ export class EvaluationsComponent implements OnInit {
   protected openCreate(): void {
     this.editingId.set(null);
     this.memberId.set(null);
-    this.evaluationType.set('PERIODIC');
+    this.evaluationType.set('WEEKLY');
     this.scoreMap.set({});
     this.comment.set('');
     this.weekStart.set('');
     this.weekEnd.set('');
     this.verdict.set(null);
-    this.verdictReason.set('');
+    this.setEvaluationType('WEEKLY');
     this.editorError.set(null);
     this.openEditor();
   }
@@ -270,7 +270,6 @@ export class EvaluationsComponent implements OnInit {
     this.weekStart.set(evaluation.week_start ?? '');
     this.weekEnd.set(evaluation.week_end ?? '');
     this.verdict.set(evaluation.verdict);
-    this.verdictReason.set(evaluation.verdict_reason ?? '');
     this.editorError.set(null);
     this.openEditor();
   }
@@ -381,7 +380,7 @@ export class EvaluationsComponent implements OnInit {
         })
       : this.evaluationService.createEvaluation({
           internship_member_id: memberId as string,
-          evaluation_type: type,
+          evaluation_type: type as CreatableEvaluationType,
           scores,
           comment,
           ...typeFields,
@@ -429,7 +428,7 @@ export class EvaluationsComponent implements OnInit {
     }
     if (type === 'FINAL' && publish) {
       if (!this.verdict()) return 'Vui lòng chọn kết luận Đạt hoặc Chưa đạt.';
-      if (!this.verdictReason().trim()) return 'Vui lòng nhập lý do của kết luận.';
+      if (!this.comment().trim()) return 'Vui lòng nhập nhận xét nêu lý do của kết luận.';
     }
     return null;
   }
@@ -439,7 +438,6 @@ export class EvaluationsComponent implements OnInit {
       week_start: type === 'WEEKLY' ? this.weekStart() : null,
       week_end: type === 'WEEKLY' ? this.weekEnd() : null,
       verdict: type === 'FINAL' ? this.verdict() : null,
-      verdict_reason: type === 'FINAL' ? this.verdictReason().trim() || null : null,
     };
   }
 

@@ -20,11 +20,8 @@ from app.services.evaluation import compute_total
 
 CRITERIA_URL = "/api/v1/evaluation-criteria"
 EVAL_URL = "/api/v1/evaluations"
-FINAL_OK = {
-    "evaluation_type": "FINAL",
-    "verdict": "PASS",
-    "verdict_reason": "Hoàn thành tốt chương trình thực tập",
-}
+# Đánh giá cuối cùng hợp lệ: kết luận Đạt; lý do nằm trong nhận xét (comment).
+FINAL_OK = {"evaluation_type": "FINAL", "verdict": "PASS"}
 
 # ---------------------------------------------------------------------------
 # Tính tổng điểm (không cần database)
@@ -179,12 +176,52 @@ def _scores(ev: dict, a: float | None = 8, b: float | None = 15) -> list[dict]:
 def _create(client, ev, *, mentor="mentor1", member="member_a", scores=None, **extra):
     payload = {
         "internship_member_id": str(ev[member].id),
-        "evaluation_type": "PERIODIC",
+        "evaluation_type": "FINAL",
         "scores": _scores(ev) if scores is None else scores,
         "comment": "Nhận xét",
         **extra,
     }
     return client.post(EVAL_URL, headers=_h(ev[mentor]), json=payload)
+
+
+def _legacy_periodic(ev, *, status="DRAFT", member="member_a", mentor="mentor1", full=True):
+    """Đánh giá định kỳ cũ: loại đã ngừng dùng nên chỉ có thể có sẵn trong cơ sở dữ liệu."""
+    now = datetime.now(UTC)
+    items = (
+        [
+            {
+                "criterion_id": str(ev["crit_a"].id),
+                "name": ev["crit_a"].name,
+                "max_score": 10,
+                "weight": 60,
+                "score": 8,
+            },
+            {
+                "criterion_id": str(ev["crit_b"].id),
+                "name": ev["crit_b"].name,
+                "max_score": 20,
+                "weight": 40,
+                "score": 15,
+            },
+        ]
+        if full
+        else []
+    )
+    row = Evaluation(
+        internship_member_id=ev[member].id,
+        mentor_id=ev[mentor].id,
+        evaluation_type="PERIODIC",
+        criteria_scores=items,
+        total_score=7.8 if full else None,
+        comment="Đánh giá định kỳ cũ",
+        status=status,
+        published_at=now if status == "PUBLISHED" else None,
+        created_at=now,
+        updated_at=now,
+    )
+    ev["session"].add(row)
+    ev["session"].commit()
+    return row
 
 
 # ── Tiêu chí: phân quyền và dữ liệu hợp lệ ─────────────────────────────────
@@ -306,7 +343,7 @@ def test_partial_draft_has_no_total(client, ev):
     resp = _create(client, ev, scores=_scores(ev, b=None))
     assert resp.status_code == 201
     assert resp.json()["total_score"] is None
-    empty = _create(client, ev, scores=[])
+    empty = _create(client, ev, scores=[], mentor="mentor2", member="member_b")
     assert empty.status_code == 201
     assert empty.json()["scores"] == []
 
@@ -339,7 +376,11 @@ def test_mentor_can_only_evaluate_own_interns(client, ev):
     ghost = client.post(
         EVAL_URL,
         headers=_h(ev["mentor1"]),
-        json={"internship_member_id": str(uuid.uuid4()), "scores": []},
+        json={
+            "internship_member_id": str(uuid.uuid4()),
+            "evaluation_type": "WEEKLY",
+            "scores": [],
+        },
     )
     assert ghost.status_code == 404
 
@@ -362,11 +403,11 @@ def test_update_draft(client, ev):
     updated = client.put(
         f"{EVAL_URL}/{evaluation_id}",
         headers=h,
-        json={"scores": _scores(ev, a=10, b=20), "evaluation_type": "PERIODIC", "comment": "Mới"},
+        json={"scores": _scores(ev, a=10, b=20), "evaluation_type": "FINAL", "comment": "Mới"},
     )
     assert updated.status_code == 200, updated.text
     assert updated.json()["total_score"] == 10.0
-    assert updated.json()["evaluation_type"] == "PERIODIC"
+    assert updated.json()["evaluation_type"] == "FINAL"
     assert updated.json()["comment"] == "Mới"
 
     # Không gửi scores thì giữ nguyên điểm; comment = null thì xóa nhận xét.
@@ -381,7 +422,7 @@ def test_update_draft(client, ev):
 
 def test_publish_requires_complete_scores(client, ev):
     h = _h(ev["mentor1"])
-    evaluation_id = _create(client, ev, scores=_scores(ev, b=None)).json()["id"]
+    evaluation_id = _create(client, ev, scores=_scores(ev, b=None), **FINAL_OK).json()["id"]
     resp = client.post(f"{EVAL_URL}/{evaluation_id}/publish", headers=h)
     assert resp.status_code == 409
     assert resp.json()["error"]["code"] == "INCOMPLETE_EVALUATION"
@@ -392,7 +433,7 @@ def test_publish_requires_complete_scores(client, ev):
 
 def test_publish_locks_evaluation(client, ev):
     h = _h(ev["mentor1"])
-    evaluation_id = _create(client, ev).json()["id"]
+    evaluation_id = _create(client, ev, **FINAL_OK).json()["id"]
     published = client.post(f"{EVAL_URL}/{evaluation_id}/publish", headers=h)
     assert published.status_code == 200, published.text
     body = published.json()
@@ -408,7 +449,7 @@ def test_publish_locks_evaluation(client, ev):
 
 
 def test_publish_without_active_criteria(client, ev):
-    evaluation_id = _create(client, ev, scores=[]).json()["id"]
+    evaluation_id = _create(client, ev, scores=[], **FINAL_OK).json()["id"]
     for key in ("crit_a", "crit_b"):
         client.put(
             f"{CRITERIA_URL}/{ev[key].id}", headers=_h(ev["admin"]), json={"status": "INACTIVE"}
@@ -419,7 +460,7 @@ def test_publish_without_active_criteria(client, ev):
 
 
 def test_publish_drops_deactivated_criteria(client, ev):
-    evaluation_id = _create(client, ev).json()["id"]
+    evaluation_id = _create(client, ev, **FINAL_OK).json()["id"]
     client.put(
         f"{CRITERIA_URL}/{ev['crit_b'].id}", headers=_h(ev["admin"]), json={"status": "INACTIVE"}
     )
@@ -430,7 +471,7 @@ def test_publish_drops_deactivated_criteria(client, ev):
 
 
 def test_published_evaluation_keeps_criteria_snapshot(client, ev):
-    evaluation_id = _create(client, ev).json()["id"]
+    evaluation_id = _create(client, ev, **FINAL_OK).json()["id"]
     client.post(f"{EVAL_URL}/{evaluation_id}/publish", headers=_h(ev["mentor1"]))
 
     client.put(
@@ -452,10 +493,12 @@ def test_published_evaluation_keeps_criteria_snapshot(client, ev):
 def test_intern_sees_only_own_published_evaluations(client, ev):
     mentor = _h(ev["mentor1"])
     intern = _h(ev["intern_a"])
-    draft_id = _create(client, ev).json()["id"]
+    draft_id = _weekly(client, ev, start="2026-09-21", end="2026-09-27").json()["id"]
     published_id = _create(client, ev, **FINAL_OK).json()["id"]
     client.post(f"{EVAL_URL}/{published_id}/publish", headers=mentor)
-    other_intern_id = _create(client, ev, mentor="mentor2", member="member_b").json()["id"]
+    other_intern_id = _create(client, ev, mentor="mentor2", member="member_b", **FINAL_OK).json()[
+        "id"
+    ]
     client.post(f"{EVAL_URL}/{other_intern_id}/publish", headers=_h(ev["mentor2"]))
 
     listing = client.get(EVAL_URL, headers=intern).json()
@@ -495,7 +538,7 @@ def test_admin_reads_drafts_but_cannot_write(client, ev):
 
 def test_list_filters(client, ev):
     mentor = _h(ev["mentor1"])
-    draft_id = _create(client, ev).json()["id"]
+    draft_id = _weekly(client, ev).json()["id"]
     final_id = _create(client, ev, **FINAL_OK).json()["id"]
     client.post(f"{EVAL_URL}/{final_id}/publish", headers=mentor)
 
@@ -616,15 +659,13 @@ def test_weekly_rejects_scores_and_verdict(client, ev):
     assert with_verdict.json()["error"]["code"] == "VERDICT_NOT_ALLOWED"
 
 
-def test_week_range_and_verdict_only_for_their_types(client, ev):
+def test_week_range_only_for_weekly_and_periodic_cannot_be_created(client, ev):
     with_week = _create(client, ev, week_start="2026-09-14", week_end="2026-09-20")
     assert with_week.status_code == 422
     assert with_week.json()["error"]["code"] == "WEEK_NOT_ALLOWED"
-    verdict_on_periodic = _create(client, ev, verdict="PASS")
-    assert verdict_on_periodic.status_code == 422
-    assert verdict_on_periodic.json()["error"]["code"] == "VERDICT_NOT_ALLOWED"
-    reason_on_periodic = _create(client, ev, verdict_reason="Lý do")
-    assert reason_on_periodic.status_code == 422
+    # Loại định kỳ đã ngừng dùng: không tạo mới được.
+    periodic = _create(client, ev, evaluation_type="PERIODIC")
+    assert periodic.status_code == 422
 
 
 def test_weekly_overlap_is_rejected_per_intern(client, ev):
@@ -740,24 +781,26 @@ def test_other_mentor_cannot_touch_weekly(client, ev):
 # ── Đánh giá cuối cùng (FINAL): Đạt / Chưa đạt kèm lý do ───────────────────
 
 
-def test_final_publish_requires_verdict_and_reason(client, ev):
+def test_final_publish_requires_verdict_and_comment(client, ev):
     h = _h(ev["mentor1"])
-    final_id = _create(client, ev, evaluation_type="FINAL").json()["id"]
+    final_id = _create(client, ev, evaluation_type="FINAL", comment=None).json()["id"]
     no_verdict = client.post(f"{EVAL_URL}/{final_id}/publish", headers=h)
     assert no_verdict.status_code == 409
     assert no_verdict.json()["error"]["code"] == "FINAL_VERDICT_REQUIRED"
 
+    # Có kết luận nhưng chưa có nhận xét (lý do) thì vẫn chưa công bố được.
     client.put(f"{EVAL_URL}/{final_id}", headers=h, json={"verdict": "PASS"})
     assert client.post(f"{EVAL_URL}/{final_id}/publish", headers=h).status_code == 409
 
-    client.put(f"{EVAL_URL}/{final_id}", headers=h, json={"verdict_reason": "  Hoàn thành tốt  "})
+    client.put(f"{EVAL_URL}/{final_id}", headers=h, json={"comment": "  Hoàn thành tốt  "})
     published = client.post(f"{EVAL_URL}/{final_id}/publish", headers=h)
     assert published.status_code == 200, published.text
     body = published.json()
     assert body["status"] == "PUBLISHED"
     assert body["verdict"] == "PASS"
-    assert body["verdict_reason"] == "Hoàn thành tốt"
+    assert body["comment"] == "Hoàn thành tốt"
     assert body["total_score"] == 7.8
+    assert "verdict_reason" not in body
 
 
 def test_final_still_needs_complete_scores(client, ev):
@@ -767,18 +810,18 @@ def test_final_still_needs_complete_scores(client, ev):
     assert resp.json()["error"]["code"] == "INCOMPLETE_EVALUATION"
 
 
-def test_intern_sees_fail_verdict_with_reason(client, ev):
+def test_intern_sees_fail_verdict_with_comment_as_reason(client, ev):
     final = _create(
         client,
         ev,
         evaluation_type="FINAL",
         verdict="FAIL",
-        verdict_reason="Chưa đạt yêu cầu về tiến độ",
+        comment="Chưa đạt yêu cầu về tiến độ",
     ).json()
     client.post(f"{EVAL_URL}/{final['id']}/publish", headers=_h(ev["mentor1"]))
     seen = client.get(f"{EVAL_URL}/{final['id']}", headers=_h(ev["intern_a"])).json()
     assert seen["verdict"] == "FAIL"
-    assert seen["verdict_reason"] == "Chưa đạt yêu cầu về tiến độ"
+    assert seen["comment"] == "Chưa đạt yêu cầu về tiến độ"
     assert seen["evaluation_type"] == "FINAL"
 
 
@@ -789,35 +832,37 @@ def test_only_one_final_per_intern(client, ev):
     assert duplicate.json()["error"]["code"] == "FINAL_EXISTS"
     other = _create(client, ev, mentor="mentor2", member="member_b", **FINAL_OK)
     assert other.status_code == 201
-    # Vẫn tạo được các loại đánh giá khác cho cùng Intern.
-    assert _create(client, ev).status_code == 201
+    # Vẫn tạo được nhận xét tuần cho cùng Intern.
     assert _weekly(client, ev).status_code == 201
 
 
 def test_evaluation_type_cannot_change_after_creation(client, ev):
-    evaluation_id = _create(client, ev).json()["id"]
-    resp = client.put(
-        f"{EVAL_URL}/{evaluation_id}", headers=_h(ev["mentor1"]), json={"evaluation_type": "FINAL"}
-    )
+    h = _h(ev["mentor1"])
+    weekly_id = _weekly(client, ev).json()["id"]
+    resp = client.put(f"{EVAL_URL}/{weekly_id}", headers=h, json={"evaluation_type": "FINAL"})
     assert resp.status_code == 422
     assert resp.json()["error"]["code"] == "TYPE_IMMUTABLE"
+    final_id = _create(client, ev).json()["id"]
+    to_weekly = client.put(f"{EVAL_URL}/{final_id}", headers=h, json={"evaluation_type": "WEEKLY"})
+    assert to_weekly.status_code == 422
+    assert to_weekly.json()["error"]["code"] == "TYPE_IMMUTABLE"
 
 
 def test_list_filters_include_weekly_type(client, ev):
     mentor = _h(ev["mentor1"])
-    periodic_id = _create(client, ev).json()["id"]
+    final_id = _create(client, ev).json()["id"]
     weekly_id = _weekly(client, ev).json()["id"]
     weekly = client.get(EVAL_URL, params={"evaluation_type": "WEEKLY"}, headers=mentor).json()
     assert [e["id"] for e in weekly] == [weekly_id]
-    periodic = client.get(EVAL_URL, params={"evaluation_type": "PERIODIC"}, headers=mentor).json()
-    assert [e["id"] for e in periodic] == [periodic_id]
+    finals = client.get(EVAL_URL, params={"evaluation_type": "FINAL"}, headers=mentor).json()
+    assert [e["id"] for e in finals] == [final_id]
     admin = client.get(EVAL_URL, params={"evaluation_type": "WEEKLY"}, headers=_h(ev["admin"]))
     assert weekly_id in {e["id"] for e in admin.json()}
 
 
 def test_latest_dashboard_score_ignores_weekly_comments(client, ev):
     mentor = _h(ev["mentor1"])
-    scored = _create(client, ev).json()["id"]
+    scored = _create(client, ev, **FINAL_OK).json()["id"]
     client.post(f"{EVAL_URL}/{scored}/publish", headers=mentor)
     weekly = _weekly(client, ev).json()["id"]
     client.post(f"{EVAL_URL}/{weekly}/publish", headers=mentor)
@@ -871,3 +916,27 @@ def test_database_constraints_guard_the_new_rules(ev):
     with pytest.raises(IntegrityError):
         session.commit()
     session.rollback()
+
+
+# ── Loại định kỳ cũ: chỉ đọc dữ liệu cũ ────────────────────────────────────
+
+
+def test_legacy_periodic_is_still_readable_but_not_creatable(client, ev):
+    published = _legacy_periodic(ev, status="PUBLISHED")
+    draft = _legacy_periodic(ev, status="DRAFT", member="member_b", mentor="mentor2")
+
+    seen = client.get(f"{EVAL_URL}/{published.id}", headers=_h(ev["intern_a"]))
+    assert seen.status_code == 200
+    assert seen.json()["evaluation_type"] == "PERIODIC"
+    assert seen.json()["total_score"] == 7.8
+    assert client.get(f"{EVAL_URL}/{draft.id}", headers=_h(ev["intern_b"])).status_code == 404
+    listing = client.get(EVAL_URL, headers=_h(ev["mentor1"])).json()
+    assert [e["id"] for e in listing] == [str(published.id)]
+
+
+def test_legacy_periodic_draft_can_still_be_published(client, ev):
+    draft = _legacy_periodic(ev)
+    resp = client.post(f"{EVAL_URL}/{draft.id}/publish", headers=_h(ev["mentor1"]))
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "PUBLISHED"
+    assert resp.json()["total_score"] == 7.8

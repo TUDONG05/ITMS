@@ -3,7 +3,9 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 export type CriterionStatus = 'ACTIVE' | 'INACTIVE';
+/** PERIODIC (định kỳ) đã ngừng dùng: chỉ còn xuất hiện ở dữ liệu cũ, không tạo mới. */
 export type EvaluationType = 'WEEKLY' | 'PERIODIC' | 'FINAL';
+export type CreatableEvaluationType = 'WEEKLY' | 'FINAL';
 export type Verdict = 'PASS' | 'FAIL';
 export type EvaluationStatus = 'DRAFT' | 'PUBLISHED';
 
@@ -55,9 +57,8 @@ export interface Evaluation {
   /** Nhận xét tuần: ngày bắt đầu/kết thúc (yyyy-MM-dd). Các loại khác là null. */
   week_start: string | null;
   week_end: string | null;
-  /** Đánh giá cuối cùng: kết luận Đạt/Chưa đạt và lý do. Các loại khác là null. */
+  /** Đánh giá cuối cùng: kết luận Đạt/Chưa đạt (lý do nằm trong nhận xét). Loại khác là null. */
   verdict: Verdict | null;
-  verdict_reason: string | null;
   status: EvaluationStatus;
   published_at: string | null;
   created_at: string;
@@ -73,12 +74,11 @@ export interface EvaluationTypeFields {
   week_start?: string | null;
   week_end?: string | null;
   verdict?: Verdict | null;
-  verdict_reason?: string | null;
 }
 
 export interface EvaluationCreatePayload extends EvaluationTypeFields {
   internship_member_id: string;
-  evaluation_type: EvaluationType;
+  evaluation_type: CreatableEvaluationType;
   scores: ScoreInput[];
   comment: string | null;
 }
