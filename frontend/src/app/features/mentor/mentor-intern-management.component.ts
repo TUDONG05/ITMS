@@ -42,7 +42,6 @@ import {
   MentorAssignmentHistoryItem,
   MentorInternDetail,
   MentorInternListItem,
-  MentorOverviewMetrics,
   MentorService,
   PendingQuizGradingItem,
   QuizAttemptGradingDetail,
@@ -79,66 +78,12 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="mentor-management feature-page-layout">
-      <!-- HEADER & OVERVIEW CARDS -->
+      <!-- HEADER -->
       <div class="header-section feature-page-header">
         <div class="header-title">
           <h1 class="feature-page-title">Quản lý thực tập</h1>
         </div>
       </div>
-
-      <!-- METRIC KPI CARDS -->
-      <section class="metric-grid">
-        <nz-card class="metric-card" [nzBordered]="false">
-          <div class="metric-content">
-            <span nz-icon nzType="team" class="metric-icon metric-icon--blue"></span>
-            <div>
-              <p>Tổng thực tập sinh phụ trách</p>
-              <strong>{{ overview()?.total_interns ?? 0 }}</strong>
-            </div>
-          </div>
-        </nz-card>
-        <nz-card class="metric-card" [nzBordered]="false">
-          <div class="metric-content">
-            <span nz-icon nzType="check-square" class="metric-icon metric-icon--green"></span>
-            <div>
-              <p>Đang thực tập</p>
-              <strong>{{ overview()?.active_interns ?? 0 }}</strong>
-            </div>
-          </div>
-        </nz-card>
-        <nz-card class="metric-card" [nzBordered]="false">
-          <div class="metric-content">
-            <span nz-icon nzType="bar-chart" class="metric-icon metric-icon--purple"></span>
-            <div>
-              <p>Tiến độ trung bình</p>
-              <strong>{{ overview()?.avg_progress ?? 0 }}%</strong>
-            </div>
-          </div>
-        </nz-card>
-        <nz-card class="metric-card" [nzBordered]="false">
-          <div class="metric-content">
-            <span nz-icon nzType="form" class="metric-icon metric-icon--orange"></span>
-            <div>
-              <p>Quiz đã vượt qua</p>
-              <strong>{{ overview()?.total_quizzes_passed ?? 0 }}</strong>
-            </div>
-          </div>
-        </nz-card>
-        <nz-card
-          class="metric-card metric-card--clickable"
-          [nzBordered]="false"
-          (click)="openPendingGradingsModal()"
-          title="Nhấn để xem danh sách bài kiểm tra tự luận chờ chấm"
-        >
-          <div class="metric-content">
-            <span nz-icon nzType="edit" class="metric-icon metric-icon--red"></span>
-            <div>
-              <p>Bài chờ chấm tự luận</p>
-              <strong>{{ overview()?.pending_quiz_gradings ?? 0 }}</strong>
-            </div>
-          </div>
-        </nz-card>
-      </section>
 
       <!-- FILTER TOOLBAR -->
       <nz-card class="filter-card" [nzBordered]="false">
@@ -193,6 +138,14 @@ import {
             </button>
             <button nz-button nzType="default" (click)="openAuditHistoryModal()">
               <span nz-icon nzType="audit"></span> Lịch sử phân công
+            </button>
+            <button
+              nz-button
+              [nzType]="totalPendingQuizGradings() > 0 ? 'primary' : 'default'"
+              (click)="openPendingGradingsModal()"
+              title="Xem danh sách bài kiểm tra tự luận chờ chấm"
+            >
+              <span nz-icon nzType="edit"></span> Bài chờ chấm ({{ totalPendingQuizGradings() }})
             </button>
           </div>
         </div>
@@ -1220,81 +1173,6 @@ import {
         color: #6b7280;
       }
 
-      /* METRIC CARDS */
-      .metric-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
-        gap: 16px;
-        width: 100%;
-      }
-
-      .metric-card {
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-      }
-
-      .metric-card--clickable {
-        cursor: pointer;
-        transition:
-          transform 0.15s ease,
-          box-shadow 0.15s ease;
-      }
-
-      .metric-card--clickable:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(207, 19, 34, 0.12);
-      }
-
-      .metric-content {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-      }
-
-      .metric-icon {
-        font-size: 26px;
-        padding: 12px;
-        border-radius: 8px;
-        flex-shrink: 0;
-      }
-
-      .metric-icon--blue {
-        color: #1890ff;
-        background: #e6f7ff;
-      }
-
-      .metric-icon--green {
-        color: #52c41a;
-        background: #f6ffed;
-      }
-
-      .metric-icon--purple {
-        color: #722ed1;
-        background: #f9f0ff;
-      }
-
-      .metric-icon--orange {
-        color: #fa8c16;
-        background: #fff7e6;
-      }
-
-      .metric-icon--red {
-        color: #cf1322;
-        background: #fff1f0;
-      }
-
-      .metric-content p {
-        margin: 0;
-        font-size: 13px;
-        color: #6b7280;
-      }
-
-      .metric-content strong {
-        font-size: 20px;
-        color: #111827;
-        font-weight: 700;
-      }
-
       /* FILTER TOOLBAR */
       .filter-card {
         border-radius: 8px;
@@ -1753,11 +1631,6 @@ import {
          TABLET BREAKPOINT (769px – 1023px)
          ========================================================================== */
       @media screen and (min-width: 769px) and (max-width: 1023px) {
-        .metric-grid {
-          grid-template-columns: repeat(2, 1fr);
-          gap: 12px;
-        }
-
         .filter-toolbar {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -1792,35 +1665,6 @@ import {
 
         .mobile-cards {
           display: flex;
-        }
-
-        /* KPI mobile: 2x2 grid */
-        .metric-grid {
-          grid-template-columns: repeat(2, 1fr);
-          gap: 8px;
-        }
-
-        .metric-card {
-          border-radius: 6px;
-        }
-
-        .metric-content {
-          gap: 8px;
-          padding: 4px;
-        }
-
-        .metric-icon {
-          font-size: 20px;
-          padding: 8px;
-        }
-
-        .metric-content p {
-          font-size: 11px;
-          line-height: 1.2;
-        }
-
-        .metric-content strong {
-          font-size: 16px;
         }
 
         /* Filter mobile: vertical layout */
@@ -1888,10 +1732,6 @@ import {
       }
 
       @media screen and (max-width: 480px) {
-        .metric-grid {
-          grid-template-columns: minmax(0, 1fr);
-        }
-
         .status-history-header,
         .status-transition {
           flex-wrap: wrap;
@@ -1909,8 +1749,11 @@ export class MentorInternManagementComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
+  totalPendingQuizGradings = computed(() =>
+    this.interns().reduce((sum, item) => sum + (item.pending_quiz_gradings ?? 0), 0),
+  );
+
   loading = signal<boolean>(false);
-  overview = signal<MentorOverviewMetrics | null>(null);
   interns = signal<MentorInternListItem[]>([]);
   internships = signal<{ id: string; name: string }[]>([]);
   proposals = signal<InternshipProposalItem[]>([]);
@@ -1982,7 +1825,6 @@ export class MentorInternManagementComponent implements OnInit {
   statusHistoryDrawerWidth = computed(() => (this.windowWidth() <= 767 ? '100%' : '500px'));
 
   ngOnInit(): void {
-    this.loadOverview();
     this.loadInterns();
     this.loadProposals();
     this.loadAuxiliaryData();
@@ -1996,16 +1838,6 @@ export class MentorInternManagementComponent implements OnInit {
           replaceUrl: true,
         });
       }
-    });
-  }
-
-  loadOverview(): void {
-    this.mentorService.getOverview().subscribe({
-      next: (data) => {
-        this.overview.set(data);
-        this.cdr.markForCheck();
-      },
-      error: () => undefined,
     });
   }
 
@@ -2432,7 +2264,6 @@ export class MentorInternManagementComponent implements OnInit {
         this.quizGradingDetail.set(updated);
         this.quizGradingSaving.set(false);
         this.message.success('Đã lưu điểm tự luận và cập nhật kết quả bài kiểm tra');
-        this.loadOverview();
         this.loadInterns();
         if (this.isPendingGradingsModalVisible()) {
           this.loadPendingGradings(this.pendingGradingsMemberFilter());
