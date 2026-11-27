@@ -340,16 +340,10 @@ class InternshipService:
             .where(InternshipMember.internship_id == internship_id)
             .limit(1)
         )
-        application = db.scalar(
-            select(InternshipApplication.id)
-            .where(InternshipApplication.internship_id == internship_id)
-            .limit(1)
-        )
-        if member is not None or application is not None:
+        if member is not None:
             raise HTTPException(
                 409,
-                "Không thể xóa đợt thực tập đã có thành viên hoặc đơn đăng ký. "
-                "Dữ liệu tham gia và lịch sử đăng ký cần được giữ lại.",
+                "Không thể xóa đợt thực tập đã có thực tập sinh.",
             )
         db.delete(internship)
         db.commit()

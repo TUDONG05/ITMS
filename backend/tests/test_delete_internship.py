@@ -129,7 +129,9 @@ def test_any_membership_status_blocks_deletion_and_preserves_history(
 
 
 @pytest.mark.parametrize("application_status", ["PENDING", "APPROVED", "REJECTED"])
-def test_any_registration_status_blocks_deletion(delete_cohort_data, application_status):
+def test_applications_are_removed_when_deleting_a_cohort_without_members(
+    delete_cohort_data, application_status
+):
     db, users, cohort, _, _, _ = delete_cohort_data
     application = InternshipApplication(
         internship_id=cohort.id,
@@ -139,11 +141,12 @@ def test_any_registration_status_blocks_deletion(delete_cohort_data, application
     )
     db.add(application)
     db.commit()
-    response = TestClient(app).delete(f"/api/v1/internships/{cohort.id}", headers=h(users))
-    assert response.status_code == 409
-    db.refresh(application)
-    assert application.status == application_status
-    assert db.get(Internship, cohort.id) is not None
+    cohort_id, application_id = cohort.id, application.id
+    response = TestClient(app).delete(f"/api/v1/internships/{cohort_id}", headers=h(users))
+    assert response.status_code == 204
+    db.expire_all()
+    assert db.get(InternshipApplication, application_id) is None
+    assert db.get(Internship, cohort_id) is None
 
 
 def test_delete_requires_admin_and_returns_missing404(delete_cohort_data):
