@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,8 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("", response_model=list[UserRead])
 def list_users(
+    response: Response,
+    include_total: bool = False,
     role: UserRole | None = Query(None, description="Filter users by role"),
     status: UserStatus | None = Query(None, description="Filter users by status"),
     search: str | None = Query(None, description="Search by full name or email"),
@@ -35,7 +37,9 @@ def list_users(
         query = query.filter(
             func.lower(User.full_name).like(term) | func.lower(User.email).like(term)
         )
-    users = query.order_by(User.full_name).offset(skip).limit(limit).all()
+    if include_total:
+        response.headers["X-Total-Count"] = str(query.count())
+    users = query.order_by(User.full_name, User.id).offset(skip).limit(limit).all()
     return [UserRead.model_validate(u) for u in users]
 
 
