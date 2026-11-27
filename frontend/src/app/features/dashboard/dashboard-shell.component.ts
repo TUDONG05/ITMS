@@ -2,11 +2,8 @@ import { DatePipe } from '@angular/common';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzResultModule } from 'ng-zorro-antd/result';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
-import { NzSelectModule } from 'ng-zorro-antd/select';
 // 👉 Thêm Import NzDatePickerModule
 import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
-import { FormsModule } from '@angular/forms';
-import { Internship, InternshipService } from '../../core/api/internship.service';
 import { DashboardService, DashboardResponse } from '../../core/api/dashboard.service';
 import {
   ChangeDetectionStrategy,
@@ -71,7 +68,10 @@ interface Dashboard {
   metrics: { label: string; value: string; note: string; tone: string; icon: string }[];
 }
 
-const common: Item[] = [{ id: 'notifications', label: 'Thông báo', icon: 'bell' }];
+const common: Item[] = [
+  { id: 'notifications', label: 'Thông báo', icon: 'bell' },
+  { id: 'profile', label: 'Hồ sơ cá nhân', icon: 'user' },
+];
 
 const dashboards: Record<Role, Dashboard> = {
   [Role.Intern]: {
@@ -81,13 +81,13 @@ const dashboards: Record<Role, Dashboard> = {
     greeting: 'Chào buổi sáng, Nguyễn Văn An!',
     description: 'Theo dõi lộ trình, task và kết quả thực tập của bạn.',
     nav: [
-      { id: 'internships', label: 'Đăng ký thực tập', icon: 'solution' },
       { id: 'roadmap', label: 'Lộ trình học tập', icon: 'read' },
       { id: 'documents', label: 'Tài liệu học tập', icon: 'file-text' },
       { id: 'quizzes', label: 'Bài kiểm tra', icon: 'form' },
       { id: 'tasks', label: 'Task của tôi', icon: 'check-square' },
       { id: 'evaluations', label: 'Đánh giá', icon: 'star' },
       ...common,
+      { id: 'internships', label: 'Đăng ký thực tập', icon: 'solution' },
     ],
     metrics: [
       {
@@ -165,8 +165,8 @@ const dashboards: Record<Role, Dashboard> = {
     description: 'Tổng quan vận hành hệ thống quản lý thực tập sinh.',
     nav: [
       { id: 'users', label: 'Quản lý người dùng', icon: 'team' },
-      { id: 'internships', label: 'Quản lý thực tập', icon: 'solution' },
-      { id: 'training', label: 'Quản lý đào tạo (LMS)', icon: 'book' },
+      { id: 'internships', label: 'Quản lý đợt thực tập', icon: 'solution' },
+      { id: 'training', label: 'Quản lý lộ trình', icon: 'book' },
       { id: 'evaluations', label: 'Quản lý đánh giá', icon: 'star' },
       { id: 'requests', label: 'Duyệt đơn đăng ký', icon: 'solution' },
       ...common,
@@ -214,9 +214,7 @@ const dashboards: Record<Role, Dashboard> = {
     NzSpinModule,
     NzResultModule,
     NzEmptyModule,
-    NzSelectModule,
     NzDatePickerModule,
-    FormsModule,
     NzAvatarModule,
     NzBadgeModule,
     NzButtonModule,
@@ -319,6 +317,22 @@ const dashboards: Record<Role, Dashboard> = {
           justify-content: center !important;
           text-align: center !important;
           padding: 18px 12px !important;
+        }
+
+        .metric-card--link {
+          cursor: pointer;
+          transition:
+            box-shadow 0.2s,
+            border-color 0.2s;
+        }
+
+        .metric-card--link:hover {
+          box-shadow: 0 4px 16px rgba(24, 144, 255, 0.16);
+        }
+
+        .metric-card--link:focus-visible {
+          outline: 2px solid #1890ff;
+          outline-offset: 3px;
         }
 
         .metric-card__content {
@@ -489,19 +503,7 @@ const dashboards: Record<Role, Dashboard> = {
               </button>
             </div>
             <div class="topbar__right">
-              @if (role() === 'ADMIN') {
-                <nz-badge [nzCount]="(unreadCount$ | async) ?? 0" [nzOverflowCount]="99">
-                  <button
-                    nz-button
-                    nzType="text"
-                    class="notification"
-                    (click)="choose('notifications')"
-                    title="Quản lý thông báo"
-                  >
-                    <span nz-icon nzType="bell"></span>
-                  </button>
-                </nz-badge>
-              } @else {
+              @if (role() !== 'ADMIN') {
                 <nz-badge [nzCount]="(unreadCount$ | async) ?? 0" [nzOverflowCount]="99">
                   <button
                     nz-button
@@ -589,25 +591,6 @@ const dashboards: Record<Role, Dashboard> = {
                 class="feature-page-header feature-page-header--standalone dashboard-overview-header"
               >
                 <h1 class="feature-page-title">Tổng quan</h1>
-                @if (role() === 'ADMIN') {
-                  <div class="dashboard-filter-bar">
-                    <span>Lọc theo đợt thực tập:</span>
-                    <nz-select
-                      style="width: 250px"
-                      [(ngModel)]="selectedInternshipId"
-                      (ngModelChange)="onInternshipChange($event)"
-                      nzAllowClear
-                      nzPlaceHolder="Tất cả"
-                    >
-                      @for (internship of internships(); track internship.id) {
-                        <nz-option
-                          [nzValue]="internship.id"
-                          [nzLabel]="internship.name"
-                        ></nz-option>
-                      }
-                    </nz-select>
-                  </div>
-                }
               </div>
               @if (isLoading()) {
                 <div style="text-align: center; padding: 50px;">
@@ -625,8 +608,19 @@ const dashboards: Record<Role, Dashboard> = {
                 </nz-result>
               } @else {
                 <section class="metric-grid">
-                  @for (metric of dashboardData()?.metrics; track metric.label) {
-                    <nz-card class="metric-card" [nzBordered]="false" style="text-align: center;">
+                  @for (metric of visibleMetrics(); track metric.label) {
+                    <nz-card
+                      class="metric-card"
+                      [class.metric-card--link]="metricTarget(metric.key) !== null"
+                      [attr.role]="metricTarget(metric.key) ? 'link' : null"
+                      [attr.tabindex]="metricTarget(metric.key) ? 0 : null"
+                      [attr.aria-label]="metricTarget(metric.key) ? 'Mở ' + metric.label : null"
+                      (click)="openMetric(metric.key)"
+                      (keydown.enter)="openMetric(metric.key)"
+                      (keydown.space)="openMetric(metric.key); $event.preventDefault()"
+                      [nzBordered]="false"
+                      style="text-align: center;"
+                    >
                       <div
                         class="metric-card__content"
                         style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%;"
@@ -741,7 +735,7 @@ const dashboards: Record<Role, Dashboard> = {
               }
             } @else if (section() === 'users' && (role() === 'ADMIN' || role() === 'MENTOR')) {
               <!-- UC-14: Quản lý người dùng -->
-              <app-user-management />
+              <app-user-management [initialRole]="metricUserRole" />
             } @else if (section() === 'requests') {
               <!-- UC-17: Quản lý yêu cầu thực tập -->
               <app-request-management />
@@ -862,25 +856,35 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
   );
 
   protected readonly dashboardData = signal<DashboardResponse | null>(null);
+  protected readonly visibleMetrics = computed(() => {
+    const metrics = this.dashboardData()?.metrics ?? [];
+    const unsubmittedTasks =
+      metrics.find((metric) => metric.key === 'unsubmitted_tasks')?.value ?? 0;
+    return metrics
+      .filter(
+        (metric) =>
+          !['total_tasks', 'unsubmitted_tasks', 'tasks_needing_action'].includes(metric.key),
+      )
+      .map((metric) =>
+        metric.key === 'assigned_tasks'
+          ? {
+              ...metric,
+              label: 'Task chưa nộp / được giao',
+              value: `${unsubmittedTasks} / ${metric.value}`,
+            }
+          : metric,
+      );
+  });
   protected readonly isLoading = signal(true);
   protected readonly hasError = signal(false);
   protected readonly dashboardError = signal('Vui lòng thử lại sau.');
-  private readonly internshipService = inject(InternshipService);
-  protected readonly internships = signal<Internship[]>([]);
-  protected selectedInternshipId: string | null = null;
-
-  protected onInternshipChange(id: string | null): void {
-    this.selectedInternshipId = id;
-    this.loadDashboard();
-  }
-
   protected readonly metricStyles: Record<string, { tone: string; icon: string }> = {
     active_interns: { tone: 'green', icon: 'user' },
     active_mentors: { tone: 'orange', icon: 'solution' },
     ongoing_internships: { tone: 'blue', icon: 'team' },
     pending_requests: { tone: 'pink', icon: 'audit' },
-    total_tasks: { tone: 'blue', icon: 'check-square' },
     published_evaluations: { tone: 'orange', icon: 'star' },
+    total_roadmaps: { tone: 'purple', icon: 'read' },
     assigned_interns: { tone: 'blue', icon: 'team' },
     cohort_tasks: { tone: 'green', icon: 'check-square' },
     assigned_tasks: { tone: 'orange', icon: 'check-square' },
@@ -946,19 +950,13 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
   protected loadDashboard(): void {
     this.isLoading.set(true);
     this.hasError.set(false);
-    this.dashboardService.getDashboard(this.selectedInternshipId || undefined).subscribe({
+    this.dashboardService.getDashboard().subscribe({
       next: (res) => {
         this.dashboardData.set(res);
         if (Object.values(Role).includes(res.role as Role)) {
           const role = res.role as Role;
           this.role.set(role);
           this.section.set(this.normalizeSection(role, this.section()));
-          if (res.role === Role.Admin) {
-            this.internshipService.getInternships().subscribe({
-              next: (internships) => this.internships.set(internships),
-              error: () => undefined,
-            });
-          }
         }
         this.isLoading.set(false);
         this.cdr.markForCheck();
@@ -1012,12 +1010,48 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
   }
 
   protected choose(section: string): void {
+    const returningToOverview = section === 'overview' && this.section() !== 'overview';
     this.section.set(section);
+    if (returningToOverview) this.loadDashboard();
     this.notifService.refreshUnreadCount();
     this.cdr.markForCheck();
   }
 
+  protected metricUserRole: 'INTERN' | 'MENTOR' | null = null;
+
+  protected metricTarget(key: string): string | null {
+    const targets: Record<string, string> = {
+      active_interns: 'users',
+      active_mentors: 'users',
+      ongoing_internships: 'internships',
+      pending_requests: 'requests',
+      published_evaluations: 'evaluations',
+      total_roadmaps: 'training',
+      assigned_interns: 'interns',
+      cohort_tasks: 'tasks',
+      assigned_tasks: 'tasks',
+      active_memberships: 'internships',
+      unsubmitted_tasks: 'tasks',
+      tasks_needing_action: 'tasks',
+      completed_quizzes: 'quizzes',
+      latest_evaluation_score: 'evaluations',
+      pending_reviews: 'tasks',
+      draft_evaluations: 'evaluations',
+    };
+    return targets[key] ?? null;
+  }
+
+  protected openMetric(key: string): void {
+    const target = this.metricTarget(key);
+    if (target) {
+      this.openSection(target);
+      this.metricUserRole =
+        key === 'active_interns' ? 'INTERN' : key === 'active_mentors' ? 'MENTOR' : null;
+    }
+  }
+
   protected openSection(section: string): void {
+    this.metricUserRole = null;
     this.choose(section);
   }
 

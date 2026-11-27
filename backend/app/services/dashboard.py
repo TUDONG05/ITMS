@@ -9,8 +9,8 @@ from sqlalchemy.orm import Query, Session
 from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole, UserStatus
 from app.models.evaluation import Evaluation
 from app.models.exam import QuizAttempt
-from app.models.internship import Internship, InternshipMember, InternshipRequest
-from app.models.roadmap import LearningProgress
+from app.models.internship import Internship, InternshipApplication, InternshipMember
+from app.models.roadmap import LearningProgress, Roadmap
 from app.models.task import Task, TaskAssignee, task_status_for_members
 from app.models.user import User
 from app.schemas.dashboard import (
@@ -80,12 +80,17 @@ class DashboardService:
             DashboardMetricRead(
                 key="pending_requests",
                 label="Yêu cầu chờ duyệt",
-                value=db.query(InternshipRequest)
+                value=db.query(InternshipApplication)
                 .filter(
-                    InternshipRequest.internship_member_id.in_(member_ids),
-                    InternshipRequest.status == "PENDING",
+                    InternshipApplication.internship_id.in_(
+                        internships.with_entities(Internship.id)
+                    ),
+                    InternshipApplication.status == "PENDING",
                 )
                 .count(),
+            ),
+            DashboardMetricRead(
+                key="total_roadmaps", label="Lộ trình", value=db.query(Roadmap).count()
             ),
             DashboardMetricRead(key="total_tasks", label="Tổng task", value=tasks.count()),
             DashboardMetricRead(

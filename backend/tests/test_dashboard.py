@@ -13,6 +13,52 @@ from app.models.user import User
 from app.schemas.dashboard import DashboardMetricRead, DashboardRead, DashboardTaskBreakdownRead
 
 
+def test_pending_count_uses_registration_applications() -> None:
+    from app.models.internship import InternshipApplication
+    from app.services.dashboard import DashboardService
+
+    session = get_session_factory()()
+    try:
+        admin = User(
+            email=f"count-{uuid.uuid4().hex}@example.com",
+            password_hash="hash",
+            full_name="Admin",
+            role=UserRole.ADMIN,
+            status=UserStatus.ACTIVE,
+        )
+        session.add(admin)
+        session.flush()
+        cohort = Internship(
+            name="Count test",
+            start_date=datetime(2026, 1, 1).date(),
+            end_date=datetime(2026, 12, 31).date(),
+            status="ONGOING",
+            created_by=admin.id,
+        )
+        session.add(cohort)
+        session.flush()
+        application = InternshipApplication(
+            internship_id=cohort.id, intern_id=admin.id, status="APPROVED"
+        )
+        session.add(application)
+        session.flush()
+
+        def pending_count() -> int | str:
+            result = DashboardService.build(session, admin, cohort.id)
+            return next(m.value for m in result.metrics if m.key == "pending_requests")
+
+        assert pending_count() == 0
+        application.status = "PENDING"
+        session.flush()
+        assert pending_count() == 1
+        application.status = "REJECTED"
+        session.flush()
+        assert pending_count() == 0
+    finally:
+        session.rollback()
+        session.close()
+
+
 def test_empty_intern_dashboard_schema_serializes() -> None:
     payload = DashboardRead(
         role=UserRole.INTERN,
@@ -60,6 +106,7 @@ def test_admin_receives_empty_dashboard_when_no_data_exists() -> None:
             "pending_requests",
             "total_tasks",
             "published_evaluations",
+            "total_roadmaps",
         } <= metric_keys
         filtered_response = TestClient(app).get(
             "/api/v1/dashboard",
