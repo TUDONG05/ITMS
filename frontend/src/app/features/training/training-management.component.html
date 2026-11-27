@@ -389,6 +389,18 @@
                           </td>
                           <td nzAlign="right">
                             <div class="inner-actions">
+                              @for (file of previewFiles(content); track file.url) {
+                                <button
+                                  nz-button
+                                  nzType="link"
+                                  nzSize="small"
+                                  type="button"
+                                  [attr.aria-label]="'Xem ' + file.title"
+                                  (click)="previewDocument.set(file)"
+                                >
+                                  Xem
+                                </button>
+                              }
                               <button
                                 nz-button
                                 nzType="text"
@@ -457,6 +469,18 @@
                         </div>
                       }
                       <div class="mobile-card-actions">
+                        @for (file of previewFiles(content); track file.url) {
+                          <button
+                            nz-button
+                            nzType="link"
+                            nzSize="small"
+                            type="button"
+                            [attr.aria-label]="'Xem ' + file.title"
+                            (click)="previewDocument.set(file)"
+                          >
+                            Xem
+                          </button>
+                        }
                         <button
                           nz-button
                           nzType="default"
@@ -1549,6 +1573,7 @@
       </div>
     </ng-container>
   </nz-modal>
+  <app-document-preview [document]="previewDocument()" (closed)="previewDocument.set(null)" />
   <app-document-picker
     [visible]="isDocumentPickerOpen()"
     [selectedDocuments]="selectedLibraryDocuments()"

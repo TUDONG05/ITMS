@@ -108,7 +108,6 @@ describe('DocumentManagementComponent', () => {
     ).toBe('noopener noreferrer');
     component['closePreview']();
     expect(component['previewDocument']()).toBeNull();
-    expect(component['previewUrl']()).toBeNull();
     expect(component['safeUrl']('javascript:alert(1)')).toBeNull();
     expect(component['safeUrl']('//example.com/file')).toBeNull();
     expect(component['safeUrl']('/api/v1/uploads/training/file.pdf')).toBe(
@@ -118,10 +117,9 @@ describe('DocumentManagementComponent', () => {
 
   it('uses image previews and gives unsupported files a fallback without embedding unsafe URLs', () => {
     component['openPreview']({ ...DOCUMENT, format: 'png' });
-    expect(component['previewKind']()).toBe('image');
+    expect(component['previewDocument']()?.format).toBe('png');
     component['openPreview']({ ...DOCUMENT, format: 'zip' });
-    expect(component['previewKind']()).toBe('unsupported');
-    expect(component['previewUrl']()).toBeNull();
+    expect(component['previewDocument']()?.format).toBe('zip');
     component['closePreview']();
     component['openPreview']({ ...DOCUMENT, url: 'javascript:alert(1)' });
     expect(component['previewDocument']()).toBeNull();

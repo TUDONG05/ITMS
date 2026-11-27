@@ -1,3 +1,8 @@
+import {
+  DocumentPreviewComponent,
+  PreviewDocument,
+  safeDocumentUrl,
+} from '../documents/document-preview.component';
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -79,6 +84,7 @@ export interface DraftQuestion {
     NzTableModule,
     NzTagModule,
     DocumentPickerComponent,
+    DocumentPreviewComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './training-management.component.html',
@@ -486,6 +492,24 @@ export class TrainingManagementComponent implements OnInit {
     this.editingContent.set(null);
     this.resourceUrls.set([]);
     this.isDocumentPickerOpen.set(true);
+  }
+
+  protected readonly previewDocument = signal<PreviewDocument | null>(null);
+
+  protected previewFiles(content: LearningContent): PreviewDocument[] {
+    const linked = new Map((content.documents ?? []).map((file) => [file.url, file]));
+    const urls = new Set([...linked.keys(), ...this.parseResourceUrls(content.resource_url)]);
+    return [...urls]
+      .filter((url) => typeof url === 'string' && safeDocumentUrl(url))
+      .map((url) => {
+        const document = linked.get(url);
+        const path = url.split(/[?#]/, 1)[0];
+        return {
+          url,
+          title: document?.original_filename || document?.title || content.title,
+          format: document?.format || (/\.([a-z0-9]+)$/i.exec(path)?.[1] ?? ''),
+        };
+      });
   }
 
   openEditContentModal(c: LearningContent): void {
