@@ -143,7 +143,11 @@ def test_internship_stores_roadmap_relation(client: TestClient, test_data: dict[
     roadmap_resp = client.post(
         "/api/v1/training/roadmaps",
         headers={"X-User-Id": str(admin.id)},
-        json={"name": f"Batch Roadmap {uuid.uuid4().hex[:6]}", "status": "ACTIVE"},
+        json={
+            "name": f"Batch Roadmap {uuid.uuid4().hex[:6]}",
+            "status": "ACTIVE",
+            "position": "BACKEND",
+        },
     )
     assert roadmap_resp.status_code == 201
     roadmap_id = roadmap_resp.json()["id"]
@@ -169,7 +173,11 @@ def test_member_inherits_internship_roadmap(client: TestClient, test_data: dict[
     roadmap_resp = client.post(
         "/api/v1/training/roadmaps",
         headers={"X-User-Id": str(admin.id)},
-        json={"name": f"Inherited Roadmap {uuid.uuid4().hex[:6]}", "status": "ACTIVE"},
+        json={
+            "name": f"Inherited Roadmap {uuid.uuid4().hex[:6]}",
+            "status": "ACTIVE",
+            "position": "BACKEND",
+        },
     )
     roadmap_id = roadmap_resp.json()["id"]
     internship_resp = client.post(
@@ -209,7 +217,7 @@ def test_member_inherits_internship_roadmap(client: TestClient, test_data: dict[
     assert members_resp.json()[0]["roadmap_id"] == roadmap_id
 
 
-def test_updating_internship_roadmap_syncs_existing_members(
+def test_updating_internship_roadmap_preserves_in_use_assignment(
     client: TestClient, test_data: dict[str, User]
 ) -> None:
     admin = test_data["admin"]
@@ -219,7 +227,11 @@ def test_updating_internship_roadmap_syncs_existing_members(
         response = client.post(
             "/api/v1/training/roadmaps",
             headers={"X-User-Id": str(admin.id)},
-            json={"name": f"{label} Batch Roadmap {uuid.uuid4().hex[:6]}", "status": "ACTIVE"},
+            json={
+                "name": f"{label} Batch Roadmap {uuid.uuid4().hex[:6]}",
+                "status": "ACTIVE",
+                "position": "BACKEND",
+            },
         )
         roadmap_ids.append(response.json()["id"])
 
@@ -246,9 +258,14 @@ def test_updating_internship_roadmap_syncs_existing_members(
         headers={"X-User-Id": str(admin.id)},
     )
 
-    assert update_resp.status_code == 200
-    assert update_resp.json()["roadmap_id"] == roadmap_ids[1]
-    assert members_resp.json()[0]["roadmap_id"] == roadmap_ids[1]
+    assert update_resp.status_code == 409
+    assert (
+        client.get(
+            f"/api/v1/internships/{internship_id}", headers={"X-User-Id": str(admin.id)}
+        ).json()["roadmap_id"]
+        == roadmap_ids[0]
+    )
+    assert members_resp.json()[0]["roadmap_id"] == roadmap_ids[0]
 
 
 def test_admin_update_internship(client: TestClient, test_data: dict[str, User]) -> None:

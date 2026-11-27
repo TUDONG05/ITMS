@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.assistant import router as assistant_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.dashboard import router as dashboard_router
+from app.api.v1.documents import router as documents_router
 from app.api.v1.evaluations import criteria_router as evaluation_criteria_router
 from app.api.v1.evaluations import router as evaluations_router
 from app.api.v1.health import router as health_router
@@ -22,6 +23,7 @@ api_router.include_router(health_router)
 api_router.include_router(auth_router)
 api_router.include_router(assistant_router)
 api_router.include_router(dashboard_router)
+api_router.include_router(documents_router)
 api_router.include_router(me_router)
 api_router.include_router(profile_router)
 api_router.include_router(users_router)

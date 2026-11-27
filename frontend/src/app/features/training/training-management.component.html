@@ -48,12 +48,13 @@
           [nzData]="filteredRoadmaps()"
           [nzShowPagination]="true"
           [nzPageSize]="10"
-          [nzScroll]="{ x: '860px' }"
+          [nzScroll]="{ x: '1030px' }"
           nzTableLayout="fixed"
         >
           <thead>
             <tr>
               <th nzWidth="220px">Tên Roadmap</th>
+              <th nzWidth="170px">Vị trí thực tập</th>
               <th class="col-desc" nzWidth="240px">Mô tả</th>
               <th nzWidth="130px">Trạng thái</th>
               <th nzAlign="center" nzWidth="90px">Số Phase</th>
@@ -66,6 +67,7 @@
                 <td>
                   <strong class="roadmap-table-title">{{ rm.name }}</strong>
                 </td>
+                <td>{{ positionLabel(rm.position) }}</td>
                 <td class="col-desc">
                   <span class="desc-text" [title]="rm.description || ''">{{
                     rm.description || '—'
@@ -106,7 +108,7 @@
             }
             @if (filteredRoadmaps().length === 0 && !isLoading()) {
               <tr>
-                <td colspan="5" class="empty-cell">
+                <td colspan="6" class="empty-cell">
                   <nz-empty
                     nzNotFoundContent="Chưa có Roadmap nào. Hãy tạo Roadmap đầu tiên!"
                   ></nz-empty>
@@ -140,6 +142,9 @@
             </div>
 
             <!-- Mô tả đầy đủ -->
+            <p>
+              <nz-tag nzColor="blue">{{ positionLabel(rm.position) }}</nz-tag>
+            </p>
             <div class="roadmap-desc-full">
               {{ rm.description || 'Chưa có mô tả cho lộ trình đào tạo này.' }}
             </div>
@@ -1071,6 +1076,21 @@
     <ng-container *nzModalContent>
       <form [formGroup]="roadmapForm" nz-form nzLayout="vertical">
         <nz-form-item>
+          <nz-form-label nzRequired nzFor="roadmap-position">Vị trí thực tập</nz-form-label>
+          <nz-form-control nzErrorTip="Vui lòng chọn vị trí thực tập cho lộ trình.">
+            <nz-select
+              nzId="roadmap-position"
+              formControlName="position"
+              nzPlaceHolder="Chọn vị trí thực tập"
+              nzAllowClear
+            >
+              @for (position of positionOptions; track position.value) {
+                <nz-option [nzValue]="position.value" [nzLabel]="position.label" />
+              }
+            </nz-select>
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
           <nz-form-label nzRequired>Tên Roadmap</nz-form-label>
           <nz-form-control nzErrorTip="Vui lòng nhập tên Roadmap (tối thiểu 3 ký tự)">
             <input
@@ -1150,134 +1170,6 @@
   </nz-modal>
 
   <!-- Modal: Tạo / Chỉnh sửa Nội dung -->
-  <nz-modal
-    [(nzVisible)]="isContentModalVisible"
-    [nzTitle]="editingContent() ? 'Chỉnh sửa Nội dung' : 'Thêm Nội dung mới'"
-    (nzOnCancel)="closeContentModal()"
-    (nzOnOk)="saveContent()"
-    [nzOkLoading]="isSaving()"
-    nzOkText="Lưu"
-    nzCancelText="Hủy"
-    [nzWidth]="'min(600px, 94vw)'"
-  >
-    <ng-container *nzModalContent>
-      <form [formGroup]="contentForm" nz-form nzLayout="vertical">
-        <nz-form-item>
-          <nz-form-label nzRequired>Tiêu đề nội dung</nz-form-label>
-          <nz-form-control nzErrorTip="Vui lòng nhập tiêu đề">
-            <input
-              nz-input
-              formControlName="title"
-              placeholder="Ví dụ: Bài 1: Giới thiệu Angular"
-            />
-          </nz-form-control>
-        </nz-form-item>
-        <nz-form-item>
-          <nz-form-label nzRequired>Loại nội dung</nz-form-label>
-          <nz-form-control>
-            <nz-select formControlName="type">
-              <nz-option nzValue="LESSON" nzLabel="Bài học (LESSON)"></nz-option>
-              <nz-option nzValue="DOCUMENT" nzLabel="Tài liệu (DOCUMENT)"></nz-option>
-              <nz-option nzValue="VIDEO" nzLabel="Video (VIDEO)"></nz-option>
-              <nz-option nzValue="LINK" nzLabel="Liên kết (LINK)"></nz-option>
-            </nz-select>
-          </nz-form-control>
-        </nz-form-item>
-        <nz-form-item>
-          <nz-form-label>Mô tả</nz-form-label>
-          <nz-form-control>
-            <textarea
-              nz-input
-              rows="2"
-              formControlName="description"
-              placeholder="Mô tả ngắn về nội dung này..."
-            ></textarea>
-          </nz-form-control>
-        </nz-form-item>
-        <nz-form-item>
-          <nz-form-label>Nội dung</nz-form-label>
-          <nz-form-control>
-            <textarea
-              nz-input
-              rows="4"
-              formControlName="content"
-              placeholder="Nhập nội dung chi tiết (Markdown hoặc HTML)..."
-            ></textarea>
-          </nz-form-control>
-        </nz-form-item>
-        <nz-form-item>
-          <nz-form-label>Tệp tài nguyên</nz-form-label>
-          <nz-form-control>
-            <!-- Already-saved URLs (from existing content) -->
-            @if (resourceUrls().length > 0) {
-              <div class="resource-url-list">
-                @for (url of resourceUrls(); track url; let i = $index) {
-                  <div class="resource-url-item">
-                    <span nz-icon nzType="paper-clip" nzTheme="outline"></span>
-                    <a [href]="url" target="_blank" class="resource-url-link">{{ url }}</a>
-                    <button
-                      nz-button
-                      nzType="text"
-                      nzDanger
-                      nzSize="small"
-                      (click)="removeResourceUrl(i)"
-                      title="Xóa tệp"
-                    >
-                      <span nz-icon nzType="close" nzTheme="outline"></span>
-                    </button>
-                  </div>
-                }
-              </div>
-            }
-            <!-- Newly selected files (pending upload) -->
-            @if (resourceFiles().length > 0) {
-              <div class="resource-url-list">
-                @for (file of resourceFiles(); track file.name; let i = $index) {
-                  <div class="resource-url-item pending">
-                    <span nz-icon nzType="file" nzTheme="outline"></span>
-                    <span class="resource-url-link">{{ file.name }}</span>
-                    <span class="file-size">({{ (file.size / 1024).toFixed(0) }} KB)</span>
-                    <button
-                      nz-button
-                      nzType="text"
-                      nzDanger
-                      nzSize="small"
-                      (click)="removeSelectedFile(i)"
-                      title="Bỏ chọn"
-                    >
-                      <span nz-icon nzType="close" nzTheme="outline"></span>
-                    </button>
-                  </div>
-                }
-              </div>
-            }
-            <!-- File picker trigger -->
-            <label class="file-pick-btn">
-              <input
-                type="file"
-                multiple
-                style="display: none"
-                (change)="onContentFilesSelected($event)"
-              />
-              <span nz-button nzType="dashed" style="width: 100%; cursor: pointer">
-                <span nz-icon nzType="upload" nzTheme="outline"></span>
-                Chọn tệp từ máy tính
-              </span>
-            </label>
-            <div class="file-hint">
-              Hỗ trợ PDF, Word, Excel, PowerPoint, ảnh, video. Tối đa 50 MB / tệp.
-            </div>
-          </nz-form-control>
-        </nz-form-item>
-        <nz-form-item>
-          <nz-form-label nzRequired>Thứ tự hiển thị</nz-form-label>
-          <nz-form-control nzErrorTip="Vui lòng nhập thứ tự">
-            <input nz-input type="number" formControlName="order_no" placeholder="1" min="1" />
-          </nz-form-control>
-        </nz-form-item>
-      </form>
-    </ng-container>
-  </nz-modal>
 
   <!-- Modal: Tạo / Chỉnh sửa Quiz -->
   <nz-modal
@@ -1657,4 +1549,12 @@
       </div>
     </ng-container>
   </nz-modal>
+  <app-document-picker
+    [visible]="isDocumentPickerOpen()"
+    [selectedDocuments]="selectedLibraryDocuments()"
+    [single]="!!editingContent()"
+    [saving]="isSaving()"
+    (cancelled)="closeContentModal()"
+    (confirmed)="confirmLibraryDocuments($event)"
+  />
 </div>

@@ -29,6 +29,12 @@ const BATCH: Internship = {
   created_by: null,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
+  roadmaps: INTERNSHIP_POSITIONS.map(({ value, label }) => ({
+    id: value,
+    name: label,
+    position: value,
+    status: 'ACTIVE',
+  })),
 };
 
 describe('Intern internship application position', () => {
@@ -75,6 +81,21 @@ describe('Intern internship application position', () => {
     component.submitApplication();
     expect(component['applyForm'].controls.position.hasError('required')).toBe(true);
     expect(component['applyForm'].controls.position.touched).toBe(true);
+    expect(applyInternship).not.toHaveBeenCalled();
+  });
+
+  it('offers only active positions configured for the selected batch', () => {
+    const roadmaps = BATCH.roadmaps!;
+    component.openApplyModal({
+      ...BATCH,
+      roadmaps: [
+        roadmaps.find((roadmap) => roadmap.position === 'BACKEND')!,
+        { ...roadmaps.find((roadmap) => roadmap.position === 'AI')!, status: 'ARCHIVED' },
+      ],
+    });
+    expect(component['positionOptions']().map(({ value }) => value)).toEqual(['BACKEND']);
+    component['applyForm'].setValue({ position: 'AI', reason: '' });
+    component.submitApplication();
     expect(applyInternship).not.toHaveBeenCalled();
   });
 

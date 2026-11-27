@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import LearningContent, Phase, Question, Quiz, Roadmap
+from app.models.internship import InternshipMember, InternshipRoadmap
 from app.schemas.training import (
     LearningContentCreate,
     LearningContentUpdate,
@@ -18,6 +19,7 @@ from app.schemas.training import (
     RoadmapCreate,
     RoadmapUpdate,
 )
+from app.services.document import DocumentService
 
 
 class TrainingService:
@@ -47,10 +49,12 @@ class TrainingService:
         data: RoadmapCreate,
         creator_id: uuid.UUID | None = None,
     ) -> Roadmap:
+        DocumentService.mutation_lock(db)
         roadmap = Roadmap(
             name=data.name,
             description=data.description,
             status=data.status,
+            position=data.position,
             created_by=creator_id,
         )
         db.add(roadmap)
@@ -60,7 +64,11 @@ class TrainingService:
 
     @staticmethod
     def get_roadmap_by_id(db: Session, roadmap_id: uuid.UUID) -> Roadmap:
-        roadmap = db.scalar(select(Roadmap).where(Roadmap.id == roadmap_id))
+        roadmap = db.scalar(
+            select(Roadmap)
+            .where(Roadmap.id == roadmap_id)
+            .execution_options(populate_existing=True)
+        )
         if not roadmap:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -74,8 +82,35 @@ class TrainingService:
         roadmap_id: uuid.UUID,
         data: RoadmapUpdate,
     ) -> Roadmap:
+        DocumentService.mutation_lock(db)
         roadmap = TrainingService.get_roadmap_by_id(db, roadmap_id)
         update_data = data.model_dump(exclude_unset=True)
+        if "position" in update_data:
+            new_position = update_data["position"]
+            if new_position is None:
+                raise HTTPException(422, "Không thể xóa vị trí của lộ trình.")
+            if new_position != roadmap.position:
+                configured = db.scalar(
+                    select(InternshipRoadmap.internship_id)
+                    .where(InternshipRoadmap.roadmap_id == roadmap_id)
+                    .limit(1)
+                )
+                members = list(
+                    db.scalars(
+                        select(InternshipMember)
+                        .where(InternshipMember.roadmap_id == roadmap_id)
+                        .execution_options(populate_existing=True)
+                    )
+                )
+                if roadmap.position is not None and (configured is not None or members):
+                    raise HTTPException(409, "Không thể đổi vị trí khi lộ trình đang được sử dụng.")
+                if any(
+                    member.position is not None and member.position != new_position
+                    for member in members
+                ):
+                    raise HTTPException(
+                        409, "Vị trí lộ trình không phù hợp với thực tập sinh đang được giao."
+                    )
         for field, value in update_data.items():
             setattr(roadmap, field, value)
         roadmap.updated_at = datetime.now(UTC)
@@ -85,7 +120,18 @@ class TrainingService:
 
     @staticmethod
     def delete_roadmap(db: Session, roadmap_id: uuid.UUID) -> None:
+        DocumentService.mutation_lock(db)
         roadmap = TrainingService.get_roadmap_by_id(db, roadmap_id)
+        configured = db.scalar(
+            select(InternshipRoadmap.internship_id)
+            .where(InternshipRoadmap.roadmap_id == roadmap_id)
+            .limit(1)
+        )
+        assigned = db.scalar(
+            select(InternshipMember.id).where(InternshipMember.roadmap_id == roadmap_id).limit(1)
+        )
+        if configured is not None or assigned is not None:
+            raise HTTPException(409, "Không thể xóa lộ trình đang được sử dụng.")
         db.delete(roadmap)
         db.commit()
 
@@ -145,6 +191,7 @@ class TrainingService:
 
     @staticmethod
     def delete_phase(db: Session, phase_id: uuid.UUID) -> None:
+        DocumentService.mutation_lock(db)
         phase = TrainingService.get_phase_by_id(db, phase_id)
         db.delete(phase)
         db.commit()
@@ -164,6 +211,7 @@ class TrainingService:
 
     @staticmethod
     def create_content(db: Session, data: LearningContentCreate) -> LearningContent:
+        DocumentService.mutation_lock(db)
         content = LearningContent(
             phase_id=data.phase_id,
             title=data.title,
@@ -174,13 +222,24 @@ class TrainingService:
             order_no=data.order_no,
         )
         db.add(content)
+        DocumentService.bind_content(
+            db,
+            content,
+            data.document_ids if "document_ids" in data.model_fields_set else None,
+            data.resource_url,
+            True,
+        )
         db.commit()
         db.refresh(content)
         return content
 
     @staticmethod
     def get_content_by_id(db: Session, content_id: uuid.UUID) -> LearningContent:
-        content = db.scalar(select(LearningContent).where(LearningContent.id == content_id))
+        content = db.scalar(
+            select(LearningContent)
+            .where(LearningContent.id == content_id)
+            .execution_options(populate_existing=True)
+        )
         if not content:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -194,8 +253,21 @@ class TrainingService:
         content_id: uuid.UUID,
         data: LearningContentUpdate,
     ) -> LearningContent:
+        DocumentService.mutation_lock(db)
         content = TrainingService.get_content_by_id(db, content_id)
         update_data = data.model_dump(exclude_unset=True)
+        if "document_ids" in update_data or "resource_url" in update_data:
+            if "document_ids" in update_data and data.document_ids is None:
+                raise HTTPException(422, "Danh sách tài liệu không được là null.")
+            DocumentService.bind_content(
+                db,
+                content,
+                data.document_ids if "document_ids" in update_data else None,
+                data.resource_url,
+                "resource_url" in update_data,
+            )
+        update_data.pop("document_ids", None)
+        update_data.pop("resource_url", None)
         for field, value in update_data.items():
             setattr(content, field, value)
         content.updated_at = datetime.now(UTC)
@@ -205,6 +277,7 @@ class TrainingService:
 
     @staticmethod
     def delete_content(db: Session, content_id: uuid.UUID) -> None:
+        DocumentService.mutation_lock(db)
         content = TrainingService.get_content_by_id(db, content_id)
         db.delete(content)
         db.commit()

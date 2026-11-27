@@ -1,4 +1,5 @@
 from app.models.auth import AuthSession
+from app.models.document import Document
 from app.models.evaluation import Evaluation, EvaluationCriterion
 from app.models.exam import Question, Quiz, QuizAttempt
 from app.models.interaction import Notification, NotificationRead
@@ -7,6 +8,7 @@ from app.models.internship import (
     InternshipApplication,
     InternshipMember,
     InternshipRequest,
+    InternshipRoadmap,
 )
 from app.models.knowledge import AIConversation, AIMessage
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
@@ -17,12 +19,14 @@ __all__ = [
     "AIConversation",
     "AIMessage",
     "AuthSession",
+    "Document",
     "Evaluation",
     "EvaluationCriterion",
     "Internship",
     "InternshipApplication",
     "InternshipMember",
     "InternshipRequest",
+    "InternshipRoadmap",
     "LearningContent",
     "LearningProgress",
     "Notification",

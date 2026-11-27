@@ -38,7 +38,13 @@ import {
   RoadmapStatus,
   TrainingService,
 } from '../../core/api/training.service';
-import { forkJoin } from 'rxjs';
+import { concatMap, forkJoin, from, tap } from 'rxjs';
+import { DocumentPickerComponent, DocumentSelection } from '../documents/document-picker.component';
+import {
+  INTERNSHIP_POSITIONS,
+  InternshipPosition,
+  internshipPositionLabel,
+} from '../../core/api/internship.service';
 
 export interface DraftQuestion {
   tempId: string;
@@ -72,12 +78,15 @@ export interface DraftQuestion {
     NzSpinModule,
     NzTableModule,
     NzTagModule,
+    DocumentPickerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './training-management.component.html',
   styleUrl: './training-management.component.scss',
 })
 export class TrainingManagementComponent implements OnInit {
+  protected readonly positionOptions = INTERNSHIP_POSITIONS;
+  protected readonly positionLabel = internshipPositionLabel;
   private readonly trainingService = inject(TrainingService);
   private readonly fb = inject(FormBuilder);
   private readonly message = inject(NzMessageService);
@@ -135,14 +144,13 @@ export class TrainingManagementComponent implements OnInit {
   protected readonly editingPhase = signal<Phase | null>(null);
   private pendingPhaseRoadmapId = '';
 
-  protected isContentModalVisible = false;
   protected readonly editingContent = signal<LearningContent | null>(null);
   private pendingContentPhaseId = '';
   /** Files newly selected by the user (not yet uploaded) */
-  protected readonly resourceFiles = signal<File[]>([]);
   /** URLs already saved on the server (from existing content or just uploaded) */
   protected readonly resourceUrls = signal<string[]>([]);
-  protected readonly isUploadingFiles = signal<boolean>(false);
+  protected readonly selectedLibraryDocuments = signal<DocumentSelection[]>([]);
+  protected readonly isDocumentPickerOpen = signal(false);
 
   protected isQuizModalVisible = false;
   protected readonly editingQuiz = signal<Quiz | null>(null);
@@ -162,6 +170,7 @@ export class TrainingManagementComponent implements OnInit {
   // ── Forms ──────────────────────────────────────────────────────────────────
 
   protected readonly roadmapForm = this.fb.group({
+    position: [null as InternshipPosition | null, [Validators.required]],
     name: ['', [Validators.required, Validators.minLength(3)]],
     description: [''],
     status: ['DRAFT' as RoadmapStatus, [Validators.required]],
@@ -170,15 +179,6 @@ export class TrainingManagementComponent implements OnInit {
   protected readonly phaseForm = this.fb.group({
     name: ['', [Validators.required]],
     description: [''],
-    order_no: [1, [Validators.required, Validators.min(1)]],
-  });
-
-  protected readonly contentForm = this.fb.group({
-    title: ['', [Validators.required]],
-    type: ['LESSON' as ContentType, [Validators.required]],
-    description: [''],
-    content: [''],
-    resource_url: [''],
     order_no: [1, [Validators.required, Validators.min(1)]],
   });
 
@@ -308,7 +308,7 @@ export class TrainingManagementComponent implements OnInit {
 
   openCreateRoadmapModal(): void {
     this.editingRoadmap.set(null);
-    this.roadmapForm.reset({ name: '', description: '', status: 'DRAFT' });
+    this.roadmapForm.reset({ name: '', description: '', status: 'DRAFT', position: null });
     this.isRoadmapModalVisible = true;
   }
 
@@ -318,6 +318,7 @@ export class TrainingManagementComponent implements OnInit {
       name: rm.name,
       description: rm.description ?? '',
       status: rm.status,
+      position: rm.position ?? null,
     });
     this.isRoadmapModalVisible = true;
   }
@@ -327,12 +328,14 @@ export class TrainingManagementComponent implements OnInit {
   }
 
   saveRoadmap(): void {
+    if (this.isSaving()) return;
     if (this.roadmapForm.invalid) {
       this.roadmapForm.markAllAsTouched();
       return;
     }
     const val = this.roadmapForm.value;
     const payload = {
+      position: val.position!,
       name: val.name!,
       description: val.description || null,
       status: val.status as RoadmapStatus,
@@ -354,8 +357,12 @@ export class TrainingManagementComponent implements OnInit {
         }
         this.cdr.markForCheck();
       },
-      error: () => {
-        this.message.error('Thao tác thất bại. Vui lòng thử lại.');
+      error: (error) => {
+        this.message.error(
+          error?.error?.detail ||
+            error?.error?.error?.message ||
+            'Thao tác thất bại. Vui lòng thử lại.',
+        );
         this.isSaving.set(false);
         this.cdr.markForCheck();
       },
@@ -473,24 +480,18 @@ export class TrainingManagementComponent implements OnInit {
   // ── Content methods ────────────────────────────────────────────────────────
 
   openCreateContentModal(phaseId: string): void {
+    this.selectedLibraryDocuments.set([]);
+    this.isDocumentPickerOpen.set(true);
     this.pendingContentPhaseId = phaseId;
     this.editingContent.set(null);
-    this.resourceFiles.set([]);
     this.resourceUrls.set([]);
-    this.contentForm.reset({
-      title: '',
-      type: 'LESSON',
-      description: '',
-      content: '',
-      resource_url: '',
-      order_no: 1,
-    });
-    this.isContentModalVisible = true;
+    this.isDocumentPickerOpen.set(true);
   }
 
   openEditContentModal(c: LearningContent): void {
+    this.selectedLibraryDocuments.set(c.documents ?? []);
+    this.isDocumentPickerOpen.set(false);
     this.editingContent.set(c);
-    this.resourceFiles.set([]);
     // Parse existing resource_url: may be JSON array or single URL
     let existingUrls: string[] = [];
     if (c.resource_url) {
@@ -501,119 +502,84 @@ export class TrainingManagementComponent implements OnInit {
         existingUrls = [c.resource_url];
       }
     }
-    this.resourceUrls.set(existingUrls);
-    this.contentForm.patchValue({
-      title: c.title,
-      type: c.type,
-      description: c.description ?? '',
-      content: c.content ?? '',
-      resource_url: '',
-      order_no: c.order_no,
-    });
-    this.isContentModalVisible = true;
+    const selectedUrls = new Set((c.documents ?? []).map((document) => document.url));
+    this.resourceUrls.set(existingUrls.filter((url) => !selectedUrls.has(url)));
+    this.isDocumentPickerOpen.set(true);
   }
 
   closeContentModal(): void {
-    this.isContentModalVisible = false;
-    this.resourceFiles.set([]);
+    if (this.isSaving()) return;
+    this.isDocumentPickerOpen.set(false);
+    this.selectedLibraryDocuments.set([]);
     this.resourceUrls.set([]);
   }
 
-  /** Called when user picks files via the hidden input */
-  onContentFilesSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (!input.files) return;
-    const newFiles = Array.from(input.files);
-    this.resourceFiles.update((existing) => [...existing, ...newFiles]);
-    // Reset the input so the same file can be selected again if removed
-    input.value = '';
+  confirmLibraryDocuments(documents: DocumentSelection[]): void {
+    if (this.isSaving()) return;
+    this.selectedLibraryDocuments.set(documents);
+    this.saveContent();
     this.cdr.markForCheck();
   }
 
-  removeSelectedFile(index: number): void {
-    this.resourceFiles.update((files) => files.filter((_, i) => i !== index));
-    this.cdr.markForCheck();
-  }
-
-  removeResourceUrl(index: number): void {
-    this.resourceUrls.update((urls) => urls.filter((_, i) => i !== index));
-    this.cdr.markForCheck();
+  removeLibraryDocument(id: string): void {
+    this.selectedLibraryDocuments.update((documents) =>
+      documents.filter((document) => document.id !== id),
+    );
   }
 
   saveContent(): void {
-    if (this.contentForm.invalid) {
-      this.contentForm.markAllAsTouched();
+    if (this.isSaving()) return;
+    const documents = this.selectedLibraryDocuments();
+    const editing = this.editingContent();
+    if (!documents.length || (editing && documents.length !== 1)) {
+      this.message.error('Vui lòng chọn tài liệu' + (editing ? ' duy nhất.' : '.'));
       return;
     }
-
-    const doSave = (allUrls: string[]) => {
-      const val = this.contentForm.value;
-      const editing = this.editingContent();
-      const resourceUrlValue = allUrls.length > 0 ? JSON.stringify(allUrls) : null;
-      const op$ = editing
-        ? this.trainingService.updateContent(editing.id, {
-            title: val.title!,
-            type: val.type as ContentType,
-            description: val.description || null,
-            content: val.content || null,
-            resource_url: resourceUrlValue,
-            order_no: Number(val.order_no),
-          })
-        : this.trainingService.createContent({
-            phase_id: this.pendingContentPhaseId,
-            title: val.title!,
-            type: val.type as ContentType,
-            description: val.description || null,
-            content: val.content || null,
-            resource_url: resourceUrlValue,
-            order_no: Number(val.order_no),
-          });
-
-      op$.subscribe({
-        next: () => {
-          this.message.success(
-            editing ? 'Cập nhật nội dung thành công!' : 'Thêm nội dung thành công!',
-          );
+    const phase = this.selectedRoadmapDetail()?.phases.find(
+      (p) => p.id === this.pendingContentPhaseId,
+    );
+    const nextOrder = Math.max(0, ...(phase?.contents ?? []).map((c) => c.order_no)) + 1;
+    this.isSaving.set(true);
+    from(documents)
+      .pipe(
+        concatMap((document, index) => {
+          const payload = {
+            title: document.original_filename || document.title,
+            type: 'DOCUMENT' as ContentType,
+            description: null,
+            content: null,
+            resource_url:
+              editing && this.resourceUrls().length ? JSON.stringify(this.resourceUrls()) : null,
+            document_ids: [document.id],
+            order_no: editing ? editing.order_no : nextOrder + index,
+          };
+          return (
+            editing
+              ? this.trainingService.updateContent(editing.id, payload)
+              : this.trainingService.createContent({
+                  ...payload,
+                  phase_id: this.pendingContentPhaseId,
+                })
+          ).pipe(tap(() => this.removeLibraryDocument(document.id)));
+        }),
+      )
+      .subscribe({
+        complete: () => {
+          this.message.success('Lưu tài liệu thành công!');
           this.isSaving.set(false);
-          this.isUploadingFiles.set(false);
-          this.isContentModalVisible = false;
-          this.resourceFiles.set([]);
-          this.resourceUrls.set([]);
+          this.closeContentModal();
           const detail = this.selectedRoadmapDetail();
           if (detail) this.loadRoadmapDetail(detail.id);
           this.cdr.markForCheck();
         },
         error: () => {
-          this.message.error('Thao tác thất bại. Vui lòng thử lại.');
+          this.message.error('Chưa lưu được tài liệu còn lại. Vui lòng thử lại.');
           this.isSaving.set(false);
-          this.isUploadingFiles.set(false);
+          const detail = this.selectedRoadmapDetail();
+          if (detail) this.loadRoadmapDetail(detail.id);
           this.cdr.markForCheck();
         },
       });
-    };
-
-    const newFiles = this.resourceFiles();
-    const existingUrls = this.resourceUrls();
-
-    if (newFiles.length > 0) {
-      this.isSaving.set(true);
-      this.isUploadingFiles.set(true);
-      this.trainingService.uploadFiles(newFiles).subscribe({
-        next: (result) => {
-          this.isUploadingFiles.set(false);
-          doSave([...existingUrls, ...result.urls]);
-        },
-        error: () => {
-          this.message.error('Tải lên tệp thất bại. Vui lòng thử lại.');
-          this.isSaving.set(false);
-          this.isUploadingFiles.set(false);
-          this.cdr.markForCheck();
-        },
-      });
-    } else {
-      this.isSaving.set(true);
-      doSave(existingUrls);
-    }
   }
 
   deleteContent(id: string, phaseId?: string): void {

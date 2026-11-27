@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 from app.db.session import get_session_factory
 from app.main import app
 from app.models.enums import UserRole, UserStatus
-from app.models.internship import Internship, InternshipMember
+from app.models.exam import Quiz, QuizAttempt
+from app.models.internship import Internship, InternshipMember, InternshipRoadmap
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
 from app.models.task import Task, TaskAssignee
 from app.models.user import User
@@ -253,7 +254,10 @@ def test_intern_dashboard_progress_percent_matches_completed_item_ratio() -> Non
     )
     session.add_all([admin, intern])
     session.flush()
-    roadmap = Roadmap(name=f"Progress roadmap {suffix}", status="ACTIVE", created_by=admin.id)
+    roadmap = Roadmap(
+        name=f"Progress roadmap {suffix}", status="ACTIVE", position="BACKEND", created_by=admin.id
+    )
+    old_roadmap = Roadmap(name=f"Previous roadmap {suffix}", status="ACTIVE", position="BACKEND")
     internship = Internship(
         name=f"Progress internship {suffix}",
         start_date=datetime(2026, 1, 1, tzinfo=UTC).date(),
@@ -261,15 +265,26 @@ def test_intern_dashboard_progress_percent_matches_completed_item_ratio() -> Non
         status="ONGOING",
         created_by=admin.id,
     )
-    session.add_all([roadmap, internship])
+    session.add_all([roadmap, old_roadmap, internship])
     session.flush()
     phase = Phase(roadmap_id=roadmap.id, name="Phase", order_no=1)
+    old_phase = Phase(roadmap_id=old_roadmap.id, name="Previous Phase", order_no=1)
     member = InternshipMember(
         internship_id=internship.id,
         intern_id=intern.id,
         roadmap_id=roadmap.id,
+        position="BACKEND",
     )
-    session.add_all([phase, member])
+    session.add_all(
+        [
+            phase,
+            old_phase,
+            member,
+            InternshipRoadmap(
+                internship_id=internship.id, position="BACKEND", roadmap_id=roadmap.id
+            ),
+        ]
+    )
     session.flush()
     contents = [
         LearningContent(
@@ -278,9 +293,36 @@ def test_intern_dashboard_progress_percent_matches_completed_item_ratio() -> Non
         for number in range(1, 4)
     ]
     session.add_all(contents)
+    old_content = LearningContent(
+        phase_id=old_phase.id, title="Previous content", type="DOCUMENT", order_no=1
+    )
+    session.add(old_content)
+    session.flush()
+    quizzes = [
+        Quiz(phase_id=item.id, title="Quiz", duration_minutes=30, pass_score=60, status="PUBLISHED")
+        for item in [phase, old_phase]
+    ]
+    session.add_all(quizzes)
     session.flush()
     session.add_all(
         [
+            QuizAttempt(
+                quiz_id=quiz.id,
+                internship_member_id=member.id,
+                attempt_no=1,
+                submitted_at=datetime.now(UTC),
+            )
+            for quiz in quizzes
+        ]
+    )
+    session.add_all(
+        [
+            LearningProgress(
+                internship_member_id=member.id,
+                content_id=old_content.id,
+                status="COMPLETED",
+                progress_percent=100,
+            ),
             LearningProgress(
                 internship_member_id=member.id,
                 content_id=contents[0].id,
@@ -307,18 +349,37 @@ def test_intern_dashboard_progress_percent_matches_completed_item_ratio() -> Non
         assert response.status_code == 200
         progress = response.json()["progress"]
         assert progress is not None
+        assert progress["total"] == 3
+        assert progress["completed"] == 1
+        metrics = {item["key"]: item["value"] for item in response.json()["metrics"]}
+        assert metrics["completed_quizzes"] == 1
         assert progress["percent"] == round(progress["completed"] / progress["total"] * 100, 2)
+        member.position = "BA"
+        session.commit()
+        mismatched = TestClient(app).get("/api/v1/dashboard", headers={"X-User-Id": str(intern.id)})
+        assert mismatched.status_code == 200
+        assert mismatched.json()["progress"] is None
+        assert (
+            next(
+                item["value"]
+                for item in mismatched.json()["metrics"]
+                if item["key"] == "completed_quizzes"
+            )
+            == 0
+        )
     finally:
         session.query(LearningProgress).filter(
             LearningProgress.internship_member_id == member.id
         ).delete(synchronize_session=False)
-        session.query(LearningContent).filter(LearningContent.phase_id == phase.id).delete(
-            synchronize_session=False
-        )
+        session.query(LearningContent).filter(
+            LearningContent.phase_id.in_([phase.id, old_phase.id])
+        ).delete(synchronize_session=False)
         session.delete(member)
         session.delete(phase)
+        session.delete(old_phase)
         session.delete(internship)
         session.delete(roadmap)
+        session.delete(old_roadmap)
         session.delete(intern)
         session.delete(admin)
         session.commit()

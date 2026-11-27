@@ -30,10 +30,11 @@ class InternshipBase(BaseSchema):
 
 
 class InternshipCreate(InternshipBase):
-    pass
+    roadmap_ids: list[uuid.UUID] = Field(default_factory=list, max_length=6)
 
 
 class InternshipUpdate(BaseSchema):
+    roadmap_ids: list[uuid.UUID] | None = Field(None, max_length=6)
     name: str | None = Field(None, max_length=200)
     description: str | None = None
     start_date: date | None = None
@@ -52,7 +53,16 @@ class InternshipUpdate(BaseSchema):
         return self
 
 
+class ConfiguredRoadmapRead(BaseSchema):
+    id: uuid.UUID
+    name: str
+    status: str
+    position: InternshipPosition
+
+
 class InternshipRead(InternshipBase):
+    roadmap_ids: list[uuid.UUID] = Field(default_factory=list)
+    roadmaps: list[ConfiguredRoadmapRead] = Field(default_factory=list)
     id: uuid.UUID
     created_by: uuid.UUID | None = None
     created_at: datetime
@@ -125,6 +135,8 @@ class InternshipMemberDetailRead(InternshipMemberRead):
 
 
 class MembershipInternshipRead(InternshipBase):
+    roadmap_ids: list[uuid.UUID] = Field(default_factory=list)
+    roadmaps: list[ConfiguredRoadmapRead] = Field(default_factory=list)
     id: uuid.UUID
     created_by: uuid.UUID | None = None
     created_at: datetime

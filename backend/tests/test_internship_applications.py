@@ -8,6 +8,7 @@ from app.db.session import get_session_factory
 from app.main import app
 from app.models.enums import UserRole, UserStatus
 from app.models.internship import Internship, InternshipApplication, InternshipMember
+from app.models.roadmap import Roadmap
 from app.models.user import User
 
 
@@ -56,8 +57,17 @@ def test_data() -> Generator[dict[str, User]]:
     for u in [admin, intern, intern_2, mentor]:
         session.refresh(u)
 
+    roadmap = Roadmap(
+        name=f"Application curriculum {suffix}",
+        status="ACTIVE",
+        position="BACKEND",
+        created_by=admin.id,
+    )
+    session.add(roadmap)
+    session.commit()
     users_map = {
         "admin": admin,
+        "roadmap": roadmap,
         "intern": intern,
         "intern_2": intern_2,
         "mentor": mentor,
@@ -118,6 +128,7 @@ def test_intern_apply_to_open_internship_success(
             "start_date": "2026-06-01",
             "end_date": "2026-08-31",
             "status": "OPEN",
+            "roadmap_ids": [str(test_data["roadmap"].id)],
         },
     )
     assert create_resp.status_code == 201
@@ -177,6 +188,7 @@ def test_intern_cannot_apply_duplicate(client: TestClient, test_data: dict[str, 
             "start_date": "2026-06-01",
             "end_date": "2026-08-31",
             "status": "OPEN",
+            "roadmap_ids": [str(test_data["roadmap"].id)],
         },
     )
     batch_id = create_resp.json()["id"]
@@ -213,6 +225,7 @@ def test_intern_cannot_apply_if_already_member(
             "start_date": "2026-06-01",
             "end_date": "2026-08-31",
             "status": "OPEN",
+            "roadmap_ids": [str(test_data["roadmap"].id)],
         },
     )
     batch_id = create_resp.json()["id"]
@@ -253,6 +266,7 @@ def test_intern_view_own_applications_isolation(
             "start_date": "2026-06-01",
             "end_date": "2026-08-31",
             "status": "OPEN",
+            "roadmap_ids": [str(test_data["roadmap"].id)],
         },
     )
     batch_id = create_resp.json()["id"]
@@ -299,7 +313,11 @@ def test_admin_approve_application_adds_member_and_inherits_roadmap(
     roadmap_resp = client.post(
         "/api/v1/training/roadmaps",
         headers={"X-User-Id": str(admin.id)},
-        json={"name": f"App Roadmap {uuid.uuid4().hex[:6]}", "status": "ACTIVE"},
+        json={
+            "name": f"App Roadmap {uuid.uuid4().hex[:6]}",
+            "status": "ACTIVE",
+            "position": "BACKEND",
+        },
     )
     roadmap_id = roadmap_resp.json()["id"]
 
@@ -364,6 +382,7 @@ def test_admin_reject_application_does_not_add_member(
             "start_date": "2026-06-01",
             "end_date": "2026-08-31",
             "status": "OPEN",
+            "roadmap_ids": [str(test_data["roadmap"].id)],
         },
     )
     batch_id = create_resp.json()["id"]
@@ -409,6 +428,7 @@ def test_cannot_review_already_processed_application(
             "start_date": "2026-06-01",
             "end_date": "2026-08-31",
             "status": "OPEN",
+            "roadmap_ids": [str(test_data["roadmap"].id)],
         },
     )
     batch_id = create_resp.json()["id"]
@@ -477,6 +497,7 @@ def test_intern_apply_without_reason_success(
             "start_date": "2026-06-01",
             "end_date": "2026-08-31",
             "status": "OPEN",
+            "roadmap_ids": [str(test_data["roadmap"].id)],
         },
     )
     assert create_resp.status_code == 201
@@ -510,6 +531,7 @@ def test_admin_batch_review_applications(client: TestClient, test_data: dict[str
             "start_date": "2026-06-01",
             "end_date": "2026-08-31",
             "status": "OPEN",
+            "roadmap_ids": [str(test_data["roadmap"].id)],
         },
     )
     assert create_resp.status_code == 201
@@ -562,6 +584,7 @@ def test_admin_approve_all_applications(client: TestClient, test_data: dict[str,
             "start_date": "2026-06-01",
             "end_date": "2026-08-31",
             "status": "OPEN",
+            "roadmap_ids": [str(test_data["roadmap"].id)],
         },
     )
     assert create_resp.status_code == 201

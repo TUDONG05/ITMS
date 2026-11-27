@@ -31,6 +31,13 @@ export interface UserSummary {
   role: string;
 }
 
+export interface InternshipRoadmap {
+  id: string;
+  name: string;
+  position: InternshipPosition | null;
+  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+}
+
 export interface Internship {
   id: string;
   name: string;
@@ -39,6 +46,8 @@ export interface Internship {
   start_date: string;
   end_date: string;
   roadmap_id?: string | null;
+  roadmap_ids?: string[];
+  roadmaps?: InternshipRoadmap[];
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -103,7 +112,7 @@ export interface CreateInternshipPayload {
   start_date: string;
   end_date: string;
   status?: InternshipStatus;
-  roadmap_id?: string | null;
+  roadmap_ids?: string[];
 }
 
 export interface UpdateInternshipPayload {
@@ -112,7 +121,7 @@ export interface UpdateInternshipPayload {
   start_date?: string;
   end_date?: string;
   status?: InternshipStatus;
-  roadmap_id?: string | null;
+  roadmap_ids?: string[];
 }
 
 export interface CreateApplicationPayload {
@@ -197,6 +206,10 @@ export class InternshipService {
 
   updateInternship(id: string, payload: UpdateInternshipPayload): Observable<Internship> {
     return this.http.patch<Internship>(`/api/v1/internships/${id}`, payload, {});
+  }
+
+  deleteInternship(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/v1/internships/${id}`);
   }
 
   // --- Intern Applications ---

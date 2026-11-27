@@ -118,10 +118,13 @@ import {
                             nzType="primary"
                             (click)="openApplyModal(batch)"
                             class="btn-apply"
-                            [disabled]="!canRegister()"
+                            [disabled]="!canRegister() || !availablePositions(batch).length"
                           >
                             <span nz-icon nzType="form"></span> Đăng ký tham gia
                           </button>
+                          @if (!availablePositions(batch).length) {
+                            <small>Đợt này chưa có vị trí mở đăng ký.</small>
+                          }
                         }
                       </div>
                     </div>
@@ -281,7 +284,7 @@ import {
                   formControlName="position"
                   nzPlaceHolder="Chọn vị trí thực tập"
                 >
-                  @for (position of positionOptions; track position.value) {
+                  @for (position of positionOptions(); track position.value) {
                     <nz-option [nzValue]="position.value" [nzLabel]="position.label" />
                   }
                 </nz-select>
@@ -508,7 +511,18 @@ import {
   ],
 })
 export class InternApplyComponent implements OnInit {
-  protected readonly positionOptions = INTERNSHIP_POSITIONS;
+  protected positionOptions() {
+    return this.availablePositions(this.selectedBatch());
+  }
+
+  protected availablePositions(batch: Internship | null) {
+    const activePositions = new Set(
+      batch?.roadmaps
+        ?.filter((roadmap) => roadmap.status === 'ACTIVE')
+        .map((roadmap) => roadmap.position),
+    );
+    return INTERNSHIP_POSITIONS.filter((position) => activePositions.has(position.value));
+  }
   protected readonly positionLabel = internshipPositionLabel;
   private readonly internshipService = inject(InternshipService);
   private readonly message = inject(NzMessageService);
@@ -617,7 +631,7 @@ export class InternApplyComponent implements OnInit {
   }
 
   openApplyModal(batch: Internship): void {
-    if (!this.canRegister()) return;
+    if (!this.canRegister() || !this.availablePositions(batch).length) return;
     this.selectedBatch.set(batch);
     this.applyForm.reset();
     this.isModalVisible = true;
@@ -640,7 +654,8 @@ export class InternApplyComponent implements OnInit {
 
     const reason = this.applyForm.value.reason?.trim() || null;
     const position = this.applyForm.value.position;
-    if (!position) return;
+    if (!this.availablePositions(batch).some((option) => option.value === position) || !position)
+      return;
     this.isSubmitting.set(true);
 
     this.internshipService.applyInternship(batch.id, { position, reason }).subscribe({
