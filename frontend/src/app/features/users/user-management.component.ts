@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
@@ -689,6 +689,7 @@ export class UserManagementComponent implements OnInit {
   submitting = signal(false);
 
   searchText = '';
+  @Input() initialRole: UserRole | null = null;
   filterRole: UserRole | null = null;
   filterStatus: UserStatus | null = null;
 
@@ -711,6 +712,7 @@ export class UserManagementComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.filterRole = this.initialRole;
     this.loadUsers();
   }
 
