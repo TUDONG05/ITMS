@@ -79,6 +79,32 @@ def seeded_users(test_db_session: Session):
     return {"admin": admin, "intern": intern, "mentor": mentor}
 
 
+def test_paginated_users_can_reach_results_beyond_first_100(client, seeded_users, test_db_session):
+    test_db_session.add_all(
+        [
+            User(
+                email=f"page-{index:03d}@example.com",
+                password_hash="test",
+                full_name=f"Pagination User {index:03d}",
+                role=UserRole.INTERN.value,
+                status=UserStatus.ACTIVE.value,
+            )
+            for index in range(105)
+        ]
+    )
+    test_db_session.commit()
+    response = client.get(
+        "/api/v1/users",
+        headers={"X-User-Id": str(seeded_users["admin"].id)},
+        params={"search": "Pagination User", "skip": 100, "limit": 10, "include_total": True},
+    )
+    assert response.status_code == 200
+    assert response.headers["X-Total-Count"] == "105"
+    assert [row["email"] for row in response.json()] == [
+        f"page-{index:03d}@example.com" for index in range(100, 105)
+    ]
+
+
 def test_list_users(client: TestClient, seeded_users):
     admin = seeded_users["admin"]
     resp = client.get("/api/v1/users", headers={"X-User-Id": str(admin.id)})

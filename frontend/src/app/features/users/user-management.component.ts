@@ -1,3 +1,5 @@
+import { NzPaginationModule } from 'ng-zorro-antd/pagination';
+import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -40,6 +42,7 @@ import {
     NzInputModule,
     NzModalModule,
     NzPopconfirmModule,
+    NzPaginationModule,
     NzSelectModule,
     NzSpinModule,
     NzTableModule,
@@ -73,7 +76,7 @@ import {
 
           <nz-select
             [(ngModel)]="filterRole"
-            (ngModelChange)="loadUsers()"
+            (ngModelChange)="resetPage()"
             nzPlaceHolder="Lọc theo vai trò"
             nzAllowClear
             class="filter-select"
@@ -85,7 +88,7 @@ import {
 
           <nz-select
             [(ngModel)]="filterStatus"
-            (ngModelChange)="loadUsers()"
+            (ngModelChange)="resetPage()"
             nzPlaceHolder="Lọc theo trạng thái"
             nzAllowClear
             class="filter-select"
@@ -101,9 +104,8 @@ import {
             <nz-table
               #userTable
               [nzData]="users()"
-              [nzPageSize]="10"
-              [nzShowSizeChanger]="true"
-              [nzPageSizeOptions]="[10, 20, 50]"
+              [nzFrontPagination]="false"
+              [nzShowPagination]="false"
               [nzScroll]="{ x: '800px' }"
             >
               <thead>
@@ -280,6 +282,15 @@ import {
               </div>
             }
           </div>
+          <nz-pagination
+            [nzPageIndex]="page"
+            [nzPageSize]="pageSize"
+            [nzTotal]="total()"
+            [nzShowSizeChanger]="true"
+            [nzPageSizeOptions]="[10, 20, 50]"
+            (nzPageIndexChange)="changePage($event)"
+            (nzPageSizeChange)="changePageSize($event)"
+          />
         </nz-spin>
       </nz-card>
 
@@ -716,17 +727,48 @@ export class UserManagementComponent implements OnInit {
     this.loadUsers();
   }
 
+  protected page = 1;
+  protected pageSize = 10;
+  protected readonly total = signal(0);
+  private pageRequest?: Subscription;
+
+  protected resetPage(): void {
+    this.page = 1;
+    this.loadUsers();
+  }
+
+  protected changePage(page: number): void {
+    if (this.page === page) return;
+    this.page = page;
+    this.loadUsers();
+  }
+
+  protected changePageSize(size: number): void {
+    if (this.pageSize === size) return;
+    this.pageSize = size;
+    this.resetPage();
+  }
+
   loadUsers(): void {
+    this.pageRequest?.unsubscribe();
     this.loading.set(true);
-    this.userSvc
-      .getUsers({
+    this.pageRequest = this.userSvc
+      .getUserPage({
+        skip: (this.page - 1) * this.pageSize,
+        limit: this.pageSize,
         role: this.filterRole ?? undefined,
         status: this.filterStatus ?? undefined,
         search: this.searchText.trim() || undefined,
       })
       .subscribe({
-        next: (data) => {
-          this.users.set(data);
+        next: ({ users, total }) => {
+          this.total.set(total);
+          const lastPage = Math.max(1, Math.ceil(total / this.pageSize));
+          if (this.page > lastPage) {
+            this.changePage(lastPage);
+            return;
+          }
+          this.users.set(users);
           this.loading.set(false);
         },
         error: () => {
@@ -738,7 +780,7 @@ export class UserManagementComponent implements OnInit {
 
   onSearch(text: string): void {
     this.searchText = text;
-    this.loadUsers();
+    this.resetPage();
   }
 
   // ---- Create ----
