@@ -194,3 +194,40 @@
   white-space: pre-wrap;
   line-height: 1.6;
 }
+
+@media (max-width: 768px) {
+  .toolbar,
+  .toolbar__actions,
+  .field-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar > *,
+  .toolbar__actions,
+  .filter-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .toolbar__actions button {
+    min-height: 44px;
+  }
+
+  .field-row .field {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .eval-head,
+  .detail-meta,
+  .score-row {
+    flex-wrap: wrap;
+  }
+
+  .eval-head > div,
+  .score-row__name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}

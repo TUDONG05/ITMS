@@ -1475,9 +1475,9 @@ import {
       }
 
       /* ==========================================================================
-         TABLET BREAKPOINT (768px – 1023px)
+         TABLET BREAKPOINT (769px – 1023px)
          ========================================================================== */
-      @media screen and (min-width: 768px) and (max-width: 1023px) {
+      @media screen and (min-width: 769px) and (max-width: 1023px) {
         .metric-grid {
           grid-template-columns: repeat(2, 1fr);
           gap: 12px;
@@ -1504,9 +1504,9 @@ import {
       }
 
       /* ==========================================================================
-         MOBILE BREAKPOINT (<= 767px)
+         MOBILE BREAKPOINT (<= 768px)
          ========================================================================== */
-      @media screen and (max-width: 767px) {
+      @media screen and (max-width: 768px) {
         .table-responsive {
           overflow-x: visible;
         }
@@ -1556,9 +1556,10 @@ import {
           width: 100%;
         }
 
-        .filter-item {
+        .filter-item,
+        .filter-item.search-box {
           width: 100%;
-          min-width: 100%;
+          min-width: 0;
         }
 
         .filter-actions {
@@ -1608,6 +1609,17 @@ import {
 
         .kv-value {
           text-align: left;
+        }
+      }
+
+      @media screen and (max-width: 480px) {
+        .metric-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .status-history-header,
+        .status-transition {
+          flex-wrap: wrap;
         }
       }
     `,

@@ -525,6 +525,7 @@ import {
         .filter-select {
           width: 100% !important;
           max-width: 100%;
+          min-width: 0;
         }
       }
 
