@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { Subscription } from 'rxjs';
+import { Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
@@ -654,6 +655,7 @@ export class NotificationManagementComponent implements OnInit, OnDestroy {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly userMgmtService = inject(UserManagementService);
   private readonly fb = inject(FormBuilder);
+  private readonly router = inject(Router);
   private notifChangedSub?: Subscription;
 
   protected readonly notifications = signal<Notification[]>([]);
@@ -883,8 +885,6 @@ export class NotificationManagementComponent implements OnInit, OnDestroy {
   }
 
   protected openUserDetail(n: Notification): void {
-    this.selectedNotif.set(n);
-    this.isDetailModalOpen = true;
     // Auto-mark as read
     if (!n.is_read) {
       this.notifService.markAsRead(n.id).subscribe({
@@ -898,6 +898,21 @@ export class NotificationManagementComponent implements OnInit, OnDestroy {
         error: () => undefined,
       });
     }
+    const role = this.authService.currentUser()?.role;
+    if (role === 'MENTOR' && n.title.startsWith('Bài kiểm tra cần chấm')) {
+      this.router.navigate(['/dashboard', 'mentor'], {
+        queryParams: { section: 'interns', openPendingGradings: '1' },
+      });
+      return;
+    }
+    if (role === 'INTERN' && n.title.startsWith('Đã có điểm bài kiểm tra')) {
+      this.router.navigate(['/dashboard', 'intern'], {
+        queryParams: { section: 'quizzes' },
+      });
+      return;
+    }
+    this.selectedNotif.set(n);
+    this.isDetailModalOpen = true;
     this.cdr.markForCheck();
   }
 

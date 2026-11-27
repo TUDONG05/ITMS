@@ -193,7 +193,7 @@ export class TrainingManagementComponent implements OnInit {
     description: [''],
     duration_minutes: [30, [Validators.required, Validators.min(1)]],
     pass_score: [60, [Validators.required, Validators.min(0), Validators.max(100)]],
-    max_attempts: [3, [Validators.required, Validators.min(1)]],
+    max_attempts: [1, [Validators.required, Validators.min(1)]],
   });
 
   protected readonly questionForm = this.fb.group({
@@ -771,7 +771,7 @@ export class TrainingManagementComponent implements OnInit {
       description: '',
       duration_minutes: 30,
       pass_score: 60,
-      max_attempts: 3,
+      max_attempts: 1,
     });
     this.quizDraftQuestions = [this.createBlankDraftQuestion()];
     this.isQuizModalVisible = true;

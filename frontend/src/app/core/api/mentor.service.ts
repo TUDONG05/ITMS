@@ -60,8 +60,62 @@ export interface QuizAttemptDetail {
   attempt_no: number;
   score?: number | null;
   passed?: boolean | null;
+  grading_status?: 'AUTO_GRADED' | 'PENDING_GRADING' | 'GRADED';
+  ungraded_questions?: number;
   started_at: string;
   submitted_at?: string | null;
+}
+
+export interface PendingQuizGradingItem {
+  attempt_id: string;
+  member_id: string;
+  intern_id: string;
+  intern_name: string;
+  intern_email: string;
+  quiz_id: string;
+  quiz_title: string;
+  attempt_no: number;
+  submitted_at: string;
+  ungraded_questions: number;
+}
+
+export interface QuizAttemptQuestionGradeView {
+  question_id: string;
+  content: string;
+  type: string;
+  max_score: number;
+  order_no?: number | null;
+  options: { key: string; text: string }[];
+  correct_answer: unknown;
+  selected_keys: string[];
+  text?: string | null;
+  is_correct?: boolean | null;
+  earned_score?: number | null;
+  feedback?: string | null;
+  needs_manual_grading: boolean;
+}
+
+export interface QuizAttemptGradingDetail {
+  attempt_id: string;
+  quiz_id: string;
+  quiz_title: string;
+  pass_score: number;
+  attempt_no: number;
+  intern_name: string;
+  score?: number | null;
+  passed?: boolean | null;
+  grading_status: 'AUTO_GRADED' | 'PENDING_GRADING' | 'GRADED';
+  started_at: string;
+  submitted_at?: string | null;
+  questions: QuizAttemptQuestionGradeView[];
+}
+
+export interface QuizAttemptGradeRequest {
+  grades: {
+    question_id: string;
+    earned_score: number;
+    feedback?: string | null;
+  }[];
 }
 
 export interface MentorAssignmentHistoryItem {
@@ -98,6 +152,7 @@ export interface MentorInternListItem {
   end_date?: string | null;
   progress_percent: number;
   quizzes_passed: number;
+  pending_quiz_gradings?: number;
   tasks_completed: number;
   active_tasks: number;
 }
@@ -129,6 +184,7 @@ export interface MentorOverviewMetrics {
   completed_interns: number;
   avg_progress: number;
   total_quizzes_passed: number;
+  pending_quiz_gradings?: number;
   recent_interns: MentorInternListItem[];
 }
 
@@ -173,6 +229,16 @@ export class MentorService {
     return this.http.get<QuizAttemptDetail[]>(`/api/v1/mentor/interns/${memberId}/quizzes`, {});
   }
 
+  getPendingQuizAttempts(memberId?: string | null): Observable<PendingQuizGradingItem[]> {
+    let params = new HttpParams();
+    if (memberId) {
+      params = params.set('member_id', memberId);
+    }
+    return this.http.get<PendingQuizGradingItem[]>('/api/v1/mentor/quiz-attempts/pending', {
+      params,
+    });
+  }
+
   assignOrChangeMentor(
     payload: MentorAssignRequestPayload,
   ): Observable<MentorAssignmentHistoryItem> {
@@ -206,6 +272,21 @@ export class MentorService {
   getInternStatusHistory(memberId: string): Observable<InternshipStatusHistoryItem[]> {
     return this.http.get<InternshipStatusHistoryItem[]>(
       `/api/v1/mentor/interns/${memberId}/status-history`,
+      {},
+    );
+  }
+
+  getQuizAttemptDetail(attemptId: string): Observable<QuizAttemptGradingDetail> {
+    return this.http.get<QuizAttemptGradingDetail>(`/api/v1/mentor/quiz-attempts/${attemptId}`, {});
+  }
+
+  gradeQuizAttempt(
+    attemptId: string,
+    payload: QuizAttemptGradeRequest,
+  ): Observable<QuizAttemptGradingDetail> {
+    return this.http.post<QuizAttemptGradingDetail>(
+      `/api/v1/mentor/quiz-attempts/${attemptId}/grade`,
+      payload,
       {},
     );
   }

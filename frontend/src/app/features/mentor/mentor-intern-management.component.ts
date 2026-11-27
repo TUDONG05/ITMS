@@ -10,6 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzAvatarModule } from 'ng-zorro-antd/avatar';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
@@ -22,6 +23,7 @@ import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzFormModule } from 'ng-zorro-antd/form';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
@@ -41,6 +43,8 @@ import {
   MentorInternDetail,
   MentorInternListItem,
   MentorService,
+  PendingQuizGradingItem,
+  QuizAttemptGradingDetail,
 } from '../../core/api/mentor.service';
 
 @Component({
@@ -61,6 +65,7 @@ import {
     NzFormModule,
     NzIconModule,
     NzInputModule,
+    NzInputNumberModule,
     NzModalModule,
     NzProgressModule,
     NzSelectModule,
@@ -134,6 +139,14 @@ import {
             <button nz-button nzType="default" (click)="openAuditHistoryModal()">
               <span nz-icon nzType="audit"></span> Lịch sử phân công
             </button>
+            <button
+              nz-button
+              [nzType]="totalPendingQuizGradings() > 0 ? 'primary' : 'default'"
+              (click)="openPendingGradingsModal()"
+              title="Xem danh sách bài kiểm tra tự luận chờ chấm"
+            >
+              <span nz-icon nzType="edit"></span> Bài chờ chấm ({{ totalPendingQuizGradings() }})
+            </button>
           </div>
         </div>
       </nz-card>
@@ -200,6 +213,16 @@ import {
                     </td>
                     <td>
                       <nz-tag nzColor="blue"> {{ item.quizzes_passed }} Quiz đã đạt </nz-tag>
+                      @if ((item.pending_quiz_gradings ?? 0) > 0) {
+                        <nz-tag
+                          nzColor="warning"
+                          style="cursor: pointer"
+                          (click)="openPendingGradingsModal(item.id)"
+                          title="Nhấn để xem bài làm chờ chấm"
+                        >
+                          Chờ chấm: {{ item.pending_quiz_gradings }}
+                        </nz-tag>
+                      }
                     </td>
                     <td>
                       <nz-tag [nzColor]="getStatusTagColor(item.status)">
@@ -306,6 +329,16 @@ import {
                     <span class="label">Quiz đã đạt:</span>
                     <span class="value">
                       <nz-tag nzColor="blue">{{ item.quizzes_passed }} bài</nz-tag>
+                      @if ((item.pending_quiz_gradings ?? 0) > 0) {
+                        <nz-tag
+                          nzColor="warning"
+                          style="cursor: pointer"
+                          (click)="openPendingGradingsModal(item.id)"
+                          title="Nhấn để xem bài làm chờ chấm"
+                        >
+                          Chờ chấm: {{ item.pending_quiz_gradings }}
+                        </nz-tag>
+                      }
                     </span>
                   </div>
                   <div class="info-row">
@@ -536,6 +569,7 @@ import {
                               <th>Điểm</th>
                               <th>Kết quả</th>
                               <th>Thời gian</th>
+                              <th>Thao tác</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -546,15 +580,39 @@ import {
                                 </td>
                                 <td data-label="Lần làm">Lần {{ q.attempt_no }}</td>
                                 <td data-label="Điểm">
-                                  <strong>{{ q.score !== null ? q.score : '--' }}</strong>
+                                  <strong>{{
+                                    q.score !== null && q.score !== undefined ? q.score : '--'
+                                  }}</strong>
                                 </td>
                                 <td data-label="Kết quả">
-                                  <nz-tag [nzColor]="q.passed ? 'green' : 'red'">
-                                    {{ q.passed ? 'ĐẠT (PASSED)' : 'CHƯA ĐẠT' }}
-                                  </nz-tag>
+                                  @if (!q.submitted_at) {
+                                    <nz-tag nzColor="processing">Đang làm</nz-tag>
+                                  } @else if (q.grading_status === 'PENDING_GRADING') {
+                                    <nz-tag nzColor="orange">Chờ chấm</nz-tag>
+                                  } @else {
+                                    <nz-tag [nzColor]="q.passed ? 'green' : 'red'">
+                                      {{ q.passed ? 'ĐẠT (PASSED)' : 'CHƯA ĐẠT' }}
+                                    </nz-tag>
+                                  }
                                 </td>
                                 <td data-label="Thời gian">
                                   <small>{{ formatDateTime(q.started_at) }}</small>
+                                </td>
+                                <td data-label="Thao tác">
+                                  @if (q.submitted_at) {
+                                    <button
+                                      nz-button
+                                      nzType="link"
+                                      nzSize="small"
+                                      (click)="openQuizGradingModal(q.id)"
+                                    >
+                                      {{
+                                        q.grading_status === 'PENDING_GRADING'
+                                          ? 'Chấm bài'
+                                          : 'Xem / Sửa điểm'
+                                      }}
+                                    </button>
+                                  }
                                 </td>
                               </tr>
                             }
@@ -767,6 +825,126 @@ import {
         </ng-container>
       </nz-drawer>
 
+      <!-- MODAL CHẤM BÀI TỰ LUẬN QUIZ -->
+      <nz-modal
+        [(nzVisible)]="isQuizGradingModalVisible"
+        [nzTitle]="
+          quizGradingDetail()
+            ? quizGradingDetail()!.quiz_title + ' — Lần ' + quizGradingDetail()!.attempt_no
+            : 'Chi tiết bài làm Quiz'
+        "
+        [nzWidth]="auditModalWidth()"
+        [nzFooter]="quizGradingFooter"
+        (nzOnCancel)="closeQuizGradingModal()"
+      >
+        <ng-container *nzModalContent>
+          @if (quizGradingLoading()) {
+            <div class="drawer-loading"><nz-spin nzSimple nzSize="large"></nz-spin></div>
+          } @else if (quizGradingDetail(); as gd) {
+            <div
+              style="margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;"
+            >
+              <span><strong>Intern:</strong> {{ gd.intern_name }}</span>
+              <span>| <strong>Điểm đạt:</strong> từ {{ gd.pass_score }}</span>
+              <span
+                >| <strong>Tổng điểm:</strong>
+                {{ gd.score !== null && gd.score !== undefined ? gd.score : 'Chờ chấm' }}</span
+              >
+              @if (gd.grading_status === 'PENDING_GRADING') {
+                <nz-tag nzColor="orange">Chờ chấm tự luận</nz-tag>
+              } @else {
+                <nz-tag [nzColor]="gd.passed ? 'green' : 'red'">
+                  {{ gd.passed ? 'ĐẠT' : 'CHƯA ĐẠT' }}
+                </nz-tag>
+              }
+            </div>
+
+            @for (q of gd.questions; track q.question_id; let idx = $index) {
+              <div
+                style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 12px;"
+              >
+                <div
+                  style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px;"
+                >
+                  <strong
+                    >Câu {{ idx + 1 }} ({{
+                      q.type === 'TEXT' ? 'Tự luận' : 'Trắc nghiệm'
+                    }}):</strong
+                  >
+                  <span>Tối đa {{ q.max_score }} điểm</span>
+                </div>
+                <p style="margin-bottom: 8px;">{{ q.content }}</p>
+
+                @if (q.type === 'TEXT') {
+                  <div
+                    style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; margin-bottom: 8px;"
+                  >
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">
+                      Câu trả lời của Intern:
+                    </div>
+                    <div style="white-space: pre-wrap;">
+                      {{ q.text || '(Không có câu trả lời)' }}
+                    </div>
+                  </div>
+                  @if (formatCorrectAnswerRef(q.correct_answer)) {
+                    <div style="font-size: 12px; color: #475569; margin-bottom: 8px;">
+                      <strong>Gợi ý đáp án:</strong> {{ formatCorrectAnswerRef(q.correct_answer) }}
+                    </div>
+                  }
+                  <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start;">
+                    <div>
+                      <div style="font-size: 12px; margin-bottom: 4px;">
+                        Điểm chấm (0 - {{ q.max_score }})
+                      </div>
+                      <nz-input-number
+                        [(ngModel)]="gradingInputs[q.question_id].earned_score"
+                        [nzMin]="0"
+                        [nzMax]="q.max_score"
+                        [nzStep]="0.5"
+                      ></nz-input-number>
+                    </div>
+                    <div style="flex: 1; min-width: 220px;">
+                      <div style="font-size: 12px; margin-bottom: 4px;">Nhận xét</div>
+                      <textarea
+                        nz-input
+                        rows="2"
+                        maxlength="1000"
+                        placeholder="Nhập nhận xét cho câu trả lời..."
+                        [(ngModel)]="gradingInputs[q.question_id].feedback"
+                      ></textarea>
+                    </div>
+                  </div>
+                } @else {
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <nz-tag [nzColor]="q.is_correct ? 'green' : 'red'">
+                      {{ q.is_correct ? 'Đúng' : 'Sai' }} ({{ q.earned_score ?? 0 }}/{{
+                        q.max_score
+                      }})
+                    </nz-tag>
+                    <small style="color: #64748b;"
+                      >Đã chọn: {{ q.selected_keys.join(', ') || 'Không chọn' }}</small
+                    >
+                  </div>
+                }
+              </div>
+            }
+          }
+        </ng-container>
+        <ng-template #quizGradingFooter>
+          <button nz-button (click)="closeQuizGradingModal()">Đóng</button>
+          @if (hasManualQuestions()) {
+            <button
+              nz-button
+              nzType="primary"
+              [nzLoading]="quizGradingSaving()"
+              (click)="saveQuizGrades()"
+            >
+              Lưu điểm tự luận
+            </button>
+          }
+        </ng-template>
+      </nz-modal>
+
       <!-- MODAL DANH SÁCH ĐỀ XUẤT ĐÃ GỬI -->
       <nz-modal
         [(nzVisible)]="isProposalHistoryModalVisible"
@@ -878,6 +1056,80 @@ import {
               </div>
             } @else {
               <nz-empty nzNotFoundContent="Chưa có lịch sử phân công nào"></nz-empty>
+            }
+          </nz-spin>
+        </ng-container>
+      </nz-modal>
+
+      <!-- MODAL: DANH SÁCH BÀI KIỂM TRA CHỜ CHẤM TỰ LUẬN -->
+      <nz-modal
+        [(nzVisible)]="isPendingGradingsModalVisible"
+        nzTitle="Danh sách bài kiểm tra tự luận chờ chấm"
+        [nzFooter]="null"
+        [nzWidth]="auditModalWidth()"
+        (nzOnCancel)="closePendingGradingsModal()"
+      >
+        <ng-container *nzModalContent>
+          <nz-spin [nzSpinning]="pendingGradingsLoading()">
+            @if (pendingGradingsMemberFilter()) {
+              <div style="margin-bottom: 12px; display: flex; justify-content: flex-end">
+                <button nz-button nzType="link" nzSize="small" (click)="openPendingGradingsModal()">
+                  Xem tất cả thực tập sinh
+                </button>
+              </div>
+            }
+            @if (pendingGradingsList().length > 0) {
+              <nz-table
+                #pendingGradingsTable
+                [nzData]="pendingGradingsList()"
+                [nzFrontPagination]="true"
+                [nzPageSize]="8"
+                nzSize="small"
+              >
+                <thead>
+                  <tr>
+                    <th>Thực tập sinh</th>
+                    <th>Bài kiểm tra</th>
+                    <th>Chờ chấm</th>
+                    <th>Thời gian nộp</th>
+                    <th nzAlign="right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of pendingGradingsTable.data; track row.attempt_id) {
+                    <tr>
+                      <td>
+                        <div>
+                          <strong>{{ row.intern_name }}</strong>
+                        </div>
+                        <small style="color: #6b7280">{{ row.intern_email }}</small>
+                      </td>
+                      <td>
+                        <div>{{ row.quiz_title }}</div>
+                        <small style="color: #6b7280">Lần {{ row.attempt_no }}</small>
+                      </td>
+                      <td>
+                        <nz-tag nzColor="warning">{{ row.ungraded_questions }} câu tự luận</nz-tag>
+                      </td>
+                      <td>{{ row.submitted_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+                      <td nzAlign="right">
+                        <button
+                          nz-button
+                          nzType="primary"
+                          nzSize="small"
+                          (click)="openQuizGradingModal(row.attempt_id)"
+                        >
+                          Chấm bài
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </nz-table>
+            } @else {
+              <nz-empty
+                nzNotFoundContent="Không có bài kiểm tra tự luận nào đang chờ chấm"
+              ></nz-empty>
             }
           </nz-spin>
         </ng-container>
@@ -1494,6 +1746,12 @@ export class MentorInternManagementComponent implements OnInit {
   private readonly internshipService = inject(InternshipService);
   private readonly message = inject(NzMessageService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+
+  totalPendingQuizGradings = computed(() =>
+    this.interns().reduce((sum, item) => sum + (item.pending_quiz_gradings ?? 0), 0),
+  );
 
   loading = signal<boolean>(false);
   interns = signal<MentorInternListItem[]>([]);
@@ -1529,6 +1787,19 @@ export class MentorInternManagementComponent implements OnInit {
   auditLoading = signal<boolean>(false);
   allAuditHistory = signal<MentorAssignmentHistoryItem[]>([]);
 
+  // Quiz essay grading modal state
+  isQuizGradingModalVisible = false;
+  quizGradingLoading = signal<boolean>(false);
+  quizGradingSaving = signal<boolean>(false);
+  quizGradingDetail = signal<QuizAttemptGradingDetail | null>(null);
+  gradingInputs: Record<string, { earned_score: number; feedback: string }> = {};
+
+  // Pending quiz gradings list modal state
+  isPendingGradingsModalVisible = signal<boolean>(false);
+  pendingGradingsLoading = signal<boolean>(false);
+  pendingGradingsList = signal<PendingQuizGradingItem[]>([]);
+  pendingGradingsMemberFilter = signal<string | null>(null);
+
   // Reactive window width for responsive drawer and modal
   windowWidth = signal<number>(typeof window !== 'undefined' ? window.innerWidth : 1200);
 
@@ -1557,6 +1828,17 @@ export class MentorInternManagementComponent implements OnInit {
     this.loadInterns();
     this.loadProposals();
     this.loadAuxiliaryData();
+    this.route.queryParams.subscribe((params) => {
+      if (params['openPendingGradings'] === '1') {
+        this.openPendingGradingsModal();
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { openPendingGradings: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+      }
+    });
   }
 
   loadInterns(): void {
@@ -1921,5 +2203,126 @@ export class MentorInternManagementComponent implements OnInit {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  hasManualQuestions(): boolean {
+    const gd = this.quizGradingDetail();
+    return !!gd?.questions.some((q) => q.needs_manual_grading);
+  }
+
+  openQuizGradingModal(attemptId: string): void {
+    this.isQuizGradingModalVisible = true;
+    this.quizGradingLoading.set(true);
+    this.quizGradingDetail.set(null);
+    this.gradingInputs = {};
+    this.mentorService.getQuizAttemptDetail(attemptId).subscribe({
+      next: (res) => {
+        for (const q of res.questions) {
+          if (q.needs_manual_grading) {
+            this.gradingInputs[q.question_id] = {
+              earned_score: q.earned_score ?? 0,
+              feedback: q.feedback ?? '',
+            };
+          }
+        }
+        this.quizGradingDetail.set(res);
+        this.quizGradingLoading.set(false);
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.message.error(err?.error?.detail || 'Không thể tải chi tiết bài làm');
+        this.quizGradingLoading.set(false);
+        this.isQuizGradingModalVisible = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  closeQuizGradingModal(): void {
+    this.isQuizGradingModalVisible = false;
+    this.quizGradingDetail.set(null);
+  }
+
+  saveQuizGrades(): void {
+    const gd = this.quizGradingDetail();
+    if (!gd) return;
+    const grades = gd.questions
+      .filter((q) => q.needs_manual_grading)
+      .map((q) => {
+        const input = this.gradingInputs[q.question_id];
+        return {
+          question_id: q.question_id,
+          earned_score: Number(input?.earned_score ?? 0),
+          feedback: input?.feedback?.trim() || null,
+        };
+      });
+    if (grades.length === 0) return;
+
+    this.quizGradingSaving.set(true);
+    this.mentorService.gradeQuizAttempt(gd.attempt_id, { grades }).subscribe({
+      next: (updated) => {
+        this.quizGradingDetail.set(updated);
+        this.quizGradingSaving.set(false);
+        this.message.success('Đã lưu điểm tự luận và cập nhật kết quả bài kiểm tra');
+        this.loadInterns();
+        if (this.isPendingGradingsModalVisible()) {
+          this.loadPendingGradings(this.pendingGradingsMemberFilter());
+        }
+        const currentDetail = this.detail();
+        if (currentDetail) {
+          this.mentorService.getInternDetail(currentDetail.id).subscribe({
+            next: (detail) => {
+              this.detail.set(detail);
+              this.cdr.markForCheck();
+            },
+          });
+        }
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.message.error(err?.error?.detail || 'Lưu điểm thất bại');
+        this.quizGradingSaving.set(false);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  formatCorrectAnswerRef(raw: unknown): string {
+    if (raw === null || raw === undefined) return '';
+    if (Array.isArray(raw)) {
+      return raw
+        .map((v) => String(v ?? '').trim())
+        .filter((v) => v.length > 0)
+        .join(', ');
+    }
+    return String(raw).trim();
+  }
+
+  openPendingGradingsModal(memberId?: string): void {
+    const filterId = memberId ?? null;
+    this.pendingGradingsMemberFilter.set(filterId);
+    this.isPendingGradingsModalVisible.set(true);
+    this.loadPendingGradings(filterId);
+  }
+
+  closePendingGradingsModal(): void {
+    this.isPendingGradingsModalVisible.set(false);
+    this.pendingGradingsMemberFilter.set(null);
+  }
+
+  private loadPendingGradings(memberId: string | null): void {
+    this.pendingGradingsLoading.set(true);
+    this.mentorService.getPendingQuizAttempts(memberId).subscribe({
+      next: (list) => {
+        this.pendingGradingsList.set(list);
+        this.pendingGradingsLoading.set(false);
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.message.error(err?.error?.detail || 'Không tải được danh sách bài chờ chấm');
+        this.pendingGradingsLoading.set(false);
+        this.cdr.markForCheck();
+      },
+    });
   }
 }

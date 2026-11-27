@@ -41,6 +41,7 @@ export interface LearningQuizSummary {
   status: 'PUBLISHED' | 'CLOSED';
   question_count: number;
   attempts_used: number;
+  has_open_attempt?: boolean;
   best_score: number | null;
   passed: boolean;
 }
@@ -102,17 +103,19 @@ export interface AnswerPayload {
 
 export interface QuestionResult {
   question_id: string;
-  /** null: câu hỏi chưa thể chấm tự động nên không tính vào điểm. */
+  /** null: câu hỏi chưa được chấm (chờ Mentor chấm tự luận). */
   is_correct: boolean | null;
   earned_score: number;
+  feedback?: string | null;
 }
 
 export interface AttemptResult {
   attempt_id: string;
   quiz_id: string;
   attempt_no: number;
-  score: number;
-  passed: boolean;
+  score: number | null;
+  passed: boolean | null;
+  grading_status?: 'AUTO_GRADED' | 'PENDING_GRADING' | 'GRADED';
   earned_points: number;
   total_points: number;
   ungraded_questions: number;
@@ -125,6 +128,7 @@ export interface AttemptSummary {
   attempt_id: string;
   attempt_no: number;
   status: 'IN_PROGRESS' | 'SUBMITTED';
+  grading_status?: 'AUTO_GRADED' | 'PENDING_GRADING' | 'GRADED';
   score: number | null;
   passed: boolean | null;
   started_at: string;
@@ -137,9 +141,36 @@ export interface QuizResults {
   pass_score: number;
   max_attempts: number;
   attempts_used: number;
+  has_open_attempt?: boolean;
   best_score: number | null;
   passed: boolean;
   attempts: AttemptSummary[];
+}
+
+export interface InternAttemptQuestionDetail {
+  question_id: string;
+  content: string;
+  type: LearningQuestionType;
+  max_score: number;
+  selected_keys: string[];
+  text: string | null;
+  is_correct: boolean | null;
+  earned_score: number | null;
+  feedback: string | null;
+}
+
+export interface InternAttemptDetail {
+  attempt_id: string;
+  quiz_id: string;
+  quiz_title: string;
+  attempt_no: number;
+  pass_score: number;
+  grading_status: 'AUTO_GRADED' | 'PENDING_GRADING' | 'GRADED';
+  score: number | null;
+  passed: boolean | null;
+  started_at: string;
+  submitted_at: string;
+  questions: InternAttemptQuestionDetail[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -173,5 +204,9 @@ export class LearningService {
 
   getQuizResults(quizId: string): Observable<QuizResults> {
     return this.http.get<QuizResults>(`${this.base}/quizzes/${quizId}/results`);
+  }
+
+  getAttemptDetail(attemptId: string): Observable<InternAttemptDetail> {
+    return this.http.get<InternAttemptDetail>(`${this.base}/attempts/${attemptId}`);
   }
 }

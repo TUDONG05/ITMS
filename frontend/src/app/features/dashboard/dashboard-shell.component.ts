@@ -1196,6 +1196,16 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
       });
     }
     this.isNotifPopoverVisible = false;
+    if (this.role() === 'MENTOR' && n.title.startsWith('Bài kiểm tra cần chấm')) {
+      this.router.navigate(['/dashboard', 'mentor'], {
+        queryParams: { section: 'interns', openPendingGradings: '1' },
+      });
+      return;
+    }
+    if (this.role() === 'INTERN' && n.title.startsWith('Đã có điểm bài kiểm tra')) {
+      this.choose('quizzes');
+      return;
+    }
     this.choose('notifications');
   }
 

@@ -145,12 +145,13 @@
                   @if (quiz.status === 'PUBLISHED') {
                     <button
                       nz-button
-                      nzType="primary"
+                      [nzType]="isQuizDone(quiz) ? 'default' : 'primary'"
+                      [class.quiz-done-btn]="isQuizDone(quiz)"
                       nzSize="small"
                       [nzLoading]="isStartingQuiz()"
                       (click)="confirmStartQuiz(quiz)"
                     >
-                      Làm bài
+                      {{ isQuizDone(quiz) ? 'Đã làm' : 'Làm bài' }}
                     </button>
                   } @else {
                     <nz-tag>Đã đóng</nz-tag>
@@ -262,12 +263,13 @@
                   @if (quiz.status === 'PUBLISHED') {
                     <button
                       nz-button
-                      nzType="primary"
+                      [nzType]="isQuizDone(quiz) ? 'default' : 'primary'"
+                      [class.quiz-done-btn]="isQuizDone(quiz)"
                       nzSize="small"
                       [nzLoading]="isStartingQuiz()"
                       (click)="confirmStartQuiz(quiz)"
                     >
-                      Làm bài
+                      {{ isQuizDone(quiz) ? 'Đã làm' : 'Làm bài' }}
                     </button>
                   } @else {
                     <nz-tag>Đã đóng</nz-tag>
@@ -348,18 +350,38 @@
     @if (attemptResult(); as result) {
       <div
         class="result"
-        [class.result--pass]="result.passed"
-        [class.result--fail]="!result.passed"
+        [class.result--pass]="result.passed === true"
+        [class.result--fail]="result.passed === false"
       >
-        <span nz-icon [nzType]="result.passed ? 'trophy' : 'warning'" class="result__icon"></span>
+        <span
+          nz-icon
+          [nzType]="
+            result.grading_status === 'PENDING_GRADING'
+              ? 'clock-circle'
+              : result.passed
+                ? 'trophy'
+                : 'warning'
+          "
+          class="result__icon"
+        ></span>
         <div>
-          <h3 class="result__title">{{ result.passed ? 'Bạn đã đạt' : 'Chưa đạt' }}</h3>
-          <p class="result__score">
-            {{ result.score }} điểm ({{ result.earned_points }}/{{ result.total_points }})
-          </p>
-          @if (result.ungraded_questions > 0) {
+          <h3 class="result__title">
+            @if (result.grading_status === 'PENDING_GRADING') {
+              Đã nộp bài — Chờ Mentor chấm tự luận
+            } @else {
+              {{ result.passed ? 'Bạn đã đạt' : 'Chưa đạt' }}
+            }
+          </h3>
+          @if (result.grading_status === 'PENDING_GRADING') {
+            <p class="result__score">
+              Điểm tạm tính phần trắc nghiệm: {{ result.earned_points }}/{{ result.total_points }}
+            </p>
             <p class="muted">
-              {{ result.ungraded_questions }} câu chưa chấm tự động nên không tính vào điểm.
+              Còn {{ result.ungraded_questions }} câu tự luận chờ Mentor chấm để có điểm chính thức.
+            </p>
+          } @else {
+            <p class="result__score">
+              {{ result.score }} điểm ({{ result.earned_points }}/{{ result.total_points }})
             </p>
           }
         </div>
@@ -474,8 +496,73 @@
   (nzOnCancel)="closeResults()"
 >
   <ng-container *nzModalContent>
-    @if (isResultsLoading()) {
+    @if (isResultsLoading() || isAttemptDetailLoading()) {
       <div class="loading"><nz-spin nzSimple></nz-spin></div>
+    } @else if (attemptDetail(); as detail) {
+      <div
+        style="
+          margin-bottom: 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
+        "
+      >
+        <button nz-button nzType="default" nzSize="small" (click)="backToAttemptList()">
+          ← Quay lại danh sách
+        </button>
+        <div>
+          <strong>Lần {{ detail.attempt_no }}</strong> | Điểm:
+          <strong>{{ detail.score ?? '--' }}</strong>
+          @if (detail.grading_status === 'PENDING_GRADING') {
+            <nz-tag nzColor="orange" style="margin-left: 6px">Chờ chấm</nz-tag>
+          } @else if (detail.passed) {
+            <nz-tag nzColor="success" style="margin-left: 6px">Đạt</nz-tag>
+          } @else {
+            <nz-tag nzColor="error" style="margin-left: 6px">Chưa đạt</nz-tag>
+          }
+        </div>
+      </div>
+
+      @for (q of detail.questions; track q.question_id; let idx = $index) {
+        <div
+          style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 10px"
+        >
+          <div style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px">
+            <strong>Câu {{ idx + 1 }}</strong>
+            <span>
+              Điểm:
+              <strong>{{ q.earned_score !== null ? q.earned_score : '--' }}</strong> /
+              {{ q.max_score }}
+            </span>
+          </div>
+          <p style="margin-bottom: 6px">{{ q.content }}</p>
+          @if (q.type === 'TEXT') {
+            <div
+              style="background: #f8fafc; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px"
+            >
+              <div style="font-size: 12px; color: #64748b">Câu trả lời của bạn:</div>
+              <div style="white-space: pre-wrap">{{ q.text || '(Không có câu trả lời)' }}</div>
+            </div>
+          }
+          @if (q.feedback) {
+            <div
+              style="
+                background: #eff6ff;
+                border-left: 3px solid #3b82f6;
+                padding: 8px 10px;
+                border-radius: 4px;
+              "
+            >
+              <div style="font-size: 12px; color: #1d4ed8; font-weight: 600">
+                Nhận xét của Mentor:
+              </div>
+              <div style="white-space: pre-wrap">{{ q.feedback }}</div>
+            </div>
+          }
+        </div>
+      }
     } @else if (quizResults(); as data) {
       <p class="muted">
         Điểm đạt từ {{ data.pass_score }}, đã làm {{ data.attempts_used }}/{{ data.max_attempts }}
@@ -494,6 +581,7 @@
             <th>Nộp bài</th>
             <th>Điểm</th>
             <th>Kết quả</th>
+            <th>Chi tiết</th>
           </tr>
         </thead>
         <tbody>
@@ -512,10 +600,24 @@
               <td data-label="Kết quả">
                 @if (item.status === 'IN_PROGRESS') {
                   <nz-tag nzColor="processing">Đang làm</nz-tag>
+                } @else if (item.grading_status === 'PENDING_GRADING') {
+                  <nz-tag nzColor="orange">Chờ chấm</nz-tag>
                 } @else if (item.passed) {
                   <nz-tag nzColor="success">Đạt</nz-tag>
                 } @else {
                   <nz-tag nzColor="error">Chưa đạt</nz-tag>
+                }
+              </td>
+              <td data-label="Chi tiết">
+                @if (item.status === 'SUBMITTED') {
+                  <button
+                    nz-button
+                    nzType="link"
+                    nzSize="small"
+                    (click)="viewAttemptDetail(item.attempt_id)"
+                  >
+                    Xem nhận xét
+                  </button>
                 }
               </td>
             </tr>

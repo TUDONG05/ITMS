@@ -19,7 +19,10 @@ from app.schemas.mentor import (
     MentorInternDetailSchema,
     MentorInternListItem,
     MentorOverviewMetricsSchema,
+    PendingQuizGradingItemSchema,
     QuizAttemptDetailSchema,
+    QuizAttemptGradeRequest,
+    QuizAttemptGradingDetailSchema,
 )
 from app.services.internship import InternshipService
 from app.services.mentor import MentorService
@@ -102,6 +105,43 @@ def get_intern_quizzes(
         )
     MentorService._assert_mentor_access(current_user, member)
     return MentorService.get_intern_quizzes(db, member=member)
+
+
+@router.get("/quiz-attempts/pending", response_model=list[PendingQuizGradingItemSchema])
+def get_pending_quiz_attempts(
+    member_id: uuid.UUID | None = Query(None, description="Filter by internship member ID"),
+    current_user: User = Depends(require_roles([UserRole.MENTOR, UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> list[PendingQuizGradingItemSchema]:
+    """List submitted quiz attempts awaiting manual essay grading."""
+    return MentorService.get_pending_quiz_attempts(
+        db, current_user=current_user, member_id=member_id
+    )
+
+
+@router.get("/quiz-attempts/{attempt_id}", response_model=QuizAttemptGradingDetailSchema)
+def get_quiz_attempt_detail(
+    attempt_id: uuid.UUID,
+    current_user: User = Depends(require_roles([UserRole.MENTOR, UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> QuizAttemptGradingDetailSchema:
+    """Retrieve detailed answers of a quiz attempt for mentor review and essay grading."""
+    return MentorService.get_quiz_attempt_detail(
+        db, attempt_id=attempt_id, current_user=current_user
+    )
+
+
+@router.post("/quiz-attempts/{attempt_id}/grade", response_model=QuizAttemptGradingDetailSchema)
+def grade_quiz_attempt(
+    attempt_id: uuid.UUID,
+    payload: QuizAttemptGradeRequest,
+    current_user: User = Depends(require_roles([UserRole.MENTOR, UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> QuizAttemptGradingDetailSchema:
+    """Grade essay questions in a submitted quiz attempt and recalculate total score."""
+    return MentorService.grade_quiz_attempt(
+        db, attempt_id=attempt_id, payload=payload, current_user=current_user
+    )
 
 
 @router.post("/assignments", response_model=MentorAssignmentHistoryItem)

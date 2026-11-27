@@ -1254,13 +1254,13 @@
             </nz-form-item>
             <nz-form-item class="form-col">
               <nz-form-label nzRequired>Số lần thử tối đa</nz-form-label>
-              <nz-form-control nzErrorTip="Nhập số lần thử (≥ 1)">
+              <nz-form-control nzExtra="Mỗi bài kiểm tra chỉ cho làm 1 lần">
                 <input
                   nz-input
                   type="number"
                   formControlName="max_attempts"
-                  placeholder="3"
-                  min="1"
+                  placeholder="1"
+                  [readonly]="true"
                 />
               </nz-form-control>
             </nz-form-item>
