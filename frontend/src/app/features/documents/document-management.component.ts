@@ -8,7 +8,6 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
@@ -32,7 +31,7 @@ import {
 } from 'rxjs';
 
 import { DocumentsService, LibraryDocument } from '../../core/api/documents.service';
-import { DocxPreviewComponent } from './docx-preview.component';
+import { DocumentPreviewComponent, safeDocumentUrl } from './document-preview.component';
 import {
   INTERNSHIP_POSITIONS,
   InternshipPosition,
@@ -40,31 +39,6 @@ import {
 } from '../../core/api/internship.service';
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
-
-function safeDocumentUrl(value: string): string | null {
-  const url = value.trim();
-  if (!url || /\s/.test(url) || url.includes('\\')) return null;
-  try {
-    let decoded = url;
-    for (let count = 0; count < 3; count++) decoded = decodeURIComponent(decoded);
-    if (
-      decoded.includes('\\') ||
-      Array.from(decoded).some((char) => char.charCodeAt(0) < 32) ||
-      /(?:^|\/)\.{1,2}(?:\/|$)/.test(decoded)
-    )
-      return null;
-    if (/^\/api\/v1\/uploads\/training\/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9]+)*$/.test(url)) return url;
-    const parsed = new URL(url);
-    return ['http:', 'https:'].includes(parsed.protocol) &&
-      parsed.hostname &&
-      !parsed.username &&
-      !parsed.password
-      ? url
-      : null;
-  } catch {
-    return null;
-  }
-}
 
 function errorMessage(error: unknown, fallback: string): string {
   const body = (error as { error?: { error?: { message?: unknown }; detail?: unknown } })?.error;
@@ -77,7 +51,7 @@ function errorMessage(error: unknown, fallback: string): string {
   selector: 'app-document-management',
   standalone: true,
   imports: [
-    DocxPreviewComponent,
+    DocumentPreviewComponent,
     DatePipe,
     DecimalPipe,
     FormsModule,
@@ -253,61 +227,7 @@ function errorMessage(error: unknown, fallback: string): string {
       </nz-card>
     </div>
 
-    @if (previewDocument(); as document) {
-      <nz-modal
-        [nzVisible]="true"
-        [nzTitle]="document.title"
-        (nzOnCancel)="closePreview()"
-        [nzFooter]="previewFooter"
-        nzWidth="min(1100px, calc(100vw - 24px))"
-      >
-        <ng-container *nzModalContent>
-          @switch (previewKind()) {
-            @case ('docx') {
-              <app-docx-preview [url]="document.url" />
-            }
-            @case ('image') {
-              <img class="document-preview-image" [src]="document.url" [alt]="document.title" />
-            }
-            @case ('video') {
-              <video
-                class="document-preview-media"
-                [src]="document.url"
-                controls
-                preload="metadata"
-              ></video>
-            }
-            @case ('audio') {
-              <audio
-                class="document-preview-media"
-                [src]="document.url"
-                controls
-                preload="metadata"
-              ></audio>
-            }
-            @case ('frame') {
-              <iframe
-                class="document-preview-frame"
-                [src]="previewUrl()"
-                [title]="document.title"
-                referrerpolicy="no-referrer"
-              ></iframe>
-            }
-            @default {
-              <nz-empty
-                nzNotFoundContent="Định dạng này chưa hỗ trợ xem trước. Vui lòng tải file để xem nội dung."
-              />
-            }
-          }
-        </ng-container>
-        <ng-template #previewFooter>
-          <a nz-button [href]="document.url" target="_blank" rel="noopener noreferrer"
-            >Mở file gốc</a
-          >
-          <button nz-button type="button" (click)="closePreview()">Đóng</button>
-        </ng-template>
-      </nz-modal>
-    }
+    <app-document-preview [document]="previewDocument()" (closed)="closePreview()" />
     @if (editorOpen()) {
       <nz-modal
         [nzVisible]="editorOpen()"
@@ -533,22 +453,6 @@ function errorMessage(error: unknown, fallback: string): string {
         opacity: 0.65;
         cursor: default;
       }
-      .document-preview-frame {
-        width: 100%;
-        height: 70vh;
-        border: 0;
-      }
-      .document-preview-image {
-        display: block;
-        max-width: 100%;
-        max-height: 70vh;
-        margin: auto;
-        object-fit: contain;
-      }
-      .document-preview-media {
-        width: 100%;
-        max-height: 70vh;
-      }
       @media (max-width: 767px) {
         .search-control,
         .filter-control {
@@ -599,39 +503,14 @@ function errorMessage(error: unknown, fallback: string): string {
   ],
 })
 export class DocumentManagementComponent implements OnInit {
-  private readonly sanitizer = inject(DomSanitizer);
   protected readonly previewDocument = signal<LibraryDocument | null>(null);
-  protected readonly previewKind = signal('unsupported');
-  protected readonly previewUrl = signal<SafeResourceUrl | null>(null);
 
   protected openPreview(document: LibraryDocument): void {
-    const url = safeDocumentUrl(document.url);
-    if (!url) return;
-    const format = document.format.toLowerCase();
-    let kind = 'unsupported';
-    let frameUrl = url;
-    if (format === 'docx') kind = 'docx';
-    else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(format)) kind = 'image';
-    else if (['mp4', 'webm'].includes(format)) kind = 'video';
-    else if (['mp3', 'wav'].includes(format)) kind = 'audio';
-    else if (['pdf', 'txt', 'md', 'csv'].includes(format)) kind = 'frame';
-    else if (
-      ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(format) &&
-      url.startsWith('https://')
-    ) {
-      kind = 'frame';
-      frameUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
-    }
-    this.previewKind.set(kind);
-    this.previewUrl.set(
-      kind === 'frame' ? this.sanitizer.bypassSecurityTrustResourceUrl(frameUrl) : null,
-    );
-    this.previewDocument.set({ ...document, url });
+    if (safeDocumentUrl(document.url)) this.previewDocument.set(document);
   }
 
   protected closePreview(): void {
     this.previewDocument.set(null);
-    this.previewUrl.set(null);
   }
   private readonly documentsService = inject(DocumentsService);
   private readonly destroyRef = inject(DestroyRef);
