@@ -3,10 +3,14 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  DestroyRef,
   OnInit,
   inject,
   signal,
+  computed,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { forkJoin, Subscription, catchError, of, tap } from 'rxjs';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -18,6 +22,7 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
+import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzTabsModule } from 'ng-zorro-antd/tabs';
 import { NzTagModule } from 'ng-zorro-antd/tag';
@@ -26,6 +31,9 @@ import {
   Internship,
   InternshipApplication,
   InternshipService,
+  InternshipPosition,
+  INTERNSHIP_POSITIONS,
+  internshipPositionLabel,
 } from '../../core/api/internship.service';
 
 @Component({
@@ -44,6 +52,7 @@ import {
     NzInputModule,
     NzModalModule,
     NzSpinModule,
+    NzSelectModule,
     NzTableModule,
     NzTabsModule,
     NzTagModule,
@@ -64,6 +73,18 @@ import {
         <nz-tabs [(nzSelectedIndex)]="selectedTabIndex">
           <!-- TAB 1: CÁC ĐỢT THỰC TẬP ĐANG MỞ -->
           <nz-tab nzTitle="Đợt thực tập đang mở">
+            @if (eligibilityError()) {
+              <div class="registration-notice" role="alert">
+                <p>Không thể kiểm tra điều kiện đăng ký. Vui lòng thử lại.</p>
+                <button nz-button type="button" (click)="loadMyApps()">Thử lại</button>
+              </div>
+            } @else if (eligibilityLoading()) {
+              <p class="registration-notice" role="status">Đang kiểm tra điều kiện đăng ký…</p>
+            } @else if (registrationBlocked()) {
+              <p class="registration-notice" role="status">
+                Bạn đã đăng ký hoặc tham gia một đợt thực tập nên không thể đăng ký đợt khác.
+              </p>
+            }
             <nz-spin [nzSpinning]="isLoadingOpen()">
               @if (openInternships().length > 0) {
                 <div class="batches-grid">
@@ -97,6 +118,7 @@ import {
                             nzType="primary"
                             (click)="openApplyModal(batch)"
                             class="btn-apply"
+                            [disabled]="!canRegister()"
                           >
                             <span nz-icon nzType="form"></span> Đăng ký tham gia
                           </button>
@@ -129,6 +151,7 @@ import {
                   <thead>
                     <tr>
                       <th>Đợt thực tập</th>
+                      <th>Vị trí thực tập</th>
                       <th>Lý do / Nguyện vọng</th>
                       <th>Ngày nộp</th>
                       <th>Trạng thái</th>
@@ -141,6 +164,7 @@ import {
                         <td class="font-medium text-slate-800">
                           {{ app.internship_name || 'Đợt thực tập' }}
                         </td>
+                        <td>{{ positionLabel(app.position) }}</td>
                         <td class="max-w-xs text-slate-600">{{ app.reason || '—' }}</td>
                         <td>{{ app.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
                         <td>
@@ -193,6 +217,10 @@ import {
                         </div>
                         <div class="mobile-app-body">
                           <div class="mobile-app-row">
+                            <span class="row-label">Vị trí thực tập:</span>
+                            <span class="row-val">{{ positionLabel(app.position) }}</span>
+                          </div>
+                          <div class="mobile-app-row">
                             <span class="row-label">Ngày nộp:</span>
                             <span class="row-val">{{
                               app.created_at | date: 'dd/MM/yyyy HH:mm'
@@ -238,12 +266,27 @@ import {
         (nzOnCancel)="closeApplyModal()"
         (nzOnOk)="submitApplication()"
         [nzOkLoading]="isSubmitting()"
+        [nzOkDisabled]="applyForm.invalid || !canRegister()"
         nzOkText="Gửi đơn đăng ký"
         nzCancelText="Hủy"
         [nzWidth]="'min(540px, calc(100vw - 24px))'"
       >
         <ng-container *nzModalContent>
           <form [formGroup]="applyForm" nz-form nzLayout="vertical">
+            <nz-form-item>
+              <nz-form-label nzRequired nzFor="application-position">Vị trí thực tập</nz-form-label>
+              <nz-form-control nzErrorTip="Vui lòng chọn vị trí thực tập.">
+                <nz-select
+                  nzId="application-position"
+                  formControlName="position"
+                  nzPlaceHolder="Chọn vị trí thực tập"
+                >
+                  @for (position of positionOptions; track position.value) {
+                    <nz-option [nzValue]="position.value" [nzLabel]="position.label" />
+                  }
+                </nz-select>
+              </nz-form-control>
+            </nz-form-item>
             <nz-form-item>
               <nz-form-label>Lý do & Nguyện vọng tham gia (Không bắt buộc)</nz-form-label>
               <nz-form-control>
@@ -262,6 +305,16 @@ import {
   `,
   styles: [
     `
+      .registration-notice {
+        padding: 12px 16px;
+        margin-bottom: 16px;
+        background: #f0f5ff;
+        color: #262626;
+        border-radius: 8px;
+      }
+      .registration-notice p {
+        margin: 0 0 8px;
+      }
       .intern-apply-page {
         padding: 0 0 24px 0;
       }
@@ -455,10 +508,31 @@ import {
   ],
 })
 export class InternApplyComponent implements OnInit {
+  protected readonly positionOptions = INTERNSHIP_POSITIONS;
+  protected readonly positionLabel = internshipPositionLabel;
   private readonly internshipService = inject(InternshipService);
   private readonly message = inject(NzMessageService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+  private eligibilityRequest?: Subscription;
+  protected readonly eligibilityLoading = signal(true);
+  protected readonly eligibilityError = signal(false);
+  private readonly hasMembership = signal(false);
+  private readonly applicationSubmitted = signal(false);
+  protected readonly registrationBlocked = computed(
+    () =>
+      this.hasMembership() ||
+      this.applicationSubmitted() ||
+      this.myApplications().some((app) => app.status === 'PENDING' || app.status === 'APPROVED'),
+  );
+  protected readonly canRegister = computed(
+    () =>
+      !this.eligibilityLoading() &&
+      !this.eligibilityError() &&
+      !this.registrationBlocked() &&
+      !this.isSubmitting(),
+  );
 
   protected selectedTabIndex = 0;
   protected openInternships = signal<Internship[]>([]);
@@ -470,6 +544,7 @@ export class InternApplyComponent implements OnInit {
   protected selectedBatch = signal<Internship | null>(null);
 
   protected applyForm = this.fb.group({
+    position: [null as InternshipPosition | null, [Validators.required]],
     reason: ['', [Validators.maxLength(2000)]],
   });
 
@@ -499,19 +574,40 @@ export class InternApplyComponent implements OnInit {
   }
 
   loadMyApps(): void {
+    this.eligibilityRequest?.unsubscribe();
+    this.eligibilityLoading.set(true);
+    this.eligibilityError.set(false);
     this.isLoadingMyApps.set(true);
-    this.internshipService.getMyApplications().subscribe({
-      next: (apps) => {
-        this.myApplications.set(apps);
-        this.isLoadingMyApps.set(false);
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.isLoadingMyApps.set(false);
-        this.message.error('Không thể tải danh sách đơn đăng ký của bạn.');
-        this.cdr.markForCheck();
-      },
-    });
+    this.eligibilityRequest = forkJoin({
+      apps: this.internshipService.getMyApplications().pipe(
+        tap((apps) => {
+          this.myApplications.set(apps);
+          this.isLoadingMyApps.set(false);
+          this.cdr.markForCheck();
+        }),
+        catchError(() => of(null)),
+      ),
+      memberships: this.internshipService.getMyMemberships().pipe(catchError(() => of(null))),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ apps, memberships }) => {
+          if (apps !== null) this.myApplications.set(apps);
+          if (memberships !== null) this.hasMembership.set(memberships.length > 0);
+          this.eligibilityError.set(apps === null || memberships === null);
+          if (apps !== null && memberships !== null) this.applicationSubmitted.set(false);
+          this.eligibilityLoading.set(false);
+          this.isLoadingMyApps.set(false);
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.eligibilityLoading.set(false);
+          this.eligibilityError.set(true);
+          this.isLoadingMyApps.set(false);
+          this.message.error('Không thể tải danh sách đơn đăng ký của bạn.');
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   isApplied(batchId: string): boolean {
@@ -521,6 +617,7 @@ export class InternApplyComponent implements OnInit {
   }
 
   openApplyModal(batch: Internship): void {
+    if (!this.canRegister()) return;
     this.selectedBatch.set(batch);
     this.applyForm.reset();
     this.isModalVisible = true;
@@ -532,6 +629,7 @@ export class InternApplyComponent implements OnInit {
   }
 
   submitApplication(): void {
+    if (!this.canRegister()) return;
     if (this.applyForm.invalid) {
       this.applyForm.markAllAsTouched();
       return;
@@ -541,10 +639,13 @@ export class InternApplyComponent implements OnInit {
     if (!batch) return;
 
     const reason = this.applyForm.value.reason?.trim() || null;
+    const position = this.applyForm.value.position;
+    if (!position) return;
     this.isSubmitting.set(true);
 
-    this.internshipService.applyInternship(batch.id, { reason }).subscribe({
+    this.internshipService.applyInternship(batch.id, { position, reason }).subscribe({
       next: () => {
+        this.applicationSubmitted.set(true);
         this.isSubmitting.set(false);
         this.message.success('Đã gửi đơn đăng ký thành công! Vui lòng chờ Admin phê duyệt.');
         this.closeApplyModal();

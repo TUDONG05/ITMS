@@ -726,9 +726,18 @@ def test_filter_tasks_by_internship(client, task_test_data):
     member_a = task_test_data["member_a"]
     internship_id = member_a.internship_id
 
-    # Đợt khác + member khác (cùng mentor/intern để đơn giản)
+    # A second cohort uses a different intern: each intern belongs to one cohort.
     factory = get_session_factory()
     session = factory()
+    other_intern = User(
+        email=f"task_filter_{uuid.uuid4().hex}@example.com",
+        password_hash="h",
+        full_name="Other cohort intern",
+        role=UserRole.INTERN,
+        status=UserStatus.ACTIVE,
+    )
+    session.add(other_intern)
+    session.flush()
     other_period = Internship(
         name=f"TOther {uuid.uuid4().hex[:6]}",
         start_date=date(2026, 9, 1),
@@ -740,7 +749,7 @@ def test_filter_tasks_by_internship(client, task_test_data):
     session.commit()
     other_member = InternshipMember(
         internship_id=other_period.id,
-        intern_id=intern_a.id,
+        intern_id=other_intern.id,
         mentor_id=mentor_a.id,
         status=InternshipMemberStatus.ACTIVE,
     )
@@ -748,6 +757,7 @@ def test_filter_tasks_by_internship(client, task_test_data):
     session.commit()
     other_member_id = str(other_member.id)
     other_period_id = str(other_period.id)
+    other_intern_id = str(other_intern.id)
     session.close()
 
     t1 = _create_task(client, mentor_a, member_a.id, title="Task dot A")
@@ -763,15 +773,29 @@ def test_filter_tasks_by_internship(client, task_test_data):
     assert t1["id"] in ids
     assert t2["id"] not in ids
 
-    # Intern lọc theo đợt B
+    # The assigned intern sees tasks from their own cohort only.
     resp2 = client.get(
         f"/api/v1/tasks?internship_id={other_period_id}",
-        headers={"X-User-Id": str(intern_a.id)},
+        headers={"X-User-Id": other_intern_id},
     )
     assert resp2.status_code == 200
     ids2 = [t["id"] for t in resp2.json()]
     assert t2["id"] in ids2
     assert t1["id"] not in ids2
+
+    outside_cohort = client.get(
+        f"/api/v1/tasks?internship_id={other_period_id}",
+        headers={"X-User-Id": str(intern_a.id)},
+    )
+    assert outside_cohort.status_code == 200
+    assert outside_cohort.json() == []
+
+    mentor_other_cohort = client.get(
+        f"/api/v1/tasks?internship_id={other_period_id}",
+        headers={"X-User-Id": str(mentor_a.id)},
+    )
+    assert mentor_other_cohort.status_code == 200
+    assert [task["id"] for task in mentor_other_cohort.json()] == [t2["id"]]
 
 
 def test_task_search_by_intern_name_preserves_mentor_scope(client, task_test_data):

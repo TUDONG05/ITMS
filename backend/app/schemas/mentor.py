@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from pydantic import Field
 
+from app.models.enums import InternshipPosition
 from app.schemas.base import BaseSchema
 
 
@@ -83,6 +84,7 @@ class MentorAssignmentHistoryItem(BaseSchema):
 
 
 class MentorInternListItem(BaseSchema):
+    position: InternshipPosition | None = None
     id: uuid.UUID
     intern_id: uuid.UUID
     intern_name: str
@@ -105,6 +107,7 @@ class MentorInternListItem(BaseSchema):
 
 
 class MentorInternDetailSchema(BaseSchema):
+    position: InternshipPosition | None = None
     id: uuid.UUID
     intern: InternProfileSchema
     internship: InternshipBriefSchema

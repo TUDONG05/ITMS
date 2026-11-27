@@ -1081,6 +1081,7 @@ export class DashboardShellComponent implements OnInit, OnDestroy {
   }
 
   private normalizeSection(role: Role, section: string): string {
+    if (section === 'my-internships') return 'overview';
     if (section === 'settings') return 'overview';
     if (role === Role.Mentor && section === 'internship-status') return 'interns';
 

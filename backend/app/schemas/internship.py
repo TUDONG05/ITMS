@@ -2,9 +2,15 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
-from app.models.enums import InternshipMemberStatus, InternshipStatus, RequestType, UserRole
+from app.models.enums import (
+    InternshipMemberStatus,
+    InternshipPosition,
+    InternshipStatus,
+    RequestType,
+    UserRole,
+)
 from app.schemas.base import BaseSchema
 
 
@@ -68,6 +74,7 @@ class UserSummary(BaseSchema):
 
 
 class InternshipMemberBase(BaseSchema):
+    position: InternshipPosition | None = None
     internship_id: uuid.UUID
     intern_id: uuid.UUID
     mentor_id: uuid.UUID | None = None
@@ -117,11 +124,24 @@ class InternshipMemberDetailRead(InternshipMemberRead):
     mentor: UserSummary | None = None
 
 
+class MembershipInternshipRead(InternshipBase):
+    id: uuid.UUID
+    created_by: uuid.UUID | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MyInternshipMembershipRead(InternshipMemberRead):
+    internship: MembershipInternshipRead
+    mentor: UserSummary | None = None
+
+
 class MentorAssignRequest(BaseSchema):
     mentor_id: uuid.UUID | None = None
 
 
 class InternshipMemberUpdate(BaseSchema):
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
     mentor_id: uuid.UUID | None = None
     roadmap_id: uuid.UUID | None = None
     start_date: date | None = None
@@ -202,6 +222,7 @@ class InternshipRequestRead(BaseSchema):
 
 
 class InternshipApplicationCreate(BaseSchema):
+    position: InternshipPosition
     reason: str | None = Field(
         None, max_length=2000, description="Lý do / nguyện vọng đăng ký thực tập (tùy chọn)"
     )
@@ -215,6 +236,7 @@ class InternshipApplicationReview(BaseSchema):
 
 
 class InternshipApplicationRead(BaseSchema):
+    position: InternshipPosition | None = None
     id: uuid.UUID
     internship_id: uuid.UUID
     intern_id: uuid.UUID

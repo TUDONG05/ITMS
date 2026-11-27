@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { InternshipPosition } from './internship.service';
 
 export interface InternProfile {
   id: string;
@@ -79,6 +80,7 @@ export interface MentorAssignmentHistoryItem {
 }
 
 export interface MentorInternListItem {
+  position?: InternshipPosition | null;
   id: string;
   intern_id: string;
   intern_name: string;
@@ -101,6 +103,7 @@ export interface MentorInternListItem {
 }
 
 export interface MentorInternDetail {
+  position?: InternshipPosition | null;
   id: string;
   intern: InternProfile;
   internship: InternshipBrief;

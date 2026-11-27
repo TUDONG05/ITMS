@@ -7,6 +7,22 @@ export type MemberStatus = 'ACTIVE' | 'EXTENDED' | 'STOPPED' | 'COMPLETED';
 export type RequestType = 'EXTEND' | 'STOP' | 'COMPLETE';
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type ApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type InternshipPosition = 'BACKEND' | 'FRONTEND' | 'FULLSTACK' | 'AI' | 'BA' | 'OTHER';
+
+export const INTERNSHIP_POSITIONS: readonly { value: InternshipPosition; label: string }[] = [
+  { value: 'BACKEND', label: 'Backend Developer' },
+  { value: 'FRONTEND', label: 'Frontend Developer' },
+  { value: 'FULLSTACK', label: 'Fullstack Developer' },
+  { value: 'AI', label: 'AI Engineer' },
+  { value: 'BA', label: 'Business Analyst (BA)' },
+  { value: 'OTHER', label: 'Khác' },
+];
+
+export function internshipPositionLabel(position?: InternshipPosition | null): string {
+  return (
+    INTERNSHIP_POSITIONS.find((option) => option.value === position)?.label ?? 'Chưa có thông tin'
+  );
+}
 
 export interface UserSummary {
   id: string;
@@ -31,6 +47,7 @@ export interface Internship {
 }
 
 export interface InternshipMember {
+  position?: InternshipPosition | null;
   id: string;
   internship_id: string;
   intern_id: string;
@@ -43,6 +60,10 @@ export interface InternshipMember {
   updated_at: string;
   intern?: UserSummary | null;
   mentor?: UserSummary | null;
+}
+
+export interface MyInternshipMembership extends InternshipMember {
+  internship: Internship;
 }
 
 export interface InternshipRequest {
@@ -60,6 +81,7 @@ export interface InternshipRequest {
 }
 
 export interface InternshipApplication {
+  position?: InternshipPosition | null;
   id: string;
   internship_id: string;
   intern_id: string;
@@ -94,6 +116,7 @@ export interface UpdateInternshipPayload {
 }
 
 export interface CreateApplicationPayload {
+  position: InternshipPosition;
   reason?: string | null;
 }
 
@@ -137,6 +160,10 @@ export interface BatchResult {
 @Injectable({ providedIn: 'root' })
 export class InternshipService {
   private readonly http = inject(HttpClient);
+
+  getMyMemberships(): Observable<MyInternshipMembership[]> {
+    return this.http.get<MyInternshipMembership[]>('/api/v1/internships/my-memberships');
+  }
 
   getInternships(
     skip = 0,

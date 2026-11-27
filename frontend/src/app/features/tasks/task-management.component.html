@@ -36,14 +36,6 @@
           <nz-option [nzValue]="p.id" [nzLabel]="p.name"></nz-option>
         }
       </nz-select>
-      <div class="overdue-check">
-        <input
-          type="checkbox"
-          [ngModel]="overdueOnly()"
-          (ngModelChange)="overdueOnly.set($event); loadTasks()"
-        />
-        Quá hạn
-      </div>
     </div>
     @if (isMentorSide()) {
       <button nz-button nzType="primary" (click)="openCreate()">
@@ -67,12 +59,13 @@
       <thead>
         <tr>
           <th>Task</th>
-          <th>Intern được giao</th>
           <th>Đợt thực tập</th>
           <th>Hạn</th>
           <th>Ưu tiên</th>
           <th>Trạng thái</th>
-          <th class="actions-col">Thao tác</th>
+          @if (isMentorSide()) {
+            <th class="actions-col">Thao tác</th>
+          }
         </tr>
       </thead>
       <tbody>
@@ -85,26 +78,10 @@
               <small class="sub"
                 >Nộp: {{ t.submissions_count }} · Trao đổi: {{ t.comments_count }}</small
               >
-              <nz-tag>{{
-                t.assignment_mode === 'INDIVIDUAL' ? 'Làm độc lập' : 'Làm chung'
-              }}</nz-tag>
-            </td>
-            <td data-label="Intern được giao">
-              <div class="task-assignees">
-                @for (assignee of t.assignees; track assignee.internship_member_id) {
-                  <nz-tag>{{ assignee.intern_name }}</nz-tag>
-                }
-              </div>
             </td>
             <td data-label="Đợt thực tập">{{ t.internship_name ?? '-' }}</td>
             <td data-label="Hạn">
               {{ t.deadline ? (t.deadline | date: 'HH:mm dd/MM') : '-' }}
-              @if (t.is_overdue) {
-                <nz-tag nzColor="error">Quá hạn</nz-tag>
-              }
-              @if (t.is_late_submission) {
-                <nz-tag nzColor="warning">Nộp muộn</nz-tag>
-              }
             </td>
             <td data-label="Ưu tiên">{{ t.priority ?? '-' }}</td>
             <td data-label="Trạng thái">
@@ -112,22 +89,23 @@
                 statusLabel(taskStatus(t))
               }}</nz-tag>
             </td>
-            <td data-label="Thao tác" class="actions-col">
-              <button nz-button nzType="link" (click)="openDetail(t.id)">Xem</button>
-              @if (isMentorSide() && t.status !== 'COMPLETED' && t.status !== 'CANCELLED') {
-                <button nz-button nzType="link" (click)="openEdit(t)">Sửa</button>
-                <button
-                  nz-button
-                  nzType="link"
-                  nzDanger
-                  nz-popconfirm
-                  nzPopconfirmTitle="Hủy task này?"
-                  (nzOnConfirm)="cancelTask(t)"
-                >
-                  Hủy
-                </button>
-              }
-            </td>
+            @if (isMentorSide()) {
+              <td data-label="Thao tác" class="actions-col">
+                @if (isMentorSide() && t.status !== 'COMPLETED' && t.status !== 'CANCELLED') {
+                  <button nz-button nzType="link" (click)="openEdit(t)">Sửa</button>
+                  <button
+                    nz-button
+                    nzType="link"
+                    nzDanger
+                    nz-popconfirm
+                    nzPopconfirmTitle="Hủy task này?"
+                    (nzOnConfirm)="cancelTask(t)"
+                  >
+                    Hủy
+                  </button>
+                }
+              </td>
+            }
           </tr>
         }
       </tbody>
@@ -291,7 +269,6 @@
       <div class="loading"><nz-spin nzSimple></nz-spin></div>
     } @else if (detail(); as d) {
       <h3>{{ d.title }}</h3>
-      <nz-tag>{{ d.assignment_mode === 'INDIVIDUAL' ? 'Làm độc lập' : 'Làm chung' }}</nz-tag>
       <div class="task-assignees task-assignees--detail">
         <span class="field-label">Intern được giao:</span>
         @for (assignee of d.assignees; track assignee.internship_member_id) {

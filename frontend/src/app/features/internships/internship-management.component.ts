@@ -31,6 +31,7 @@ import {
   InternshipService,
   InternshipStatus,
   MemberStatus,
+  internshipPositionLabel,
   UpdateInternshipPayload,
   UpdateMemberPayload,
   UserSummary,
@@ -230,6 +231,7 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
               <tr>
                 <th>Thực tập sinh (Intern)</th>
                 <th>Email</th>
+                <th>Vị trí thực tập</th>
                 <th>Lộ trình đào tạo</th>
                 <th>Mentor phụ trách</th>
                 <th>Thời gian thực tập</th>
@@ -247,6 +249,9 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
                   </td>
                   <td data-label="Email">
                     <span class="cell-value email-cell">{{ member.intern?.email || '—' }}</span>
+                  </td>
+                  <td data-label="Vị trí thực tập">
+                    <span class="cell-value">{{ positionLabel(member.position) }}</span>
                   </td>
                   <td data-label="Lộ trình">
                     @if (member.roadmap_id) {
@@ -297,7 +302,7 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
               }
               @if (filteredMembers().length === 0 && !isMembersLoading()) {
                 <tr class="empty-row">
-                  <td colspan="7" class="empty-members">
+                  <td colspan="8" class="empty-members">
                     <p>
                       {{
                         memberSearchQuery()
@@ -442,6 +447,10 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
               </nz-form-control>
             </nz-form-item>
 
+            <nz-form-item>
+              <nz-form-label>Vị trí thực tập</nz-form-label>
+              <p>{{ positionLabel(selectedMemberForEdit()?.position) }}</p>
+            </nz-form-item>
             <nz-form-item>
               <nz-form-label>Mentor phụ trách</nz-form-label>
               <nz-form-control>
@@ -1217,6 +1226,7 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
   ],
 })
 export class InternshipManagementComponent implements OnInit {
+  protected readonly positionLabel = internshipPositionLabel;
   private readonly internshipService = inject(InternshipService);
   private readonly trainingService = inject(TrainingService);
   private readonly fb = inject(FormBuilder);
