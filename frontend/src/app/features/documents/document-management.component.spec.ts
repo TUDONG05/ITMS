@@ -290,6 +290,32 @@ describe('DocumentManagementComponent', () => {
     expect(uploadDocument).toHaveBeenCalledTimes(1);
     expect(component['editorOpen']()).toBe(true);
     pending.next(DOCUMENT);
+    pending.complete();
+    expect(component['editorOpen']()).toBe(false);
+  });
+
+  it('retries only unsaved files after a partial upload failure', () => {
+    const first = new File(['first'], 'first.pdf');
+    const second = new File(['second'], 'second.pdf');
+    uploadDocument
+      .mockReturnValueOnce(of(DOCUMENT))
+      .mockReturnValueOnce(throwError(() => new Error('Upload failed')));
+    component['openCreate']();
+    component['selectFile']({ target: { files: [first, second] } } as unknown as Event);
+    component['saveDocument']();
+    expect(component['editorOpen']()).toBe(true);
+    expect(component['selectedFiles']()).toEqual([second]);
+    expect(uploadDocument).toHaveBeenNthCalledWith(
+      1,
+      first,
+      expect.objectContaining({ title: 'first.pdf' }),
+    );
+    component['saveDocument']();
+    expect(uploadDocument).toHaveBeenCalledTimes(3);
+    expect(uploadDocument).toHaveBeenLastCalledWith(
+      second,
+      expect.objectContaining({ title: 'second.pdf' }),
+    );
     expect(component['editorOpen']()).toBe(false);
   });
 

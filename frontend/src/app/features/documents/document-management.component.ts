@@ -21,7 +21,15 @@ import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzTagModule } from 'ng-zorro-antd/tag';
-import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
+import {
+  Subject,
+  Subscription,
+  concatMap,
+  debounceTime,
+  distinctUntilChanged,
+  from,
+  tap,
+} from 'rxjs';
 
 import { DocumentsService, LibraryDocument } from '../../core/api/documents.service';
 import { DocxPreviewComponent } from './docx-preview.component';
@@ -333,11 +341,40 @@ function errorMessage(error: unknown, fallback: string): string {
                   #documentFile
                   id="library-document-file"
                   type="file"
-                  class="file-input"
+                  [multiple]="!editingDocument()"
+                  hidden
                   [disabled]="saving()"
                   (change)="selectFile($event)"
                 />
-                <p class="field-hint">Dung lượng tối đa 4 MB.</p>
+                <button
+                  type="button"
+                  class="document-drop-zone"
+                  [class.drag-over]="dragOver()"
+                  [disabled]="saving()"
+                  (click)="documentFile.click()"
+                  (dragover)="onDragOver($event)"
+                  (dragleave)="dragOver.set(false)"
+                  (drop)="onDrop($event, documentFile)"
+                >
+                  <strong>{{
+                    editingDocument() ? 'Kéo thả tệp mới vào đây' : 'Kéo thả tệp vào đây'
+                  }}</strong>
+                  <span>hoặc nhấp để chọn từ máy tính</span>
+                </button>
+                <p class="field-hint">Dung lượng tối đa 4 MB mỗi tệp.</p>
+                @if (selectedFiles().length === 1) {
+                  <p class="current-file">{{ selectedFile()?.name }}</p>
+                }
+                @if (selectedFiles().length > 1) {
+                  <ul>
+                    @for (file of selectedFiles(); track $index) {
+                      <li>{{ file.name }}</li>
+                    }
+                  </ul>
+                  <p class="field-hint">
+                    Tên tài liệu lấy theo tên tệp. Mô tả và vị trí áp dụng cho cả lượt.
+                  </p>
+                }
                 @if (editingDocument()) {
                   <p class="field-hint">Không chọn tệp mới nếu chỉ chỉnh sửa thông tin tài liệu.</p>
                 }
@@ -357,17 +394,21 @@ function errorMessage(error: unknown, fallback: string): string {
                 }
               </nz-form-control>
             </nz-form-item>
-            <nz-form-item>
-              <nz-form-label nzRequired nzFor="library-document-title">Tên tài liệu</nz-form-label>
-              <nz-form-control nzErrorTip="Nhập tên tài liệu (tối đa 255 ký tự).">
-                <input
-                  nz-input
-                  id="library-document-title"
-                  formControlName="title"
-                  maxlength="255"
-                />
-              </nz-form-control>
-            </nz-form-item>
+            @if (selectedFiles().length <= 1) {
+              <nz-form-item>
+                <nz-form-label nzRequired nzFor="library-document-title"
+                  >Tên tài liệu</nz-form-label
+                >
+                <nz-form-control nzErrorTip="Nhập tên tài liệu (tối đa 255 ký tự).">
+                  <input
+                    nz-input
+                    id="library-document-title"
+                    formControlName="title"
+                    maxlength="255"
+                  />
+                </nz-form-control>
+              </nz-form-item>
+            }
 
             <nz-form-item>
               <nz-form-label nzFor="library-document-description">Mô tả</nz-form-label>
@@ -469,6 +510,28 @@ function errorMessage(error: unknown, fallback: string): string {
       }
       .current-file {
         overflow-wrap: anywhere;
+      }
+      .document-drop-zone {
+        display: grid;
+        place-content: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 150px;
+        padding: 20px;
+        border: 1px dashed #91caff;
+        border-radius: 8px;
+        background: #f5faff;
+        color: #0958d9;
+        cursor: pointer;
+      }
+      .document-drop-zone:hover,
+      .document-drop-zone.drag-over {
+        border-color: #1677ff;
+        background: #e6f4ff;
+      }
+      .document-drop-zone:disabled {
+        opacity: 0.65;
+        cursor: default;
       }
       .document-preview-frame {
         width: 100%;
@@ -591,7 +654,11 @@ export class DocumentManagementComponent implements OnInit {
   protected formatFilter: string | null = null;
   protected readonly editorOpen = signal(false);
   protected readonly editingDocument = signal<LibraryDocument | null>(null);
-  protected readonly selectedFile = signal<File | null>(null);
+  protected readonly selectedFiles = signal<File[]>([]);
+  protected readonly dragOver = signal(false);
+  protected selectedFile(): File | null {
+    return this.selectedFiles()[0] ?? null;
+  }
   protected readonly fileError = signal<string | null>(null);
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
@@ -675,7 +742,7 @@ export class DocumentManagementComponent implements OnInit {
   protected openCreate(): void {
     this.editingDocument.set(null);
     this.form.reset({ title: '', description: '', positions: [] });
-    this.selectedFile.set(null);
+    this.selectedFiles.set([]);
     this.fileError.set(null);
     this.saveError.set(null);
     this.editorOpen.set(true);
@@ -688,7 +755,7 @@ export class DocumentManagementComponent implements OnInit {
       description: document.description ?? '',
       positions: [...document.positions],
     });
-    this.selectedFile.set(null);
+    this.selectedFiles.set([]);
     this.fileError.set(null);
     this.saveError.set(null);
     this.editorOpen.set(true);
@@ -696,24 +763,56 @@ export class DocumentManagementComponent implements OnInit {
 
   protected selectFile(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
-    this.selectedFile.set(null);
+    this.setFiles(Array.from(input.files ?? []));
+    input.value = '';
+  }
+
+  protected onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    if (!this.saving()) this.dragOver.set(true);
+  }
+
+  protected onDrop(event: DragEvent, input: HTMLInputElement): void {
+    event.preventDefault();
+    this.dragOver.set(false);
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (this.saving() || !files.length) return;
+    input.value = '';
+    this.setFiles(files);
+  }
+
+  private setFiles(files: File[]): void {
+    if (this.saving()) return;
+    const file = files[0];
+    this.selectedFiles.set([]);
     this.fileError.set(null);
     if (!file) return;
-    if (!file.size || file.size > MAX_FILE_BYTES) {
-      this.fileError.set(
-        !file.size ? 'Tệp tài liệu không được rỗng.' : 'Dung lượng tệp không được vượt quá 4 MB.',
-      );
-      input.value = '';
+    if (this.editingDocument() && files.length > 1) {
+      this.fileError.set('Chỉ chọn một tệp khi thay thế tài liệu.');
       return;
     }
-    this.selectedFile.set(file);
-    if (!this.form.controls.title.value.trim())
-      this.form.controls.title.setValue(file.name.replace(/\.[^.]+$/, '').slice(0, 255));
+    const invalid = files.find((item) => !item.size || item.size > MAX_FILE_BYTES);
+    if (invalid) {
+      this.fileError.set(
+        !invalid.size
+          ? 'Tệp tài liệu không được rỗng.'
+          : 'Dung lượng tệp không được vượt quá 4 MB.',
+      );
+      return;
+    }
+    this.selectedFiles.set(files);
+    if (files.length > 1 || !this.form.controls.title.value.trim()) {
+      this.form.controls.title.setValue(
+        (files.length > 1 ? file.name : file.name.replace(/\.[^.]+$/, '') || file.name).slice(
+          0,
+          255,
+        ),
+      );
+    }
   }
 
   protected clearSelectedFile(input: HTMLInputElement): void {
-    this.selectedFile.set(null);
+    this.selectedFiles.set([]);
     this.fileError.set(null);
     input.value = '';
   }
@@ -740,15 +839,25 @@ export class DocumentManagementComponent implements OnInit {
       description: value.description.trim() || null,
       positions: value.positions ?? [],
     };
+    const files = this.selectedFiles();
     const request = editing
       ? file
         ? this.documentsService.replaceDocumentFile(editing.id, file, payload)
         : this.documentsService.updateDocument(editing.id, payload)
-      : this.documentsService.uploadDocument(file!, payload);
+      : from(files).pipe(
+          concatMap((item) =>
+            this.documentsService
+              .uploadDocument(item, {
+                ...payload,
+                title: files.length > 1 ? item.name.slice(0, 255) : payload.title,
+              })
+              .pipe(tap(() => this.selectedFiles.update((remaining) => remaining.slice(1)))),
+          ),
+        );
     this.saving.set(true);
     this.saveError.set(null);
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => {
+      complete: () => {
         this.saving.set(false);
         this.editorOpen.set(false);
         this.message.success(editing ? 'Đã cập nhật tài liệu.' : 'Đã thêm tài liệu.');
@@ -756,6 +865,16 @@ export class DocumentManagementComponent implements OnInit {
       },
       error: (error) => {
         this.saving.set(false);
+        if (files.length > 1) {
+          const remaining = this.selectedFiles();
+          if (remaining.length === 1)
+            this.form.controls.title.setValue(remaining[0].name.slice(0, 255));
+          if (remaining.length < files.length) this.loadDocuments(true);
+          this.saveError.set(
+            `Đã lưu ${files.length - remaining.length}/${files.length} tệp. ${remaining[0].name}: ${errorMessage(error, 'Tải lên thất bại.')}`,
+          );
+          return;
+        }
         this.saveError.set(errorMessage(error, 'Không thể lưu tài liệu. Vui lòng thử lại.'));
       },
     });
