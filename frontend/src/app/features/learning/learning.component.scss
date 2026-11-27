@@ -66,14 +66,21 @@
   }
 }
 
-.summary {
-  ::ng-deep .ant-card-body {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 24px;
-    flex-wrap: wrap;
-  }
+.summary__layout {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.summary__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.summary__layout > nz-progress {
+  flex: 0 0 auto;
 }
 
 .summary__count {
@@ -254,12 +261,10 @@
     width: 100%;
   }
 
-  .summary {
-    ::ng-deep .ant-card-body {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 16px;
-    }
+  .summary__layout {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
   }
 
   .row {

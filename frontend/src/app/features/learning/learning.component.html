@@ -170,21 +170,23 @@
     }
     @default {
       <nz-card class="learning-card summary" [nzBordered]="false">
-        <div class="summary__text">
-          <h2 class="title">{{ rm.name }}</h2>
-          @if (rm.description) {
-            <p class="muted">{{ rm.description }}</p>
-          }
-          <p class="summary__count">
-            Đã hoàn thành {{ rm.completed_contents }} trên {{ rm.total_contents }} nội dung
-          </p>
+        <div class="summary__layout">
+          <div class="summary__text">
+            <h2 class="title">{{ rm.name }}</h2>
+            @if (rm.description) {
+              <p class="muted">{{ rm.description }}</p>
+            }
+            <p class="summary__count">
+              Đã hoàn thành {{ rm.completed_contents }} trên {{ rm.total_contents }} nội dung
+            </p>
+          </div>
+          <nz-progress
+            nzType="circle"
+            [nzPercent]="rm.progress_percent"
+            [nzWidth]="92"
+            nzStrokeColor="#52c41a"
+          ></nz-progress>
         </div>
-        <nz-progress
-          nzType="circle"
-          [nzPercent]="rm.progress_percent"
-          [nzWidth]="92"
-          nzStrokeColor="#52c41a"
-        ></nz-progress>
       </nz-card>
 
       @for (phase of rm.phases; track phase.id) {

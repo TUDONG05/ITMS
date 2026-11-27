@@ -127,7 +127,7 @@ def test_intern_apply_to_open_internship_success(
     apply_resp = client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern.id)},
-        json={"reason": "Em mong muốn được học hỏi và cống hiến cho dự án."},
+        json={"position": "BACKEND", "reason": "Em mong muốn được học hỏi và cống hiến cho dự án."},
     )
     assert apply_resp.status_code == 201
     data = apply_resp.json()
@@ -159,7 +159,7 @@ def test_intern_cannot_apply_to_draft_or_closed_internship(
     apply_resp = client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern.id)},
-        json={"reason": "Xin gia nhập đợt draft"},
+        json={"position": "BACKEND", "reason": "Xin gia nhập đợt draft"},
     )
     assert apply_resp.status_code == 400
     assert "OPEN" in apply_resp.json()["detail"]
@@ -185,7 +185,7 @@ def test_intern_cannot_apply_duplicate(client: TestClient, test_data: dict[str, 
     resp1 = client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern.id)},
-        json={"reason": "Lần 1"},
+        json={"position": "BACKEND", "reason": "Lần 1"},
     )
     assert resp1.status_code == 201
 
@@ -193,7 +193,7 @@ def test_intern_cannot_apply_duplicate(client: TestClient, test_data: dict[str, 
     resp2 = client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern.id)},
-        json={"reason": "Lần 2 trùng"},
+        json={"position": "BACKEND", "reason": "Lần 2 trùng"},
     )
     assert resp2.status_code == 409
     assert "chờ duyệt" in resp2.json()["detail"]
@@ -232,7 +232,7 @@ def test_intern_cannot_apply_if_already_member(
     apply_resp = client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern.id)},
-        json={"reason": "Xin gia nhập lại"},
+        json={"position": "BACKEND", "reason": "Xin gia nhập lại"},
     )
     assert apply_resp.status_code == 409
     assert "thành viên" in apply_resp.json()["detail"]
@@ -261,14 +261,14 @@ def test_intern_view_own_applications_isolation(
     client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern.id)},
-        json={"reason": "Đơn của Intern 1"},
+        json={"position": "BACKEND", "reason": "Đơn của Intern 1"},
     )
 
     # Intern 2 nộp đơn
     client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern_2.id)},
-        json={"reason": "Đơn của Intern 2"},
+        json={"position": "BACKEND", "reason": "Đơn của Intern 2"},
     )
 
     # Intern 1 xem danh sách đơn của mình
@@ -321,7 +321,7 @@ def test_admin_approve_application_adds_member_and_inherits_roadmap(
     apply_resp = client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern.id)},
-        json={"reason": "Mong muốn tham gia thực tập backend."},
+        json={"position": "BACKEND", "reason": "Mong muốn tham gia thực tập backend."},
     )
     app_id = apply_resp.json()["id"]
 
@@ -371,7 +371,7 @@ def test_admin_reject_application_does_not_add_member(
     apply_resp = client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern.id)},
-        json={"reason": "Nộp đơn"},
+        json={"position": "BACKEND", "reason": "Nộp đơn"},
     )
     app_id = apply_resp.json()["id"]
 
@@ -416,7 +416,7 @@ def test_cannot_review_already_processed_application(
     apply_resp = client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern.id)},
-        json={"reason": "Test re-review"},
+        json={"position": "BACKEND", "reason": "Test re-review"},
     )
     app_id = apply_resp.json()["id"]
 
@@ -486,7 +486,7 @@ def test_intern_apply_without_reason_success(
     apply_resp = client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern.id)},
-        json={},
+        json={"position": "BACKEND"},
     )
     assert apply_resp.status_code == 201
     data = apply_resp.json()
@@ -517,10 +517,14 @@ def test_admin_batch_review_applications(client: TestClient, test_data: dict[str
 
     # 2 interns apply
     resp1 = client.post(
-        f"/api/v1/internships/{batch_id}/apply", headers={"X-User-Id": str(intern_1.id)}, json={}
+        f"/api/v1/internships/{batch_id}/apply",
+        headers={"X-User-Id": str(intern_1.id)},
+        json={"position": "BACKEND"},
     )
     resp2 = client.post(
-        f"/api/v1/internships/{batch_id}/apply", headers={"X-User-Id": str(intern_2.id)}, json={}
+        f"/api/v1/internships/{batch_id}/apply",
+        headers={"X-User-Id": str(intern_2.id)},
+        json={"position": "BACKEND"},
     )
     assert resp1.status_code == 201
     assert resp2.status_code == 201
@@ -565,7 +569,9 @@ def test_admin_approve_all_applications(client: TestClient, test_data: dict[str,
 
     # Intern apply
     client.post(
-        f"/api/v1/internships/{batch_id}/apply", headers={"X-User-Id": str(intern_1.id)}, json={}
+        f"/api/v1/internships/{batch_id}/apply",
+        headers={"X-User-Id": str(intern_1.id)},
+        json={"position": "BACKEND"},
     )
 
     # Admin approve all

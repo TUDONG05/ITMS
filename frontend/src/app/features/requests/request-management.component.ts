@@ -24,7 +24,11 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 
-import { InternshipApplication, InternshipService } from '../../core/api/internship.service';
+import {
+  InternshipApplication,
+  InternshipService,
+  internshipPositionLabel,
+} from '../../core/api/internship.service';
 
 @Component({
   selector: 'app-request-management',
@@ -176,6 +180,7 @@ import { InternshipApplication, InternshipService } from '../../core/api/interns
                 ></th>
                 <th nzWidth="220px">Thực tập sinh</th>
                 <th nzWidth="200px">Đợt thực tập</th>
+                <th>Vị trí thực tập</th>
                 <th>Lý do / Nguyện vọng</th>
                 <th nzWidth="150px">Thời gian nộp</th>
                 <th nzWidth="130px">Trạng thái</th>
@@ -199,6 +204,7 @@ import { InternshipApplication, InternshipService } from '../../core/api/interns
                   <td>
                     <span class="font-medium text-slate-800">{{ app.internship_name || '—' }}</span>
                   </td>
+                  <td>{{ positionLabel(app.position) }}</td>
                   <td class="reason-cell">
                     {{ app.reason || '—' }}
                   </td>
@@ -284,6 +290,7 @@ import { InternshipApplication, InternshipService } from '../../core/api/interns
                       <small>{{ app.intern_email }}</small>
                     </p>
                     <p><strong>Đợt:</strong> {{ app.internship_name || '—' }}</p>
+                    <p><strong>Vị trí thực tập:</strong> {{ positionLabel(app.position) }}</p>
                     @if (app.reason) {
                       <p class="reason-text"><strong>Lý do:</strong> {{ app.reason }}</p>
                     }
@@ -623,6 +630,7 @@ import { InternshipApplication, InternshipService } from '../../core/api/interns
   ],
 })
 export class RequestManagementComponent implements OnInit {
+  protected readonly positionLabel = internshipPositionLabel;
   private readonly internshipService = inject(InternshipService);
   private readonly fb = inject(FormBuilder);
   private readonly message = inject(NzMessageService);

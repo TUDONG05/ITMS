@@ -134,6 +134,7 @@ class MentorService:
                     mentor_id=member.mentor_id,
                     mentor_name=mentor_name,
                     status=member.status,
+                    position=member.position,
                     start_date=member.start_date,
                     end_date=member.end_date,
                     progress_percent=round(progress_percent, 2),
@@ -309,6 +310,7 @@ class MentorService:
             start_date=member.start_date,
             end_date=member.end_date,
             status=member.status,
+            position=member.position,
         )
 
     @classmethod

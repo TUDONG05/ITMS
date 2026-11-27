@@ -189,7 +189,7 @@ def test_member_inherits_internship_roadmap(client: TestClient, test_data: dict[
     apply_resp = client.post(
         f"/api/v1/internships/{batch_id}/apply",
         headers={"X-User-Id": str(intern.id)},
-        json={"reason": "Học lộ trình"},
+        json={"position": "BACKEND", "reason": "Học lộ trình"},
     )
     assert apply_resp.status_code == 201
     app_id = apply_resp.json()["id"]

@@ -22,6 +22,7 @@ from app.schemas.internship import (
     InternshipRequestRead,
     InternshipRequestReview,
     InternshipUpdate,
+    MyInternshipMembershipRead,
 )
 from app.services.internship import InternshipService
 
@@ -66,6 +67,15 @@ def list_open_internships(
     """Retrieve all open internship batches available for application."""
     open_batches = InternshipService.get_open_internships(db)
     return [InternshipRead.model_validate(item) for item in open_batches]
+
+
+@router.get("/my-memberships", response_model=list[MyInternshipMembershipRead])
+def list_my_memberships(
+    current_user: User = Depends(require_roles([UserRole.INTERN])),
+    db: Session = Depends(get_db),
+) -> list[MyInternshipMembershipRead]:
+    """List the authenticated intern's actual memberships, including history."""
+    return InternshipService.get_my_memberships(db, intern_id=current_user.id)
 
 
 @router.get("/my-applications", response_model=list[InternshipApplicationRead])

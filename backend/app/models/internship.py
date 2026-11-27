@@ -76,6 +76,11 @@ class Internship(Base):
 class InternshipMember(Base):
     __tablename__ = "thanh_vien_thuc_tap"
     __table_args__ = (
+        CheckConstraint(
+            "position IS NULL OR position IN ('BACKEND','FRONTEND','FULLSTACK','AI','BA','OTHER')",
+            name="ck_internship_members_position",
+        ),
+        UniqueConstraint("thuc_tap_sinh_id", name="uq_internship_members_single_intern"),
         UniqueConstraint(
             "dot_thuc_tap_id", "thuc_tap_sinh_id", name="uq_internship_members_intern"
         ),
@@ -118,6 +123,7 @@ class InternshipMember(Base):
         ForeignKey("lo_trinh_dao_tao.id", ondelete="SET NULL"),
         nullable=True,
     )
+    position: Mapped[str | None] = mapped_column(String(20), nullable=True)
     start_date: Mapped[date | None] = mapped_column("ngay_bat_dau", Date, nullable=True)
     end_date: Mapped[date | None] = mapped_column("ngay_ket_thuc", Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
@@ -180,6 +186,10 @@ class InternshipRequest(Base):
 class InternshipApplication(Base):
     __tablename__ = "don_dang_ky_thuc_tap"
     __table_args__ = (
+        CheckConstraint(
+            "position IS NULL OR position IN ('BACKEND','FRONTEND','FULLSTACK','AI','BA','OTHER')",
+            name="ck_internship_applications_position",
+        ),
         UniqueConstraint("dot_thuc_tap_id", "thuc_tap_sinh_id", name="uq_don_dang_ky_dot_intern"),
         CheckConstraint(
             "trang_thai IN ('PENDING', 'APPROVED', 'REJECTED')",
@@ -204,6 +214,7 @@ class InternshipApplication(Base):
         nullable=False,
     )
     status: Mapped[str] = mapped_column("trang_thai", String(20), nullable=False, default="PENDING")
+    position: Mapped[str | None] = mapped_column(String(20), nullable=True)
     reason: Mapped[str | None] = mapped_column("ly_do", Text, nullable=True)
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
         "nguoi_duyet_id",

@@ -1,13 +1,21 @@
-import { SlicePipe } from '@angular/common';
+import { DatePipe, SlicePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   inject,
   OnInit,
   signal,
   ViewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  InternshipService,
+  MemberStatus,
+  MyInternshipMembership,
+  internshipPositionLabel,
+} from '../../core/api/internship.service';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { NzAvatarModule } from 'ng-zorro-antd/avatar';
@@ -23,7 +31,7 @@ import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
-import { finalize } from 'rxjs';
+import { finalize, Subscription } from 'rxjs';
 import { AuthService, InternProfileRead, UpdateProfileRequest } from '../../core/api/auth.service';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -52,6 +60,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     SlicePipe,
+    DatePipe,
     FormsModule,
     ReactiveFormsModule,
     NzAvatarModule,
@@ -107,27 +116,6 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
             </div>
           </div>
         </nz-card>
-
-        <!-- Mentor card (Intern only) -->
-        @if (profile()!.role === 'INTERN') {
-          <nz-card class="profile-mentor-card" [nzBordered]="false" nzTitle="Mentor phụ trách">
-            @if (profile()!.mentor) {
-              <div class="mentor-row">
-                <nz-avatar [nzSize]="44" [nzText]="mentorInitials()" />
-                <div class="mentor-info">
-                  <strong>{{ profile()!.mentor!.full_name }}</strong>
-                  <span>
-                    <span nz-icon nzType="mail"></span>&nbsp;{{ profile()!.mentor!.email }}
-                  </span>
-                </div>
-              </div>
-            } @else {
-              <p class="mentor-empty">
-                <span nz-icon nzType="info-circle"></span>&nbsp;Chưa được phân công Mentor.
-              </p>
-            }
-          </nz-card>
-        }
 
         <!-- Personal Info / Edit card -->
         <nz-card class="profile-info-card" [nzBordered]="false" [nzTitle]="infoCardTitle">
@@ -317,10 +305,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
               </div>
             </form>
           }
-        </nz-card>
-
-        <!-- Security / Password Card -->
-        <nz-card class="profile-security-card" [nzBordered]="false" nzTitle="Bảo mật tài khoản">
+          <nz-divider />
           <div class="security-row">
             <div>
               <strong>Mật khẩu đăng nhập</strong>
@@ -331,6 +316,70 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
             </button>
           </div>
         </nz-card>
+
+        @if (profile()!.role === 'INTERN') {
+          <nz-card
+            class="profile-internship-card"
+            [nzBordered]="false"
+            nzTitle="Thông tin thực tập"
+          >
+            @if (internshipLoading()) {
+              <div role="status" aria-label="Đang tải thông tin thực tập"><nz-spin nzSimple /></div>
+            } @else if (internshipError()) {
+              <p role="alert">Không thể tải thông tin thực tập. Vui lòng thử lại.</p>
+              <button nz-button type="button" (click)="loadInternship()">Thử lại</button>
+            } @else if (membership(); as member) {
+              <div nz-row [nzGutter]="[24, 20]">
+                <div nz-col [nzXs]="24" [nzSm]="12">
+                  <span class="field-label">Đợt thực tập</span>
+                  <p class="field-value">{{ member.internship.name }}</p>
+                </div>
+                <div nz-col [nzXs]="24" [nzSm]="12">
+                  <span class="field-label">Trạng thái thực tập</span>
+                  <p class="field-value">{{ memberStatusLabel(member.status) }}</p>
+                </div>
+                <div nz-col [nzXs]="24" [nzSm]="12">
+                  <span class="field-label">Vị trí thực tập</span>
+                  <p class="field-value">{{ positionLabel(member.position) }}</p>
+                </div>
+                <div nz-col [nzXs]="24" [nzSm]="12">
+                  <span class="field-label">Thời gian thực tập</span>
+                  <p class="field-value">
+                    {{ member.start_date || member.internship.start_date | date: 'dd/MM/yyyy' }} –
+                    {{ member.end_date || member.internship.end_date | date: 'dd/MM/yyyy' }}
+                  </p>
+                </div>
+                <div nz-col [nzXs]="24" [nzSm]="12">
+                  <span class="field-label">Mentor phụ trách</span>
+                  @if (member.mentor; as mentor) {
+                    <div class="mentor-row">
+                      <nz-avatar [nzSize]="44" [nzText]="mentorInitials()" />
+                      <div class="mentor-info">
+                        <strong>{{ mentor.full_name }}</strong>
+                        <span>{{ mentor.email }}</span>
+                      </div>
+                    </div>
+                  } @else {
+                    <p class="field-value">Chưa được phân công Mentor.</p>
+                  }
+                </div>
+                @if (
+                  member.internship.status === 'COMPLETED' ||
+                  member.internship.status === 'CANCELLED'
+                ) {
+                  <div nz-col [nzXs]="24" [nzSm]="12">
+                    <span class="field-label">Trạng thái đợt</span>
+                    <p class="field-value">
+                      {{ member.internship.status === 'COMPLETED' ? 'Đã kết thúc' : 'Đã hủy' }}
+                    </p>
+                  </div>
+                }
+              </div>
+            } @else {
+              <p class="field-value">Bạn chưa tham gia đợt thực tập nào.</p>
+            }
+          </nz-card>
+        }
       } @else if (error()) {
         <nz-card [nzBordered]="false">
           <p class="profile-error"><span nz-icon nzType="warning"></span>&nbsp;{{ error() }}</p>
@@ -645,7 +694,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
         }
 
         .profile-header-card,
-        .profile-mentor-card,
+        .profile-internship-card,
         .profile-info-card,
         .profile-security-card {
           border-radius: 8px;
@@ -666,7 +715,8 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
           overflow-wrap: anywhere;
         }
 
-        :host ::ng-deep .profile-info-card .ant-col-12 {
+        :host ::ng-deep .profile-info-card .ant-col-12,
+        :host ::ng-deep .profile-internship-card .ant-col-12 {
           max-width: 100%;
           flex: 0 0 100%;
         }
@@ -717,9 +767,16 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
   ],
 })
 export class ProfileComponent implements OnInit {
+  protected readonly positionLabel = internshipPositionLabel;
   @ViewChild('fileInput') private readonly fileInputRef!: ElementRef<HTMLInputElement>;
 
   private readonly authService = inject(AuthService);
+  private readonly internshipService = inject(InternshipService);
+  private readonly destroyRef = inject(DestroyRef);
+  protected readonly membership = signal<MyInternshipMembership | null>(null);
+  protected readonly internshipLoading = signal(false);
+  protected readonly internshipError = signal(false);
+  private internshipRequest?: Subscription;
   private readonly message = inject(NzMessageService);
   private readonly formBuilder = inject(FormBuilder).nonNullable;
   private readonly router = inject(Router);
@@ -753,12 +810,17 @@ export class ProfileComponent implements OnInit {
   }
 
   protected loadProfile(): void {
+    this.internshipRequest?.unsubscribe();
+    this.membership.set(null);
+    this.internshipError.set(false);
+    this.internshipLoading.set(false);
     this.loading.set(true);
     this.error.set(null);
     this.authService.getProfile().subscribe({
       next: (data) => {
         this.profile.set(data);
         this.loading.set(false);
+        if (data.role === 'INTERN') this.loadInternship();
       },
       error: (err: { status?: number }) => {
         if (err.status === 401) {
@@ -773,6 +835,36 @@ export class ProfileComponent implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  protected loadInternship(): void {
+    if (this.profile()?.role !== 'INTERN') return;
+    this.internshipRequest?.unsubscribe();
+    this.membership.set(null);
+    this.internshipLoading.set(true);
+    this.internshipError.set(false);
+    this.internshipRequest = this.internshipService
+      .getMyMemberships()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (memberships) => {
+          this.membership.set(memberships[0] ?? null);
+          this.internshipLoading.set(false);
+        },
+        error: () => {
+          this.internshipError.set(true);
+          this.internshipLoading.set(false);
+        },
+      });
+  }
+
+  protected memberStatusLabel(status: MemberStatus): string {
+    return {
+      ACTIVE: 'Đang tham gia',
+      EXTENDED: 'Đã gia hạn',
+      STOPPED: 'Đã dừng',
+      COMPLETED: 'Đã hoàn thành',
+    }[status];
   }
 
   protected goToLogin(): void {
@@ -791,7 +883,7 @@ export class ProfileComponent implements OnInit {
   }
 
   protected mentorInitials(): string {
-    const name = this.profile()?.mentor?.full_name ?? '';
+    const name = this.membership()?.mentor?.full_name ?? '';
     return name
       .split(' ')
       .map((w) => w[0])

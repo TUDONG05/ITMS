@@ -32,7 +32,7 @@ import { NzTabsModule } from 'ng-zorro-antd/tabs';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzTimelineModule } from 'ng-zorro-antd/timeline';
 
-import { InternshipService } from '../../core/api/internship.service';
+import { InternshipService, internshipPositionLabel } from '../../core/api/internship.service';
 import {
   InternshipProposalCreatePayload,
   InternshipProposalItem,
@@ -223,6 +223,7 @@ import {
                     </td>
                     <td>
                       <span class="batch-name">{{ item.internship_name }}</span>
+                      <div class="position-caption">{{ positionLabel(item.position) }}</div>
                     </td>
                     <td>
                       <div class="progress-cell">
@@ -320,6 +321,10 @@ import {
                 </div>
 
                 <div class="card-mobile-body">
+                  <div class="info-row">
+                    <span class="label">Vị trí thực tập:</span>
+                    <span class="value">{{ positionLabel(item.position) }}</span>
+                  </div>
                   <div class="info-row">
                     <span class="label">Đợt thực tập:</span>
                     <span class="value">{{ item.internship_name }}</span>
@@ -469,6 +474,10 @@ import {
                     <!-- THÔNG TIN THỰC TẬP -->
                     <nz-card nzTitle="Thông tin thực tập" nzSize="small" class="detail-card">
                       <div class="key-value-list">
+                        <div class="kv-item">
+                          <span class="kv-label">Vị trí thực tập:</span>
+                          <span class="kv-value">{{ positionLabel(d.position) }}</span>
+                        </div>
                         <div class="kv-item">
                           <span class="kv-label">Đợt thực tập:</span>
                           <span class="kv-value">{{ d.internship.name }}</span>
@@ -918,6 +927,11 @@ import {
   `,
   styles: [
     `
+      .position-caption {
+        color: #595959;
+        margin-top: 4px;
+        font-size: 13px;
+      }
       .mentor-management {
         width: 100%;
         max-width: 100%;
@@ -1600,6 +1614,7 @@ import {
   ],
 })
 export class MentorInternManagementComponent implements OnInit {
+  protected readonly positionLabel = internshipPositionLabel;
   private readonly mentorService = inject(MentorService);
   private readonly internshipService = inject(InternshipService);
   private readonly message = inject(NzMessageService);
@@ -1866,6 +1881,7 @@ export class MentorInternManagementComponent implements OnInit {
   }
 
   openDetail(memberId: string): void {
+    this.detail.set(null);
     this.isDetailDrawerOpen.set(true);
     this.detailLoading.set(true);
     this.activeDetailTab.set(0);

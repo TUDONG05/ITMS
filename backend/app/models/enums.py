@@ -28,6 +28,15 @@ class InternshipMemberStatus(StrEnum):
     COMPLETED = "COMPLETED"
 
 
+class InternshipPosition(StrEnum):
+    BACKEND = "BACKEND"
+    FRONTEND = "FRONTEND"
+    FULLSTACK = "FULLSTACK"
+    AI = "AI"
+    BA = "BA"
+    OTHER = "OTHER"
+
+
 class EvaluationStatus(StrEnum):
     DRAFT = "DRAFT"
     PUBLISHED = "PUBLISHED"

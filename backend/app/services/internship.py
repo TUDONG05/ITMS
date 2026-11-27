@@ -3,6 +3,7 @@ from datetime import UTC, date, datetime, time
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole
@@ -22,16 +23,78 @@ from app.schemas.internship import (
     InternshipApplicationReview,
     InternshipCreate,
     InternshipMemberCreate,
+    InternshipMemberRead,
     InternshipMemberUpdate,
     InternshipProposalCreate,
     InternshipRequestRead,
     InternshipRequestReview,
     InternshipStatusHistoryItem,
     InternshipUpdate,
+    MembershipInternshipRead,
+    MyInternshipMembershipRead,
+    UserSummary,
 )
 
 
 class InternshipService:
+    @staticmethod
+    def _lock_intern(db: Session, intern_id: uuid.UUID) -> None:
+        # Serialize enrollment decisions even before a membership row exists.
+        db.scalar(select(User).where(User.id == intern_id).with_for_update())
+
+    @staticmethod
+    def _has_membership(db: Session, intern_id: uuid.UUID) -> bool:
+        return (
+            db.scalar(
+                select(InternshipMember.id).where(InternshipMember.intern_id == intern_id).limit(1)
+            )
+            is not None
+        )
+
+    @staticmethod
+    def _enrollment_conflict() -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Thực tập sinh đã là thành viên của một đợt thực tập. "
+                "Mỗi thực tập sinh chỉ được tham gia một đợt, kể cả đợt đã kết thúc."
+            ),
+        )
+
+    @staticmethod
+    def _insert_membership(db: Session, member: InternshipMember) -> bool:
+        try:
+            with db.begin_nested():
+                db.add(member)
+                db.flush()
+        except IntegrityError as exc:
+            constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            if constraint not in {
+                "uq_internship_members_single_intern",
+                "uq_internship_members_intern",
+            }:
+                raise
+            return False
+        return True
+
+    @staticmethod
+    def get_my_memberships(db: Session, intern_id: uuid.UUID) -> list[MyInternshipMembershipRead]:
+        rows = db.execute(
+            select(InternshipMember, Internship)
+            .join(Internship, Internship.id == InternshipMember.internship_id)
+            .options(selectinload(InternshipMember.mentor))
+            .where(InternshipMember.intern_id == intern_id)
+            .order_by(InternshipMember.created_at.desc(), InternshipMember.id)
+        ).all()
+        return [
+            MyInternshipMembershipRead(
+                **InternshipMemberRead.model_validate(member).model_dump(),
+                internship=MembershipInternshipRead.model_validate(internship),
+                mentor=UserSummary.model_validate(member.mentor) if member.mentor else None,
+            )
+            for member, internship in rows
+        ]
+
     @staticmethod
     def _validate_roadmap(db: Session, roadmap_id: uuid.UUID | None) -> uuid.UUID | None:
         if roadmap_id is None:
@@ -633,6 +696,7 @@ class InternshipService:
             intern_id=app.intern_id,
             status=app.status,
             reason=app.reason,
+            position=app.position,
             reviewed_by=app.reviewed_by,
             review_note=app.review_note,
             created_at=app.created_at,
@@ -673,17 +737,27 @@ class InternshipService:
             )
 
         # Kiểm tra intern đã là thành viên trong đợt chưa
-        mem_stmt = select(InternshipMember).where(
-            InternshipMember.internship_id == internship_id,
-            InternshipMember.intern_id == intern_id,
+        InternshipService._lock_intern(db, intern_id)
+        if InternshipService._has_membership(db, intern_id):
+            raise InternshipService._enrollment_conflict()
+
+        blocking_application = db.scalar(
+            select(InternshipApplication.id)
+            .where(
+                InternshipApplication.intern_id == intern_id,
+                InternshipApplication.status.in_(("PENDING", "APPROVED")),
+            )
+            .limit(1)
         )
-        if db.scalar(mem_stmt) is not None:
+        if blocking_application is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Bạn đã là thành viên của đợt thực tập này.",
+                detail=(
+                    "Bạn đã có đơn đăng ký đang chờ duyệt hoặc đã được phê duyệt. "
+                    "Mỗi thực tập sinh chỉ được đăng ký một đợt thực tập."
+                ),
             )
 
-        # Kiểm tra đơn đăng ký hiện có
         app_stmt = select(InternshipApplication).where(
             InternshipApplication.internship_id == internship_id,
             InternshipApplication.intern_id == intern_id,
@@ -705,6 +779,7 @@ class InternshipService:
                 clean_reason = data.reason.strip() if data.reason and data.reason.strip() else None
                 existing_app.status = "PENDING"
                 existing_app.reason = clean_reason
+                existing_app.position = data.position
                 existing_app.reviewed_by = None
                 existing_app.review_note = None
                 existing_app.reviewed_at = None
@@ -718,6 +793,7 @@ class InternshipService:
             internship_id=internship_id,
             intern_id=intern_id,
             reason=clean_reason,
+            position=data.position,
             status="PENDING",
         )
         db.add(new_app)
@@ -795,10 +871,16 @@ class InternshipService:
         payload: InternshipApplicationReview,
         reviewer_id: uuid.UUID,
     ) -> InternshipApplicationRead:
+        intern_id = db.scalar(
+            select(InternshipApplication.intern_id).where(InternshipApplication.id == app_id)
+        )
+        if intern_id is not None:
+            InternshipService._lock_intern(db, intern_id)
         app = db.scalar(
             select(InternshipApplication)
             .where(InternshipApplication.id == app_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if not app:
             raise HTTPException(
@@ -820,30 +902,20 @@ class InternshipService:
                 )
 
             # Chống thêm trùng (concurrency check)
-            dup_check = (
-                select(InternshipMember)
-                .where(
-                    InternshipMember.internship_id == app.internship_id,
-                    InternshipMember.intern_id == app.intern_id,
-                )
-                .with_for_update()
-            )
-            if db.scalar(dup_check) is not None:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Thực tập sinh đã là thành viên của đợt thực tập này.",
-                )
+            if InternshipService._has_membership(db, app.intern_id):
+                raise InternshipService._enrollment_conflict()
 
-            # Thêm vào thành viên chính thức, kế thừa lộ trình từ đợt
             new_member = InternshipMember(
                 internship_id=app.internship_id,
                 intern_id=app.intern_id,
                 roadmap_id=internship.roadmap_id,
+                position=app.position,
                 start_date=internship.start_date,
                 end_date=internship.end_date,
                 status=InternshipMemberStatus.ACTIVE,
             )
-            db.add(new_member)
+            if not InternshipService._insert_membership(db, new_member):
+                raise InternshipService._enrollment_conflict()
 
         app.status = payload.status
         app.reviewed_by = reviewer_id
@@ -863,6 +935,17 @@ class InternshipService:
         if not payload.ids:
             return BatchResult(processed_count=0, message="Không có đơn đăng ký nào được chọn.")
 
+        # Lock users in a stable order before applications to avoid cross-batch deadlocks.
+        intern_ids = list(
+            db.scalars(
+                select(InternshipApplication.intern_id)
+                .where(InternshipApplication.id.in_(payload.ids))
+                .distinct()
+            )
+        )
+        for intern_id in sorted(intern_ids):
+            InternshipService._lock_intern(db, intern_id)
+        skipped_enrolled = 0
         processed = 0
         now = datetime.now(UTC)
         for app_id in payload.ids:
@@ -870,6 +953,7 @@ class InternshipService:
                 select(InternshipApplication)
                 .where(InternshipApplication.id == app_id)
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
             if not app or app.status != "PENDING":
                 continue
@@ -879,26 +963,22 @@ class InternshipService:
                 if not internship or internship.status == InternshipStatus.CANCELLED:
                     continue
 
-                dup = db.scalar(
-                    select(InternshipMember)
-                    .where(
-                        InternshipMember.internship_id == app.internship_id,
-                        InternshipMember.intern_id == app.intern_id,
-                    )
-                    .with_for_update()
-                )
-                if dup is not None:
+                if InternshipService._has_membership(db, app.intern_id):
+                    skipped_enrolled += 1
                     continue
 
                 new_member = InternshipMember(
                     internship_id=app.internship_id,
                     intern_id=app.intern_id,
                     roadmap_id=internship.roadmap_id,
+                    position=app.position,
                     start_date=internship.start_date,
                     end_date=internship.end_date,
                     status=InternshipMemberStatus.ACTIVE,
                 )
-                db.add(new_member)
+                if not InternshipService._insert_membership(db, new_member):
+                    skipped_enrolled += 1
+                    continue
 
             app.status = payload.status
             app.reviewed_by = reviewer_id
@@ -908,18 +988,19 @@ class InternshipService:
 
         db.commit()
         action_text = "phê duyệt" if payload.status == "APPROVED" else "từ chối"
+        skipped_message = (
+            f" Bỏ qua {skipped_enrolled} đơn vì thực tập sinh đã tham gia một đợt khác."
+            if skipped_enrolled
+            else ""
+        )
         return BatchResult(
             processed_count=processed,
-            message=f"Đã {action_text} thành công {processed} đơn đăng ký.",
+            message=f"Đã {action_text} thành công {processed} đơn đăng ký." + skipped_message,
         )
 
     @staticmethod
     def approve_all_applications(db: Session, reviewer_id: uuid.UUID) -> BatchResult:
-        stmt = (
-            select(InternshipApplication.id)
-            .where(InternshipApplication.status == "PENDING")
-            .with_for_update()
-        )
+        stmt = select(InternshipApplication.id).where(InternshipApplication.status == "PENDING")
         pending_ids = list(db.scalars(stmt).all())
         payload = BatchReviewPayload(ids=pending_ids, status="APPROVED")
         return InternshipService.batch_review_applications(db, payload, reviewer_id)
