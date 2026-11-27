@@ -502,6 +502,10 @@ import {
         .filter-select {
           width: 100% !important;
         }
+        .filter-box {
+          flex-direction: column;
+          align-items: stretch;
+        }
         .toolbar-right {
           width: 100%;
           button {
@@ -573,6 +577,7 @@ import {
             border-top: 1px dashed #e2e8f0;
             padding-top: 10px;
             display: flex;
+            flex-wrap: wrap;
             gap: 8px;
             button {
               flex: 1;

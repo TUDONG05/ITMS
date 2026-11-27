@@ -850,12 +850,27 @@ import {
 
         .filter-inputs {
           flex-direction: column;
+          min-width: 0;
+          width: 100%;
         }
 
         .search-input,
         .status-select {
           max-width: 100%;
           width: 100%;
+          min-width: 0;
+        }
+
+        .timeline-header,
+        .status-transition {
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .modal-intern-header > div,
+        .user-meta {
+          min-width: 0;
+          overflow-wrap: anywhere;
         }
 
         .action-buttons {

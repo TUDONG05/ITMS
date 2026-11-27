@@ -133,7 +133,7 @@ function errorMessage(error: unknown, fallback: string): string {
         }
         <nz-table
           #documentTable
-          class="document-table"
+          class="document-table responsive-card-table"
           [nzData]="documents()"
           [nzLoading]="loading()"
           [nzFrontPagination]="false"
@@ -431,6 +431,12 @@ function errorMessage(error: unknown, fallback: string): string {
       .current-file {
         overflow-wrap: anywhere;
       }
+      .row-actions,
+      .position-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
       .document-drop-zone {
         display: grid;
         place-content: center;
@@ -453,7 +459,7 @@ function errorMessage(error: unknown, fallback: string): string {
         opacity: 0.65;
         cursor: default;
       }
-      @media (max-width: 767px) {
+      @media (max-width: 768px) {
         .search-control,
         .filter-control {
           flex: 1 1 100%;
@@ -468,35 +474,8 @@ function errorMessage(error: unknown, fallback: string): string {
           display: inline-flex;
           align-items: center;
         }
-        :host ::ng-deep .document-table .ant-table-thead {
-          display: none;
-        }
-        :host ::ng-deep .document-table .ant-table-tbody > tr {
-          display: block;
-          border: 1px solid #f0f0f0;
-          border-radius: 8px;
-          margin-bottom: 16px;
-          padding: 8px 12px;
-        }
-        :host ::ng-deep .document-table .ant-table-tbody > tr > td {
-          display: grid;
-          grid-template-columns: 110px minmax(0, 1fr);
-          gap: 8px;
-          padding: 10px 0;
-          border-bottom: 0;
-        }
-        :host ::ng-deep .document-table td[data-label]::before {
-          content: attr(data-label);
-          color: #595959;
-        }
-        :host ::ng-deep .document-table td:first-child {
-          display: block !important;
-        }
-        :host ::ng-deep .document-table td:first-child::before {
-          display: none;
-        }
-        :host ::ng-deep .document-table td:not([data-label]) {
-          display: block !important;
+        .add-document {
+          width: 100%;
         }
       }
     `,

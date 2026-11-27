@@ -115,6 +115,7 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
           [nzLoading]="isLoading()"
           [nzShowPagination]="true"
           [nzPageSize]="10"
+          [nzScroll]="{ x: '900px' }"
           class="responsive-table internship-table"
         >
           <thead>
@@ -236,6 +237,7 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
             [nzLoading]="isMembersLoading()"
             [nzShowPagination]="true"
             [nzPageSize]="10"
+            [nzScroll]="{ x: '1200px' }"
             class="responsive-table member-table"
           >
             <thead>
@@ -966,7 +968,8 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
             display: none !important;
           }
 
-          .ant-table-tbody > tr:not(.empty-row):not(.ant-table-placeholder) {
+          .ant-table-tbody
+            > tr:not(.empty-row):not(.ant-table-placeholder):not(.ant-table-measure-now) {
             display: block !important;
             width: 100% !important;
             max-width: 100% !important;
@@ -1007,7 +1010,9 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
             }
           }
 
-          .ant-table-tbody > tr:not(.empty-row):not(.ant-table-placeholder) > td {
+          .ant-table-tbody
+            > tr:not(.empty-row):not(.ant-table-placeholder):not(.ant-table-measure-now)
+            > td {
             display: flex !important;
             justify-content: space-between !important;
             align-items: flex-start !important;
@@ -1226,7 +1231,11 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
           }
         }
 
-        :host ::ng-deep .responsive-table .ant-table-tbody > tr:not(.empty-row) {
+        :host
+          ::ng-deep
+          .responsive-table
+          .ant-table-tbody
+          > tr:not(.empty-row):not(.ant-table-placeholder):not(.ant-table-measure-now) {
           padding: 10px 10px !important;
         }
 

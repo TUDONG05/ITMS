@@ -203,8 +203,14 @@
     min-height: 44px;
   }
 
-  .form-row {
+  .form-row,
+  .assignment-row {
     grid-template-columns: 1fr;
+  }
+
+  .comment-box textarea,
+  .attach-name {
+    min-width: 0;
   }
 
   .submission-footer {

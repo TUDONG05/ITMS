@@ -1116,7 +1116,48 @@
   }
 
   .card-extra-actions {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+  }
+
+  :host ::ng-deep .ant-collapse > .ant-collapse-item > .ant-collapse-header {
+    flex-wrap: wrap;
+  }
+
+  :host ::ng-deep .ant-collapse > .ant-collapse-item > .ant-collapse-header > .ant-collapse-extra {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+
+  .phase-header-content {
+    flex-wrap: wrap;
+  }
+
+  .phase-header-content .phase-title-wrap {
+    flex-basis: 100%;
+  }
+
+  .content-mobile-card,
+  .quiz-mobile-card,
+  .question-mobile-card {
+    overflow-wrap: anywhere;
+
+    .card-head,
+    .card-head-left {
+      flex-wrap: wrap;
+    }
+
+    .resource-row {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+
+  .option-row .option-input {
+    min-width: 0;
+  }
+
+  .modal-footer-actions {
+    flex-wrap: wrap;
   }
 
   .form-row {
@@ -1125,6 +1166,7 @@
 
     .form-col {
       min-width: 100%;
+      max-width: 100% !important;
     }
   }
 

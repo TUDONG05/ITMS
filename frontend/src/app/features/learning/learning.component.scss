@@ -156,6 +156,7 @@
 
 .content-body {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   line-height: 1.7;
   max-width: 70ch;
   margin-bottom: 16px;
@@ -197,6 +198,7 @@
 .question__text {
   margin: 0 0 4px;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .options {
@@ -207,6 +209,8 @@
 
   label {
     margin-left: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 
