@@ -92,6 +92,10 @@ class QuizAttempt(Base):
             "bai_kiem_tra_id", "thanh_vien_id", "lan_lam", name="uq_quiz_attempts_number"
         ),
         CheckConstraint("lan_lam > 0", name="ck_quiz_attempts_number"),
+        CheckConstraint(
+            "trang_thai_cham IN ('AUTO_GRADED', 'PENDING_GRADING', 'GRADED')",
+            name="ck_quiz_attempts_grading_status",
+        ),
         Index("ix_quiz_attempts_quiz_id", "bai_kiem_tra_id"),
         Index("ix_quiz_attempts_internship_member_id", "thanh_vien_id"),
     )
@@ -110,6 +114,12 @@ class QuizAttempt(Base):
     )
     attempt_no: Mapped[int] = mapped_column("lan_lam", Integer, nullable=False)
     answers: Mapped[list[Any] | None] = mapped_column("cau_tra_loi", JSONB, nullable=True)
+    question_grades: Mapped[dict[str, Any] | None] = mapped_column(
+        "diem_chi_tiet", JSONB, nullable=True
+    )
+    grading_status: Mapped[str] = mapped_column(
+        "trang_thai_cham", String(20), nullable=False, default="AUTO_GRADED"
+    )
     score: Mapped[float | None] = mapped_column("diem", Numeric(5, 2), nullable=True)
     passed: Mapped[bool | None] = mapped_column("dat", Boolean, nullable=True)
     started_at: Mapped[datetime] = mapped_column(

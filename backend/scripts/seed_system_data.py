@@ -36,6 +36,7 @@ from app.models import (
     Internship,
     InternshipMember,
     InternshipRequest,
+    InternshipRoadmap,
     LearningContent,
     LearningProgress,
     Notification,
@@ -147,9 +148,11 @@ def main() -> None:
             {
                 "description": "Lộ trình nền tảng cho thực tập sinh phát triển phần mềm.",
                 "status": "ACTIVE",
+                "position": "FULLSTACK",
                 "created_by": admin.id,
             },
         )
+        db.flush()
         internship = upsert_by(
             db,
             Internship,
@@ -159,8 +162,16 @@ def main() -> None:
                 "start_date": date(2026, 8, 3),
                 "end_date": date(2026, 11, 30),
                 "status": "ONGOING",
+                "roadmap_id": roadmap.id,
                 "created_by": admin.id,
             },
+        )
+        db.flush()
+        upsert_by(
+            db,
+            InternshipRoadmap,
+            {"internship_id": internship.id, "position": "FULLSTACK"},
+            {"roadmap_id": roadmap.id},
         )
         db.flush()
 
@@ -224,6 +235,7 @@ def main() -> None:
                 {
                     "mentor_id": mentor.id,
                     "roadmap_id": roadmap.id,
+                    "position": "FULLSTACK",
                     "start_date": date(2026, 8, 3),
                     "end_date": date(2026, 11, 30),
                     "status": status,
@@ -271,7 +283,7 @@ def main() -> None:
                 "description": "Kiểm tra kiến thức Git và quy trình phát triển phần mềm.",
                 "duration_minutes": 30,
                 "pass_score": 60,
-                "max_attempts": 2,
+                "max_attempts": 1,
                 "status": "PUBLISHED",
             },
         )

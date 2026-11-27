@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.enums import UserRole, UserStatus
-from app.models.exam import Quiz, QuizAttempt
+from app.models.exam import Question, Quiz, QuizAttempt
 from app.models.interaction import Notification
 from app.models.internship import Internship, InternshipMember
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
@@ -22,9 +22,14 @@ from app.schemas.mentor import (
     MentorInternDetailSchema,
     MentorInternListItem,
     MentorOverviewMetricsSchema,
+    PendingQuizGradingItemSchema,
     QuizAttemptDetailSchema,
+    QuizAttemptGradeRequest,
+    QuizAttemptGradingDetailSchema,
+    QuizAttemptQuestionGradeView,
     RoadmapPhaseDetailSchema,
 )
+from app.services.learning import grade_question, normalize_options
 
 
 class MentorService:
@@ -118,6 +123,16 @@ class MentorService:
                 .scalar()
                 or 0
             )
+            pending_quiz_gradings = (
+                db.query(func.count(QuizAttempt.id))
+                .filter(
+                    QuizAttempt.internship_member_id == member.id,
+                    QuizAttempt.submitted_at.isnot(None),
+                    QuizAttempt.grading_status == "PENDING_GRADING",
+                )
+                .scalar()
+                or 0
+            )
 
             results.append(
                 MentorInternListItem(
@@ -139,6 +154,7 @@ class MentorService:
                     end_date=member.end_date,
                     progress_percent=round(progress_percent, 2),
                     quizzes_passed=quizzes_passed,
+                    pending_quiz_gradings=pending_quiz_gradings,
                     tasks_completed=0,
                     active_tasks=0,
                 )
@@ -239,11 +255,272 @@ class MentorService:
                     attempt_no=attempt.attempt_no,
                     score=float(attempt.score) if attempt.score is not None else None,
                     passed=attempt.passed,
+                    grading_status=attempt.grading_status,
                     started_at=attempt.started_at,
                     submitted_at=attempt.submitted_at,
                 )
             )
         return results
+
+    @staticmethod
+    def _parse_attempt_answers(raw_answers: list | None) -> dict[str, tuple[list[str], str | None]]:
+        parsed: dict[str, tuple[list[str], str | None]] = {}
+        for item in raw_answers or []:
+            if isinstance(item, dict) and "question_id" in item:
+                parsed[str(item["question_id"])] = (
+                    list(item.get("selected_keys") or []),
+                    item.get("text"),
+                )
+        return parsed
+
+    @classmethod
+    def get_pending_quiz_attempts(
+        cls,
+        db: Session,
+        current_user: User,
+        member_id: uuid.UUID | None = None,
+    ) -> list[PendingQuizGradingItemSchema]:
+        """List submitted quiz attempts waiting for manual essay grading."""
+        query = (
+            db.query(QuizAttempt, Quiz, InternshipMember)
+            .join(Quiz, Quiz.id == QuizAttempt.quiz_id)
+            .join(InternshipMember, InternshipMember.id == QuizAttempt.internship_member_id)
+            .join(InternshipMember.intern)
+            .filter(
+                QuizAttempt.submitted_at.isnot(None),
+                QuizAttempt.grading_status == "PENDING_GRADING",
+            )
+        )
+        if current_user.role == UserRole.MENTOR or current_user.role == "MENTOR":
+            query = query.filter(InternshipMember.mentor_id == current_user.id)
+        if member_id is not None:
+            query = query.filter(InternshipMember.id == member_id)
+
+        rows = query.order_by(QuizAttempt.submitted_at.desc()).all()
+        if not rows:
+            return []
+
+        quiz_ids = {quiz.id for _attempt, quiz, _member in rows}
+        text_questions_by_quiz: dict[uuid.UUID, list[uuid.UUID]] = {}
+        for q in (
+            db.query(Question).filter(Question.quiz_id.in_(quiz_ids), Question.type == "TEXT").all()
+        ):
+            text_questions_by_quiz.setdefault(q.quiz_id, []).append(q.id)
+
+        items: list[PendingQuizGradingItemSchema] = []
+        for attempt, quiz, member in rows:
+            manual_grades = (
+                attempt.question_grades if isinstance(attempt.question_grades, dict) else {}
+            )
+            ungraded = sum(
+                1
+                for qid in text_questions_by_quiz.get(quiz.id, [])
+                if not (
+                    isinstance(manual_grades.get(str(qid)), dict)
+                    and "earned_score" in manual_grades[str(qid)]
+                )
+            )
+            items.append(
+                PendingQuizGradingItemSchema(
+                    attempt_id=attempt.id,
+                    member_id=member.id,
+                    intern_id=member.intern_id,
+                    intern_name=member.intern.full_name,
+                    intern_email=member.intern.email,
+                    quiz_id=quiz.id,
+                    quiz_title=quiz.title,
+                    attempt_no=attempt.attempt_no,
+                    submitted_at=attempt.submitted_at,
+                    ungraded_questions=ungraded,
+                )
+            )
+        return items
+
+    @classmethod
+    def _load_attempt_for_mentor(
+        cls, db: Session, attempt_id: uuid.UUID, current_user: User
+    ) -> tuple[QuizAttempt, Quiz, InternshipMember]:
+        row = (
+            db.query(QuizAttempt, Quiz, InternshipMember)
+            .join(Quiz, Quiz.id == QuizAttempt.quiz_id)
+            .join(InternshipMember, InternshipMember.id == QuizAttempt.internship_member_id)
+            .filter(QuizAttempt.id == attempt_id)
+            .first()
+        )
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Quiz attempt not found",
+            )
+        attempt, quiz, member = row
+        cls._assert_mentor_access(current_user, member)
+        return attempt, quiz, member
+
+    @classmethod
+    def get_quiz_attempt_detail(
+        cls,
+        db: Session,
+        attempt_id: uuid.UUID,
+        current_user: User,
+    ) -> QuizAttemptGradingDetailSchema:
+        """Retrieve detailed answers and grading state of a submitted quiz attempt."""
+        attempt, quiz, member = cls._load_attempt_for_mentor(db, attempt_id, current_user)
+        questions = (
+            db.query(Question)
+            .filter(Question.quiz_id == quiz.id)
+            .order_by(Question.order_no.asc().nulls_last(), Question.created_at.asc())
+            .all()
+        )
+        answers = cls._parse_attempt_answers(attempt.answers)
+        manual_grades = attempt.question_grades if isinstance(attempt.question_grades, dict) else {}
+
+        views: list[QuizAttemptQuestionGradeView] = []
+        for q in questions:
+            qid = str(q.id)
+            options = normalize_options(q.options, q.type)
+            selected_keys, text = answers.get(qid, ([], None))
+            manual = manual_grades.get(qid) if isinstance(manual_grades.get(qid), dict) else None
+            max_score = float(q.score)
+
+            if manual is not None and "earned_score" in manual:
+                earned_score: float | None = float(manual["earned_score"])
+                feedback = manual.get("feedback")
+                is_correct: bool | None = earned_score >= max_score if max_score > 0 else True
+            else:
+                outcome = grade_question(q.type, options, q.correct_answer, selected_keys, text)
+                is_correct = outcome
+                earned_score = (max_score if outcome else 0.0) if outcome is not None else None
+                feedback = None
+
+            views.append(
+                QuizAttemptQuestionGradeView(
+                    question_id=q.id,
+                    content=q.content,
+                    type=q.type,
+                    max_score=max_score,
+                    order_no=q.order_no,
+                    options=options,
+                    correct_answer=q.correct_answer,
+                    selected_keys=selected_keys,
+                    text=text,
+                    is_correct=is_correct,
+                    earned_score=earned_score,
+                    feedback=feedback,
+                    needs_manual_grading=(q.type == "TEXT"),
+                )
+            )
+
+        return QuizAttemptGradingDetailSchema(
+            attempt_id=attempt.id,
+            quiz_id=quiz.id,
+            quiz_title=quiz.title,
+            pass_score=float(quiz.pass_score),
+            attempt_no=attempt.attempt_no,
+            intern_name=member.intern.full_name,
+            score=float(attempt.score) if attempt.score is not None else None,
+            passed=attempt.passed,
+            grading_status=attempt.grading_status,
+            started_at=attempt.started_at,
+            submitted_at=attempt.submitted_at,
+            questions=views,
+        )
+
+    @classmethod
+    def grade_quiz_attempt(
+        cls,
+        db: Session,
+        attempt_id: uuid.UUID,
+        payload: QuizAttemptGradeRequest,
+        current_user: User,
+    ) -> QuizAttemptGradingDetailSchema:
+        """Save manual grades/feedback for essay questions and recalculate attempt score."""
+        attempt, quiz, _member = cls._load_attempt_for_mentor(db, attempt_id, current_user)
+        if attempt.submitted_at is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot grade an in-progress quiz attempt",
+            )
+
+        questions = (
+            db.query(Question)
+            .filter(Question.quiz_id == quiz.id)
+            .order_by(Question.order_no.asc().nulls_last(), Question.created_at.asc())
+            .all()
+        )
+        by_id = {q.id: q for q in questions}
+        manual_grades = (
+            dict(attempt.question_grades) if isinstance(attempt.question_grades, dict) else {}
+        )
+        now_iso = datetime.now(UTC).isoformat()
+
+        for item in payload.grades:
+            question = by_id.get(item.question_id)
+            if question is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Question does not belong to this quiz",
+                )
+            max_score = float(question.score)
+            if item.earned_score > max_score:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Score cannot exceed {max_score}",
+                )
+            manual_grades[str(question.id)] = {
+                "earned_score": round(float(item.earned_score), 2),
+                "feedback": item.feedback.strip() if item.feedback else None,
+                "graded_by": str(current_user.id),
+                "graded_at": now_iso,
+            }
+
+        answers = cls._parse_attempt_answers(attempt.answers)
+        earned_total = 0.0
+        possible_total = 0.0
+        ungraded = 0
+
+        for q in questions:
+            qid = str(q.id)
+            points = float(q.score)
+            possible_total += points
+            manual = manual_grades.get(qid)
+            if isinstance(manual, dict) and "earned_score" in manual:
+                earned_total += float(manual["earned_score"])
+                continue
+            options = normalize_options(q.options, q.type)
+            selected_keys, text = answers.get(qid, ([], None))
+            outcome = grade_question(q.type, options, q.correct_answer, selected_keys, text)
+            if outcome is None:
+                ungraded += 1
+            elif outcome:
+                earned_total += points
+
+        attempt.question_grades = manual_grades
+        if ungraded > 0:
+            attempt.grading_status = "PENDING_GRADING"
+            attempt.score = None
+            attempt.passed = None
+        else:
+            score = round(earned_total / possible_total * 100, 2) if possible_total > 0 else 0.0
+            attempt.grading_status = "GRADED"
+            attempt.score = score
+            attempt.passed = possible_total > 0 and score >= float(quiz.pass_score)
+            result_label = "Đạt" if attempt.passed else "Chưa đạt"
+            db.add(
+                Notification(
+                    title=f"Đã có điểm bài kiểm tra: {quiz.title}",
+                    content=(
+                        f'Mentor {current_user.full_name} đã chấm xong bài kiểm tra "{quiz.title}" '
+                        f"(lần {attempt.attempt_no}). Kết quả: {score}% ({result_label})."
+                    ),
+                    target_type="USER",
+                    target_data=[str(_member.intern_id)],
+                    created_by=current_user.id,
+                    created_at=datetime.now(UTC),
+                )
+            )
+
+        db.commit()
+        return cls.get_quiz_attempt_detail(db, attempt_id, current_user)
 
     @classmethod
     def get_intern_detail(
@@ -509,6 +786,7 @@ class MentorService:
         completed = sum(1 for i in interns if i.status == "COMPLETED")
         avg_prog = (sum(i.progress_percent for i in interns) / total) if total > 0 else 0.0
         total_quizzes = sum(i.quizzes_passed for i in interns)
+        total_pending_gradings = sum(i.pending_quiz_gradings for i in interns)
 
         return MentorOverviewMetricsSchema(
             total_interns=total,
@@ -516,5 +794,6 @@ class MentorService:
             completed_interns=completed,
             avg_progress=round(avg_prog, 2),
             total_quizzes_passed=total_quizzes,
+            pending_quiz_gradings=total_pending_gradings,
             recent_interns=interns[:5],
         )

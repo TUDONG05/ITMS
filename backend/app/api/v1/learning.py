@@ -11,6 +11,7 @@ from app.schemas.learning import (
     AttemptResultRead,
     AttemptStartedRead,
     AttemptSubmit,
+    InternAttemptDetailRead,
     LearningContentDetail,
     LearningProgressRead,
     LearningRoadmapRead,
@@ -111,3 +112,16 @@ def get_quiz_results(
     db: Session = Depends(get_db),
 ) -> QuizResultsRead:
     return LearningService.get_quiz_results(db, current_user, quiz_id)
+
+
+@router.get(
+    "/attempts/{attempt_id}",
+    response_model=InternAttemptDetailRead,
+    summary="Chi tiết điểm và nhận xét của một lượt làm bài",
+)
+def get_attempt_detail(
+    attempt_id: uuid.UUID,
+    current_user: User = Depends(_intern_only),
+    db: Session = Depends(get_db),
+) -> InternAttemptDetailRead:
+    return LearningService.get_attempt_detail(db, current_user, attempt_id)

@@ -50,6 +50,7 @@ class LearningQuizSummary(BaseSchema):
     status: str  # PUBLISHED | CLOSED
     question_count: int = 0
     attempts_used: int = 0
+    has_open_attempt: bool = False
     best_score: float | None = None
     passed: bool = False
 
@@ -121,17 +122,19 @@ class AttemptSubmit(BaseSchema):
 
 class QuestionResult(BaseSchema):
     question_id: uuid.UUID
-    # None: câu hỏi chưa thể chấm tự động nên không được tính vào điểm.
+    # None: câu hỏi chưa được chấm (chờ Mentor chấm tự luận).
     is_correct: bool | None = None
     earned_score: float = 0
+    feedback: str | None = None
 
 
 class AttemptResultRead(BaseSchema):
     attempt_id: uuid.UUID
     quiz_id: uuid.UUID
     attempt_no: int
-    score: float  # thang 0-100, so sánh với pass_score của Quiz
-    passed: bool
+    score: float | None = None  # thang 0-100, None nếu đang chờ Mentor chấm
+    passed: bool | None = None
+    grading_status: str = "AUTO_GRADED"  # AUTO_GRADED | PENDING_GRADING | GRADED
     earned_points: float
     total_points: float
     ungraded_questions: int = 0
@@ -144,6 +147,7 @@ class AttemptSummary(BaseSchema):
     attempt_id: uuid.UUID
     attempt_no: int
     status: str  # IN_PROGRESS | SUBMITTED
+    grading_status: str = "AUTO_GRADED"  # AUTO_GRADED | PENDING_GRADING | GRADED
     score: float | None = None
     passed: bool | None = None
     started_at: datetime
@@ -159,3 +163,29 @@ class QuizResultsRead(BaseSchema):
     best_score: float | None = None
     passed: bool = False
     attempts: list[AttemptSummary] = []
+
+
+class InternAttemptQuestionDetail(BaseSchema):
+    question_id: uuid.UUID
+    content: str
+    type: str
+    max_score: float
+    selected_keys: list[str] = []
+    text: str | None = None
+    is_correct: bool | None = None
+    earned_score: float | None = None
+    feedback: str | None = None
+
+
+class InternAttemptDetailRead(BaseSchema):
+    attempt_id: uuid.UUID
+    quiz_id: uuid.UUID
+    quiz_title: str
+    attempt_no: int
+    pass_score: float
+    grading_status: str = "AUTO_GRADED"
+    score: float | None = None
+    passed: bool | None = None
+    started_at: datetime
+    submitted_at: datetime
+    questions: list[InternAttemptQuestionDetail] = []

@@ -30,6 +30,7 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import {
   AttemptResult,
   AttemptStarted,
+  InternAttemptDetail,
   LearningContentDetail,
   LearningContentItem,
   LearningContentType,
@@ -196,6 +197,8 @@ export class LearningComponent implements OnInit {
   protected readonly isResultsOpen = signal(false);
   protected readonly isResultsLoading = signal(false);
   protected readonly quizResults = signal<QuizResults | null>(null);
+  protected readonly isAttemptDetailLoading = signal(false);
+  protected readonly attemptDetail = signal<InternAttemptDetail | null>(null);
 
   private timerId: ReturnType<typeof setInterval> | null = null;
 
@@ -318,7 +321,15 @@ export class LearningComponent implements OnInit {
   }
 
   // ── Làm bài kiểm tra ──
+  protected isQuizDone(quiz: LearningQuizSummary): boolean {
+    return quiz.attempts_used >= quiz.max_attempts && !quiz.has_open_attempt;
+  }
+
   protected confirmStartQuiz(quiz: LearningQuizSummary): void {
+    if (this.isQuizDone(quiz)) {
+      this.message.info('Bạn đã làm bài kiểm tra này rồi.');
+      return;
+    }
     const remaining = Math.max(quiz.max_attempts - quiz.attempts_used, 0);
     this.modal.confirm({
       nzTitle: `Làm bài: ${quiz.title}`,
@@ -468,6 +479,7 @@ export class LearningComponent implements OnInit {
     this.isResultsOpen.set(true);
     this.isResultsLoading.set(true);
     this.quizResults.set(null);
+    this.attemptDetail.set(null);
     this.learningService.getQuizResults(quiz.id).subscribe({
       next: (data) => {
         this.quizResults.set(data);
@@ -481,8 +493,28 @@ export class LearningComponent implements OnInit {
     });
   }
 
+  protected viewAttemptDetail(attemptId: string): void {
+    this.isAttemptDetailLoading.set(true);
+    this.attemptDetail.set(null);
+    this.learningService.getAttemptDetail(attemptId).subscribe({
+      next: (detail) => {
+        this.attemptDetail.set(detail);
+        this.isAttemptDetailLoading.set(false);
+      },
+      error: (err) => {
+        this.isAttemptDetailLoading.set(false);
+        this.message.error(apiMessage(err, 'Không tải được chi tiết lượt làm bài.'));
+      },
+    });
+  }
+
+  protected backToAttemptList(): void {
+    this.attemptDetail.set(null);
+  }
+
   protected closeResults(): void {
     this.isResultsOpen.set(false);
     this.quizResults.set(null);
+    this.attemptDetail.set(null);
   }
 }

@@ -303,7 +303,7 @@ class TrainingService:
             description=data.description,
             duration_minutes=data.duration_minutes,
             pass_score=data.pass_score,
-            max_attempts=data.max_attempts,
+            max_attempts=1,
         )
         db.add(quiz)
         db.commit()
@@ -328,6 +328,7 @@ class TrainingService:
     ) -> Quiz:
         quiz = TrainingService.get_quiz_by_id(db, quiz_id)
         update_data = data.model_dump(exclude_unset=True)
+        update_data["max_attempts"] = 1
         for field, value in update_data.items():
             setattr(quiz, field, value)
         db.commit()

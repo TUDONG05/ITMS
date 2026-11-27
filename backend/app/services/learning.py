@@ -31,6 +31,7 @@ from app.models import (
     User,
 )
 from app.models.enums import InternshipMemberStatus
+from app.models.interaction import Notification
 from app.models.internship import InternshipRoadmap
 from app.schemas.learning import (
     AnswerSubmit,
@@ -38,6 +39,8 @@ from app.schemas.learning import (
     AttemptStartedRead,
     AttemptSubmit,
     AttemptSummary,
+    InternAttemptDetailRead,
+    InternAttemptQuestionDetail,
     LearningContentDetail,
     LearningContentItem,
     LearningPhaseItem,
@@ -57,6 +60,7 @@ ACTIVE_MEMBER_STATUSES = (
 VISIBLE_QUIZ_STATUSES = ("PUBLISHED", "CLOSED")
 CHOICE_TYPES = ("SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE")
 SINGLE_ANSWER_TYPES = ("SINGLE_CHOICE", "TRUE_FALSE")
+MAX_QUIZ_ATTEMPTS = 1
 # Cho phép nộp trễ một chút so với hạn để bù độ trễ mạng.
 SUBMIT_GRACE = timedelta(seconds=60)
 
@@ -193,12 +197,9 @@ def grade_question(
     selected_keys: list[str],
     text: str | None,
 ) -> bool | None:
-    """Chấm một câu. Trả None nếu câu hỏi chưa có đáp án dùng được để chấm tự động."""
+    """Chấm một câu. Câu tự luận (TEXT) luôn trả None để Mentor chấm thủ công."""
     if question_type == "TEXT":
-        accepted = accepted_text_answers(correct_answer)
-        if not accepted:
-            return None
-        return normalize_text(text or "") in accepted
+        return None
 
     correct = correct_keys(correct_answer, options, question_type)
     if not correct:
@@ -444,17 +445,22 @@ class LearningService:
     def _quiz_summary(
         quiz: Quiz, question_count: int, attempts: list[QuizAttempt]
     ) -> LearningQuizSummary:
+        now = _now()
         scores = [float(a.score) for a in attempts if a.submitted_at and a.score is not None]
+        has_open_attempt = any(
+            a.submitted_at is None and now <= LearningService._expires_at(a, quiz) for a in attempts
+        )
         return LearningQuizSummary(
             id=quiz.id,
             title=quiz.title,
             description=quiz.description,
             duration_minutes=quiz.duration_minutes,
             pass_score=float(quiz.pass_score),
-            max_attempts=quiz.max_attempts,
+            max_attempts=MAX_QUIZ_ATTEMPTS,
             status=quiz.status,
             question_count=question_count,
             attempts_used=len(attempts),
+            has_open_attempt=has_open_attempt,
             best_score=max(scores) if scores else None,
             passed=any(a.passed for a in attempts),
         )
@@ -618,13 +624,23 @@ class LearningService:
             LearningService._close_as_timed_out(open_attempt, quiz)
             db.flush()
 
-        if len(attempts) >= quiz.max_attempts:
+        if any(
+            a.submitted_at is not None and a.grading_status == "PENDING_GRADING" for a in attempts
+        ):
+            db.commit()
+            raise ApiError(
+                409,
+                "ATTEMPT_PENDING_GRADING",
+                "Bài làm trước đang chờ mentor chấm, chưa thể làm lại.",
+            )
+
+        if len(attempts) >= MAX_QUIZ_ATTEMPTS:
             db.commit()
             raise ApiError(
                 409,
                 "MAX_ATTEMPTS_REACHED",
-                "Bạn đã dùng hết số lần làm bài cho phép.",
-                {"max_attempts": quiz.max_attempts},
+                "Mỗi bài kiểm tra chỉ được làm 1 lần.",
+                {"max_attempts": MAX_QUIZ_ATTEMPTS},
             )
 
         attempt = QuizAttempt(
@@ -709,19 +725,25 @@ class LearningService:
                 answer[1] if answer else None,
             )
             points = float(question.score)
+            possible_total += points
             if outcome is None:
                 ungraded += 1
                 results.append(QuestionResult(question_id=question.id, is_correct=None))
                 continue
-            possible_total += points
             earned = points if outcome else 0.0
             earned_total += earned
             results.append(
                 QuestionResult(question_id=question.id, is_correct=outcome, earned_score=earned)
             )
 
-        score = round(earned_total / possible_total * 100, 2) if possible_total > 0 else 0.0
-        passed = possible_total > 0 and score >= float(quiz.pass_score)
+        if ungraded > 0:
+            grading_status = "PENDING_GRADING"
+            score = None
+            passed = None
+        else:
+            grading_status = "AUTO_GRADED"
+            score = round(earned_total / possible_total * 100, 2) if possible_total > 0 else 0.0
+            passed = possible_total > 0 and score >= float(quiz.pass_score)
 
         attempt.answers = [
             {
@@ -731,9 +753,26 @@ class LearningService:
             }
             for question_id, (keys, text) in answers.items()
         ]
+        attempt.grading_status = grading_status
         attempt.score = score
         attempt.passed = passed
         attempt.submitted_at = now
+
+        if grading_status == "PENDING_GRADING" and member.mentor_id is not None:
+            db.add(
+                Notification(
+                    title=f"Bài kiểm tra cần chấm: {quiz.title}",
+                    content=(
+                        f'Thực tập sinh {user.full_name} vừa nộp bài kiểm tra "{quiz.title}" '
+                        f"(lần {attempt.attempt_no}) có {ungraded} câu tự luận cần chấm điểm."
+                    ),
+                    target_type="USER",
+                    target_data=[str(member.mentor_id)],
+                    created_by=user.id,
+                    created_at=now,
+                )
+            )
+
         db.commit()
 
         return AttemptResultRead(
@@ -742,6 +781,7 @@ class LearningService:
             attempt_no=attempt.attempt_no,
             score=score,
             passed=passed,
+            grading_status=grading_status,
             earned_points=earned_total,
             total_points=possible_total,
             ungraded_questions=ungraded,
@@ -821,7 +861,7 @@ class LearningService:
             quiz_id=quiz.id,
             title=quiz.title,
             pass_score=float(quiz.pass_score),
-            max_attempts=quiz.max_attempts,
+            max_attempts=MAX_QUIZ_ATTEMPTS,
             attempts_used=len(attempts),
             best_score=max(scores) if scores else None,
             passed=any(a.passed for a in attempts),
@@ -830,6 +870,7 @@ class LearningService:
                     attempt_id=a.id,
                     attempt_no=a.attempt_no,
                     status="SUBMITTED" if a.submitted_at else "IN_PROGRESS",
+                    grading_status=a.grading_status,
                     score=float(a.score) if a.score is not None else None,
                     passed=a.passed,
                     started_at=a.started_at,
@@ -837,4 +878,71 @@ class LearningService:
                 )
                 for a in attempts
             ],
+        )
+
+    @staticmethod
+    def get_attempt_detail(
+        db: Session, user: User, attempt_id: uuid.UUID
+    ) -> InternAttemptDetailRead:
+        member, roadmap = LearningService._get_scope(db, user)
+        attempt = db.get(QuizAttempt, attempt_id)
+        if attempt is None or attempt.internship_member_id != member.id:
+            raise ApiError(404, "ATTEMPT_NOT_FOUND", "Không tìm thấy lượt làm bài.")
+        quiz = LearningService._scoped_quiz(db, roadmap, attempt.quiz_id)
+        if attempt.submitted_at is None:
+            raise ApiError(409, "ATTEMPT_NOT_SUBMITTED", "Lượt làm bài chưa được nộp.")
+
+        questions = LearningService._quiz_questions(db, quiz.id)
+        answer_map: dict[str, tuple[list[str], str | None]] = {}
+        for item in attempt.answers or []:
+            if isinstance(item, dict) and "question_id" in item:
+                answer_map[str(item["question_id"])] = (
+                    list(item.get("selected_keys") or []),
+                    item.get("text"),
+                )
+        manual_grades = attempt.question_grades if isinstance(attempt.question_grades, dict) else {}
+
+        details: list[InternAttemptQuestionDetail] = []
+        for q in questions:
+            qid = str(q.id)
+            options = normalize_options(q.options, q.type)
+            selected_keys, text = answer_map.get(qid, ([], None))
+            manual = manual_grades.get(qid) if isinstance(manual_grades.get(qid), dict) else None
+            max_score = float(q.score)
+            if manual is not None and "earned_score" in manual:
+                earned_score: float | None = float(manual["earned_score"])
+                feedback = manual.get("feedback")
+                is_correct: bool | None = earned_score >= max_score if max_score > 0 else True
+            else:
+                outcome = grade_question(q.type, options, q.correct_answer, selected_keys, text)
+                is_correct = outcome
+                earned_score = (max_score if outcome else 0.0) if outcome is not None else None
+                feedback = None
+
+            details.append(
+                InternAttemptQuestionDetail(
+                    question_id=q.id,
+                    content=q.content,
+                    type=q.type,
+                    max_score=max_score,
+                    selected_keys=selected_keys,
+                    text=text,
+                    is_correct=is_correct,
+                    earned_score=earned_score,
+                    feedback=feedback,
+                )
+            )
+
+        return InternAttemptDetailRead(
+            attempt_id=attempt.id,
+            quiz_id=quiz.id,
+            quiz_title=quiz.title,
+            attempt_no=attempt.attempt_no,
+            pass_score=float(quiz.pass_score),
+            grading_status=attempt.grading_status,
+            score=float(attempt.score) if attempt.score is not None else None,
+            passed=attempt.passed,
+            started_at=attempt.started_at,
+            submitted_at=attempt.submitted_at,
+            questions=details,
         )

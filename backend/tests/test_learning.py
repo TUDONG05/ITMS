@@ -21,6 +21,7 @@ from app.models import (
     User,
 )
 from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole, UserStatus
+from app.models.interaction import Notification
 from app.models.internship import InternshipRoadmap
 from app.services.learning import (
     correct_keys,
@@ -72,9 +73,9 @@ def test_grade_question_single_multiple_text():
     assert grade_question("MULTIPLE_CHOICE", multi, ["A", "C"], ["A"], None) is False
     assert grade_question("MULTIPLE_CHOICE", multi, ["A", "C"], ["A", "B", "C"], None) is False
 
-    assert grade_question("TEXT", [], ["Hà  Nội"], [], " hà nội ") is True
-    assert grade_question("TEXT", [], ["Hà Nội"], [], "Huế") is False
-    # Chưa có đáp án mẫu thì không chấm tự động.
+    # Câu tự luận (TEXT) luôn chờ Mentor chấm thủ công kể cả khi có gợi ý đáp án.
+    assert grade_question("TEXT", [], ["Hà  Nội"], [], " hà nội ") is None
+    assert grade_question("TEXT", [], ["Hà Nội"], [], "Huế") is None
     assert grade_question("TEXT", [], [""], [], "bất kỳ") is None
     assert grade_question("SINGLE_CHOICE", options, None, ["A"], None) is None
 
@@ -291,15 +292,13 @@ def learning_data() -> Generator[dict]:
     yield data
 
     session.rollback()
+    user_ids = [admin.id, mentor.id, intern_a.id, intern_b.id, intern_c.id]
+    session.execute(delete(Notification).where(Notification.created_by.in_(user_ids)))
     session.execute(delete(Internship).where(Internship.id == internship.id))
     session.execute(
         delete(Roadmap).where(Roadmap.id.in_([roadmap.id, other_roadmap.id, draft_roadmap.id]))
     )
-    session.execute(
-        delete(User).where(
-            User.id.in_([admin.id, mentor.id, intern_a.id, intern_b.id, intern_c.id])
-        )
-    )
+    session.execute(delete(User).where(User.id.in_(user_ids)))
     session.commit()
     session.close()
 
@@ -491,12 +490,15 @@ def test_submit_all_correct_and_partially_correct(client, learning_data):
     assert all(q["is_correct"] for q in result["questions"])
     assert "correct_answer" not in resp.text
 
-    # Lượt hai: đúng 2/4 → 50 điểm, dưới ngưỡng 60.
-    attempt2 = _start(client, learning_data).json()
-    assert attempt2["attempt_no"] == 2
+    # Intern B đúng 2/4 → 50 điểm, dưới ngưỡng 60.
+    hb = _h(learning_data["intern_b"])
+    attempt_b = client.post(
+        f"/api/v1/learning/quizzes/{learning_data['quiz'].id}/attempts", headers=hb
+    ).json()
+    assert attempt_b["attempt_no"] == 1
     resp2 = client.post(
-        f"/api/v1/learning/attempts/{attempt2['attempt_id']}/submit",
-        headers=h,
+        f"/api/v1/learning/attempts/{attempt_b['attempt_id']}/submit",
+        headers=hb,
         json=_answers(learning_data, single="B", multi=("A",), seed="A", tf="A"),
     )
     result2 = resp2.json()
@@ -506,10 +508,10 @@ def test_submit_all_correct_and_partially_correct(client, learning_data):
     results = client.get(
         f"/api/v1/learning/quizzes/{learning_data['quiz'].id}/results", headers=h
     ).json()
-    assert results["attempts_used"] == 2
+    assert results["attempts_used"] == 1
     assert results["best_score"] == 100
     assert results["passed"] is True
-    assert [a["score"] for a in results["attempts"]] == [100, 50]
+    assert [a["score"] for a in results["attempts"]] == [100]
 
 
 def test_unanswered_questions_score_zero(client, learning_data):
@@ -525,13 +527,12 @@ def test_unanswered_questions_score_zero(client, learning_data):
 
 def test_max_attempts_enforced(client, learning_data):
     h = _h(learning_data["intern_a"])
-    for _ in range(2):
-        attempt = _start(client, learning_data).json()
-        client.post(
-            f"/api/v1/learning/attempts/{attempt['attempt_id']}/submit",
-            headers=h,
-            json={"answers": []},
-        )
+    attempt = _start(client, learning_data).json()
+    client.post(
+        f"/api/v1/learning/attempts/{attempt['attempt_id']}/submit",
+        headers=h,
+        json={"answers": []},
+    )
     resp = _start(client, learning_data)
     assert resp.status_code == 409
     assert resp.json()["error"]["code"] == "MAX_ATTEMPTS_REACHED"
@@ -633,10 +634,10 @@ def test_expired_open_attempt_is_closed_with_zero(client, learning_data):
     assert results["attempts"][0]["score"] == 0
     assert results["attempts"][0]["passed"] is False
 
-    # Lượt quá hạn vẫn tính là đã dùng một lần; còn lượt thứ hai.
+    # Lượt quá hạn vẫn tính là đã dùng lượt duy nhất; không thể làm lại.
     nxt = _start(client, learning_data)
-    assert nxt.status_code == 200
-    assert nxt.json()["attempt_no"] == 2
+    assert nxt.status_code == 409
+    assert nxt.json()["error"]["code"] == "MAX_ATTEMPTS_REACHED"
 
 
 def test_expired_unsubmitted_attempt_closed_when_starting_again(client, learning_data):
@@ -648,9 +649,8 @@ def test_expired_unsubmitted_attempt_closed_when_starting_again(client, learning
     session.commit()
 
     new_attempt = _start(client, learning_data)
-    assert new_attempt.status_code == 200
-    assert new_attempt.json()["attempt_no"] == 2
-    assert new_attempt.json()["resumed"] is False
+    assert new_attempt.status_code == 409
+    assert new_attempt.json()["error"]["code"] == "MAX_ATTEMPTS_REACHED"
     results = client.get(
         f"/api/v1/learning/quizzes/{learning_data['quiz'].id}/results", headers=h
     ).json()
@@ -704,10 +704,77 @@ def test_text_question_graded_and_ungradable_excluded(client, learning_data):
     )
     result = resp.json()
     assert resp.status_code == 200, resp.text
-    assert result["score"] == 100
-    assert result["total_points"] == 10
-    assert result["ungraded_questions"] == 1
-    assert result["passed"] is True
+    assert result["grading_status"] == "PENDING_GRADING"
+    assert result["score"] is None
+    assert result["earned_points"] == 0
+    assert result["total_points"] == 20
+    assert result["ungraded_questions"] == 2
+    assert result["passed"] is None
+
+    # Cannot start a new attempt while previous attempt is still pending grading
+    retry_resp = client.post(f"/api/v1/learning/quizzes/{quiz.id}/attempts", headers=h)
+    assert retry_resp.status_code == 409
+    assert retry_resp.json()["error"]["code"] == "ATTEMPT_PENDING_GRADING"
+
+    # Mentor sees pending_quiz_gradings counter and notification
+    hm = _h(learning_data["mentor"])
+    overview_before = client.get("/api/v1/mentor/overview", headers=hm)
+    assert overview_before.status_code == 200
+    assert overview_before.json()["pending_quiz_gradings"] == 1
+    interns_before = client.get("/api/v1/mentor/interns", headers=hm)
+    assert interns_before.status_code == 200
+    intern_a_row = next(
+        i for i in interns_before.json() if i["intern_id"] == str(learning_data["intern_a"].id)
+    )
+    assert intern_a_row["pending_quiz_gradings"] == 1
+    pending_list_resp = client.get("/api/v1/mentor/quiz-attempts/pending", headers=hm)
+    assert pending_list_resp.status_code == 200
+    pending_list = pending_list_resp.json()
+    assert len(pending_list) == 1
+    assert pending_list[0]["attempt_id"] == attempt["attempt_id"]
+    assert pending_list[0]["ungraded_questions"] == 2
+    mentor_notifs = client.get("/api/v1/notifications", headers=hm)
+    assert mentor_notifs.status_code == 200
+    assert any("Bài kiểm tra cần chấm" in n["title"] for n in mentor_notifs.json())
+
+    # Mentor reviews and grades both essay questions
+    detail_resp = client.get(f"/api/v1/mentor/quiz-attempts/{attempt['attempt_id']}", headers=hm)
+    assert detail_resp.status_code == 200, detail_resp.text
+    assert detail_resp.json()["grading_status"] == "PENDING_GRADING"
+
+    grade_resp = client.post(
+        f"/api/v1/mentor/quiz-attempts/{attempt['attempt_id']}/grade",
+        headers=hm,
+        json={
+            "grades": [
+                {"question_id": str(graded.id), "earned_score": 10},
+                {"question_id": str(ungradable.id), "earned_score": 8, "feedback": "Khá tốt"},
+            ]
+        },
+    )
+    assert grade_resp.status_code == 200, grade_resp.text
+    graded_data = grade_resp.json()
+    assert graded_data["grading_status"] == "GRADED"
+    assert graded_data["score"] == 90.0
+    assert graded_data["passed"] is True
+
+    # Intern views detailed result and mentor feedback
+    intern_detail_resp = client.get(f"/api/v1/learning/attempts/{attempt['attempt_id']}", headers=h)
+    assert intern_detail_resp.status_code == 200, intern_detail_resp.text
+    intern_detail = intern_detail_resp.json()
+    assert intern_detail["grading_status"] == "GRADED"
+    assert intern_detail["score"] == 90.0
+    essay_q = next(q for q in intern_detail["questions"] if q["question_id"] == str(ungradable.id))
+    assert essay_q["earned_score"] == 8.0
+    assert essay_q["feedback"] == "Khá tốt"
+
+    # Pending counter drops to 0 and intern receives grading notification
+    overview_after = client.get("/api/v1/mentor/overview", headers=hm)
+    assert overview_after.status_code == 200
+    assert overview_after.json()["pending_quiz_gradings"] == 0
+    intern_notifs = client.get("/api/v1/notifications", headers=h)
+    assert intern_notifs.status_code == 200
+    assert any("Đã có điểm bài kiểm tra" in n["title"] for n in intern_notifs.json())
 
 
 def test_seed_attempts_do_not_break_results(client, learning_data):
@@ -734,9 +801,12 @@ def test_seed_attempts_do_not_break_results(client, learning_data):
     roadmap = client.get("/api/v1/learning/roadmap", headers=h).json()
     quiz = next(q for q in roadmap["phases"][0]["quizzes"] if q["title"] == "Quiz 1")
     assert quiz["attempts_used"] == 1
+    assert quiz["max_attempts"] == 1
     assert quiz["passed"] is True
-    # Lượt tiếp theo mang số 2 và còn dùng được (max_attempts = 2).
-    assert _start(client, learning_data).json()["attempt_no"] == 2
+    # Không thể bắt đầu lượt thứ 2 vì mỗi bài kiểm tra chỉ cho làm 1 lần.
+    retry_resp = _start(client, learning_data)
+    assert retry_resp.status_code == 409
+    assert retry_resp.json()["error"]["code"] == "MAX_ATTEMPTS_REACHED"
 
 
 def test_learning_progress_rows_removed_with_member(learning_data):
