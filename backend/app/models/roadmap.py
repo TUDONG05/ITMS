@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     CheckConstraint,
@@ -15,20 +16,30 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.models.document import content_documents
+
+if TYPE_CHECKING:
+    from app.models.document import Document
 
 
 class Roadmap(Base):
     __tablename__ = "lo_trinh_dao_tao"
     __table_args__ = (
+        UniqueConstraint("id", "position", name="uq_roadmaps_id_position"),
+        CheckConstraint(
+            "position IS NULL OR position IN ('BACKEND','FRONTEND','FULLSTACK','AI','BA','OTHER')",
+            name="ck_roadmaps_position",
+        ),
         CheckConstraint("status IN ('DRAFT', 'ACTIVE', 'ARCHIVED')", name="ck_roadmaps_status"),
     )
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column("ten", String(200), nullable=False, unique=True)
     description: Mapped[str | None] = mapped_column("mo_ta", Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="DRAFT")
+    position: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         "nguoi_tao_id",
         UUID(as_uuid=True),
@@ -95,6 +106,18 @@ class LearningContent(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
+
+    documents: Mapped[list[Document]] = relationship(
+        "Document",
+        secondary=content_documents,
+        back_populates="contents",
+        order_by="Document.created_at, Document.id",
+        lazy="selectin",
+    )
+
+    @property
+    def document_ids(self) -> list[uuid.UUID]:
+        return [document.id for document in self.documents]
 
 
 class LearningProgress(Base):

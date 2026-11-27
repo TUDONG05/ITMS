@@ -8,7 +8,13 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.session import get_session_factory
 from app.main import app
-from app.models.internship import Internship, InternshipApplication, InternshipMember
+from app.models.internship import (
+    Internship,
+    InternshipApplication,
+    InternshipMember,
+    InternshipRoadmap,
+)
+from app.models.roadmap import Roadmap
 from app.models.user import User
 from app.services.mentor import MentorService
 
@@ -39,6 +45,15 @@ def position_data():
         )
         db.add_all([*users.values(), batch])
         db.flush()
+        for position in ("BACKEND", "FRONTEND", "FULLSTACK", "AI", "BA", "OTHER"):
+            roadmap = Roadmap(
+                name=f"Position curriculum {uuid.uuid4().hex}", status="ACTIVE", position=position
+            )
+            db.add(roadmap)
+            db.flush()
+            db.add(
+                InternshipRoadmap(internship_id=batch.id, position=position, roadmap_id=roadmap.id)
+            )
         member = InternshipMember(
             internship_id=batch.id,
             intern_id=users["intern"].id,
@@ -136,7 +151,7 @@ def test_batch_approval_copies_chosen_position(position_data):
     assert membership.position == "FULLSTACK"
 
 
-def test_legacy_null_application_remains_readable_and_approvable(position_data):
+def test_legacy_null_application_remains_readable_but_cannot_be_approved(position_data):
     db, users, member = position_data
     legacy = InternshipApplication(
         internship_id=member.internship_id, intern_id=users["intern"].id, status="PENDING"
@@ -151,11 +166,13 @@ def test_legacy_null_application_remains_readable_and_approvable(position_data):
         headers=_headers(users["admin"]),
         json={"status": "APPROVED"},
     )
-    assert result.status_code == 200
+    assert result.status_code == 409
     membership = db.scalar(
         select(InternshipMember).where(InternshipMember.intern_id == users["intern"].id)
     )
-    assert membership.position is None
+    assert membership is None
+    db.refresh(legacy)
+    assert legacy.status == "PENDING"
 
 
 def test_admin_and_mentor_cannot_edit_chosen_position(position_data):

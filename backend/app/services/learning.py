@@ -31,6 +31,7 @@ from app.models import (
     User,
 )
 from app.models.enums import InternshipMemberStatus
+from app.models.internship import InternshipRoadmap
 from app.schemas.learning import (
     AnswerSubmit,
     AttemptResultRead,
@@ -47,6 +48,7 @@ from app.schemas.learning import (
     QuizQuestionPublic,
     QuizResultsRead,
 )
+from app.services.document import DocumentService
 
 ACTIVE_MEMBER_STATUSES = (
     InternshipMemberStatus.ACTIVE.value,
@@ -224,6 +226,7 @@ class LearningService:
     def get_current_member(db: Session, user: User) -> InternshipMember:
         member = db.scalar(
             select(InternshipMember)
+            .execution_options(populate_existing=True)
             .where(
                 InternshipMember.intern_id == user.id,
                 InternshipMember.status.in_(ACTIVE_MEMBER_STATUSES),
@@ -239,13 +242,47 @@ class LearningService:
 
     @staticmethod
     def _get_scope(db: Session, user: User) -> tuple[InternshipMember, Roadmap]:
+        DocumentService.mutation_lock(db)
         member = LearningService.get_current_member(db, user)
+        return member, LearningService.validate_member_roadmap(db, member)
+
+    @staticmethod
+    def validate_member_roadmap(db: Session, member: InternshipMember) -> Roadmap:
+        if member.position is None:
+            raise ApiError(
+                409,
+                "INTERNSHIP_POSITION_REQUIRED",
+                "Cần bổ sung vị trí thực tập của bạn trước khi học.",
+            )
         if member.roadmap_id is None:
-            raise ApiError(404, "ROADMAP_NOT_ASSIGNED", "Bạn chưa được giao lộ trình đào tạo.")
-        roadmap = db.get(Roadmap, member.roadmap_id)
+            raise ApiError(
+                404,
+                "ROADMAP_NOT_ASSIGNED",
+                "Bạn chưa được giao lộ trình phù hợp vị trí thực tập.",
+            )
+        roadmap = db.get(Roadmap, member.roadmap_id, populate_existing=True)
         if roadmap is None or roadmap.status != "ACTIVE":
-            raise ApiError(404, "ROADMAP_NOT_AVAILABLE", "Lộ trình đào tạo hiện chưa khả dụng.")
-        return member, roadmap
+            raise ApiError(404, "ROADMAP_NOT_AVAILABLE", "Lộ trình được giao hiện chưa hoạt động.")
+        if roadmap.position is None or roadmap.position != member.position:
+            raise ApiError(
+                409,
+                "ROADMAP_POSITION_MISMATCH",
+                "Lộ trình được giao không phù hợp vị trí thực tập của bạn.",
+            )
+        configured = db.scalar(
+            select(InternshipRoadmap.roadmap_id).where(
+                InternshipRoadmap.internship_id == member.internship_id,
+                InternshipRoadmap.position == member.position,
+                InternshipRoadmap.roadmap_id == roadmap.id,
+            )
+        )
+        if configured is None:
+            raise ApiError(
+                409,
+                "ROADMAP_NOT_CONFIGURED",
+                "Đợt thực tập chưa cấu hình lộ trình này cho vị trí của bạn.",
+            )
+        return roadmap
 
     @staticmethod
     def _scoped_content(
@@ -632,14 +669,14 @@ class LearningService:
     def submit_attempt(
         db: Session, user: User, attempt_id: uuid.UUID, payload: AttemptSubmit
     ) -> AttemptResultRead:
-        member = LearningService.get_current_member(db, user)
+        member, roadmap = LearningService._get_scope(db, user)
         attempt = db.get(QuizAttempt, attempt_id)
         if attempt is None or attempt.internship_member_id != member.id:
             raise ApiError(404, "ATTEMPT_NOT_FOUND", "Không tìm thấy lượt làm bài.")
         if attempt.submitted_at is not None:
             raise ApiError(409, "ATTEMPT_ALREADY_SUBMITTED", "Lượt làm bài này đã được nộp.")
 
-        quiz = db.get(Quiz, attempt.quiz_id)
+        quiz = LearningService._scoped_quiz(db, roadmap, attempt.quiz_id)
         if quiz is None:
             raise ApiError(404, "QUIZ_NOT_FOUND", "Không tìm thấy bài kiểm tra.")
 

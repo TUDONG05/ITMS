@@ -15,6 +15,7 @@ from app.models.internship import Internship, InternshipMember
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
 from app.models.task import Task, TaskAssignee, task_status_for_members
 from app.models.user import User
+from app.services.learning import LearningService
 from app.services.notification import NotificationService
 
 MAX_TOOL_ROWS = 20
@@ -411,7 +412,14 @@ class AssistantToolService:
                 continue
             if member.roadmap_id is None:
                 continue
-            roadmap = db.get(Roadmap, member.roadmap_id)
+            try:
+                roadmap = (
+                    LearningService.validate_member_roadmap(db, member)
+                    if user.role == UserRole.INTERN
+                    else db.get(Roadmap, member.roadmap_id)
+                )
+            except ApiError:
+                continue
             if roadmap is None or (user.role == UserRole.INTERN and roadmap.status != "ACTIVE"):
                 continue
             phase_rows = list(
@@ -467,7 +475,15 @@ class AssistantToolService:
             if member.roadmap_id is None:
                 summaries.append({"intern_id": str(member.intern_id), "roadmap_assigned": False})
                 continue
-            roadmap = db.get(Roadmap, member.roadmap_id)
+            try:
+                roadmap = (
+                    LearningService.validate_member_roadmap(db, member)
+                    if user.role == UserRole.INTERN
+                    else db.get(Roadmap, member.roadmap_id)
+                )
+            except ApiError:
+                summaries.append({"intern_id": str(member.intern_id), "roadmap_assigned": False})
+                continue
             if roadmap is None or (user.role == UserRole.INTERN and roadmap.status != "ACTIVE"):
                 continue
             content_ids = list(

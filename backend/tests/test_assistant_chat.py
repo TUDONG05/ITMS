@@ -15,7 +15,7 @@ from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole,
 from app.models.evaluation import Evaluation
 from app.models.exam import Quiz, QuizAttempt
 from app.models.interaction import Notification, NotificationRead
-from app.models.internship import Internship, InternshipMember
+from app.models.internship import Internship, InternshipMember, InternshipRoadmap
 from app.models.knowledge import AIConversation, AIMessage
 from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
 from app.models.task import Task, TaskAssignee
@@ -81,11 +81,15 @@ def assistant_data() -> Generator[dict[str, object]]:
     session.flush()
     roadmap = Roadmap(
         name=f"AI Roadmap {suffix}",
+        position="AI",
         status="ACTIVE",
         created_by=admin.id,
     )
     session.add(roadmap)
     session.flush()
+    session.add(
+        InternshipRoadmap(internship_id=internship.id, position="AI", roadmap_id=roadmap.id)
+    )
     phase = Phase(roadmap_id=roadmap.id, name="AI Phase", order_no=1)
     session.add(phase)
     session.flush()
@@ -112,6 +116,7 @@ def assistant_data() -> Generator[dict[str, object]]:
         intern_id=intern_a.id,
         mentor_id=mentor.id,
         roadmap_id=roadmap.id,
+        position="AI",
         status=InternshipMemberStatus.ACTIVE,
     )
     member_b = InternshipMember(
@@ -671,6 +676,21 @@ def test_learning_progress_uses_partial_percentages(
     )
 
     assert result["progress"][0]["progress_percent"] == 50.0
+
+
+@pytest.mark.parametrize("position", [None, "BACKEND"])
+def test_intern_tools_hide_unclassified_or_wrong_position_roadmaps(
+    assistant_data: dict[str, object],
+    position: str | None,
+) -> None:
+    session = assistant_data["session"]
+    member = assistant_data["members"][0]
+    member.position = position
+    session.flush()
+    tools = AssistantToolService()
+    assert tools.get_roadmap(session, assistant_data["intern_a"], {})["roadmaps"] == []
+    summaries = tools.get_learning_progress(session, assistant_data["intern_a"], {})["progress"]
+    assert summaries[0]["roadmap_assigned"] is False
 
 
 def test_intern_cannot_read_inactive_roadmap(

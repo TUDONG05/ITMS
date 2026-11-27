@@ -38,6 +38,9 @@ def test_all_entities_registered():
         "tin_nhan_ai",
         "phien_dang_nhap",
         "don_dang_ky_thuc_tap",
+        "document_library",
+        "learning_content_documents",
+        "internship_roadmaps",
     }
     actual_tables = set(Base.metadata.tables.keys())
     assert len(actual_tables) == len(expected_tables)

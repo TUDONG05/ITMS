@@ -19,6 +19,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalModule } from 'ng-zorro-antd/modal';
+import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTableModule } from 'ng-zorro-antd/table';
@@ -28,6 +29,7 @@ import {
   CreateInternshipPayload,
   Internship,
   InternshipMember,
+  InternshipRoadmap,
   InternshipService,
   InternshipStatus,
   MemberStatus,
@@ -54,6 +56,7 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
     NzIconModule,
     NzInputModule,
     NzModalModule,
+    NzPopconfirmModule,
     NzSelectModule,
     NzSpinModule,
     NzTableModule,
@@ -117,7 +120,6 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
           <thead>
             <tr>
               <th>Tên đợt thực tập</th>
-              <th>Lộ trình đào tạo</th>
               <th>Thời gian bắt đầu</th>
               <th>Thời gian kết thúc</th>
               <th>Trạng thái</th>
@@ -132,13 +134,6 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
                   <span class="cell-value item-name"
                     ><strong>{{ item.name }}</strong></span
                   >
-                </td>
-                <td data-label="Lộ trình">
-                  @if (item.roadmap_id) {
-                    <nz-tag nzColor="blue">{{ roadmapName(item.roadmap_id) }}</nz-tag>
-                  } @else {
-                    <span class="unassigned-text">Chưa giao</span>
-                  }
                 </td>
                 <td data-label="Bắt đầu">
                   <span class="cell-value">{{ item.start_date }}</span>
@@ -181,6 +176,22 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
                     >
                       <span nz-icon nzType="edit"></span>
                       Chỉnh sửa
+                    </button>
+                    <button
+                      nz-button
+                      nzType="text"
+                      nzDanger
+                      nzSize="small"
+                      type="button"
+                      nz-popconfirm
+                      [nzPopconfirmTitle]="'Xóa đợt thực tập “' + item.name + '”?'"
+                      nzOkText="Xóa"
+                      nzCancelText="Hủy"
+                      (nzOnConfirm)="deleteInternship(item)"
+                      [disabled]="deletingInternshipId() !== null"
+                      [nzLoading]="deletingInternshipId() === item.id"
+                    >
+                      <span nz-icon nzType="delete"></span>Xóa
                     </button>
                   </div>
                 </td>
@@ -372,22 +383,34 @@ import { Roadmap, TrainingService } from '../../core/api/training.service';
             </nz-form-item>
 
             <nz-form-item>
-              <nz-form-label>Lộ trình đào tạo</nz-form-label>
-              <nz-form-control>
+              <nz-form-label>Lộ trình theo vị trí thực tập</nz-form-label>
+              <nz-form-control
+                nzErrorTip="Mỗi vị trí chỉ được chọn một lộ trình đã phân loại và đang hoạt động."
+              >
                 <nz-select
-                  formControlName="roadmap_id"
-                  nzPlaceHolder="Chọn lộ trình đang hoạt động"
+                  formControlName="roadmap_ids"
+                  nzMode="multiple"
+                  nzPlaceHolder="Chọn lộ trình cho từng vị trí"
                   nzAllowClear
                   nzShowSearch
                 >
-                  @for (roadmap of availableRoadmaps(); track roadmap.id) {
+                  @for (roadmap of roadmapOptions(); track roadmap.id) {
                     <nz-option
                       [nzValue]="roadmap.id"
-                      [nzLabel]="roadmap.name + ' (' + roadmap.status + ')'"
-                      [nzDisabled]="roadmap.status !== 'ACTIVE'"
+                      [nzLabel]="
+                        positionLabel(roadmap.position) +
+                        ' — ' +
+                        roadmap.name +
+                        (roadmap.status !== 'ACTIVE' ? ' (' + roadmap.status + ')' : '')
+                      "
+                      [nzDisabled]="
+                        !roadmap.position ||
+                        (roadmap.status !== 'ACTIVE' && !isOriginallyConfigured(roadmap.id))
+                      "
                     ></nz-option>
                   }
                 </nz-select>
+                <p class="form-hint">Mỗi vị trí thực tập chỉ chọn một lộ trình.</p>
               </nz-form-control>
             </nz-form-item>
 
@@ -1236,6 +1259,7 @@ export class InternshipManagementComponent implements OnInit {
   protected readonly internships = signal<Internship[]>([]);
   protected readonly isLoading = signal<boolean>(false);
   protected readonly selectedInternship = signal<Internship | null>(null);
+  protected readonly deletingInternshipId = signal<string | null>(null);
 
   protected readonly searchQuery = signal<string>('');
   protected readonly statusFilter = signal<InternshipStatus | ''>('');
@@ -1247,6 +1271,13 @@ export class InternshipManagementComponent implements OnInit {
   protected readonly availableInterns = signal<UserSummary[]>([]);
   protected readonly availableMentors = signal<UserSummary[]>([]);
   protected readonly availableRoadmaps = signal<Roadmap[]>([]);
+  protected readonly roadmapOptions = computed<InternshipRoadmap[]>(() => {
+    const roadmaps: InternshipRoadmap[] = [...this.availableRoadmaps()];
+    for (const roadmap of this.editingInternship()?.roadmaps ?? []) {
+      if (!roadmaps.some((item) => item.id === roadmap.id)) roadmaps.push(roadmap);
+    }
+    return roadmaps;
+  });
 
   private searchDebounceTimer?: ReturnType<typeof setTimeout>;
 
@@ -1290,7 +1321,7 @@ export class InternshipManagementComponent implements OnInit {
     start_date: ['', [Validators.required]],
     end_date: ['', [Validators.required]],
     status: ['DRAFT' as InternshipStatus, [Validators.required]],
-    roadmap_id: [null as string | null],
+    roadmap_ids: [[] as string[]],
     description: [''],
   });
 
@@ -1339,6 +1370,32 @@ export class InternshipManagementComponent implements OnInit {
           this.isLoading.set(false);
         },
       });
+  }
+
+  deleteInternship(internship: Internship): void {
+    if (this.deletingInternshipId() !== null) return;
+    this.deletingInternshipId.set(internship.id);
+    this.internshipService.deleteInternship(internship.id).subscribe({
+      next: () => {
+        this.internships.update((items) => items.filter((item) => item.id !== internship.id));
+        if (this.selectedInternship()?.id === internship.id) {
+          this.selectedInternship.set(null);
+          this.members.set([]);
+          this.memberSearchQuery.set('');
+        }
+        this.deletingInternshipId.set(null);
+        this.message.success('Đã xóa đợt thực tập.');
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        this.deletingInternshipId.set(null);
+        const detail = error?.error?.detail ?? error?.error?.error?.message;
+        this.message.error(
+          typeof detail === 'string' ? detail : 'Không thể xóa đợt thực tập. Vui lòng thử lại.',
+        );
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   onSearchChange(value: string): void {
@@ -1400,7 +1457,7 @@ export class InternshipManagementComponent implements OnInit {
       start_date: new Date().toISOString().substring(0, 10),
       end_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
       status: 'DRAFT',
-      roadmap_id: null,
+      roadmap_ids: [],
       description: '',
     });
     this.isInternshipModalVisible = true;
@@ -1413,7 +1470,7 @@ export class InternshipManagementComponent implements OnInit {
       start_date: item.start_date,
       end_date: item.end_date,
       status: item.status,
-      roadmap_id: item.roadmap_id,
+      roadmap_ids: [...(item.roadmap_ids ?? item.roadmaps?.map((roadmap) => roadmap.id) ?? [])],
       description: item.description || '',
     });
     this.isInternshipModalVisible = true;
@@ -1430,6 +1487,7 @@ export class InternshipManagementComponent implements OnInit {
     }
 
     const formVal = this.internshipForm.getRawValue();
+    if (!this.validateRoadmapSelection(formVal.roadmap_ids ?? [])) return;
     if (formVal.end_date && formVal.start_date && formVal.end_date < formVal.start_date) {
       this.message.error('Ngày kết thúc không được nhỏ hơn ngày bắt đầu.');
       return;
@@ -1444,7 +1502,7 @@ export class InternshipManagementComponent implements OnInit {
         start_date: formVal.start_date ?? undefined,
         end_date: formVal.end_date ?? undefined,
         status: formVal.status ?? undefined,
-        roadmap_id: formVal.roadmap_id || null,
+        roadmap_ids: [...new Set(formVal.roadmap_ids ?? [])],
         description: formVal.description,
       };
       this.internshipService.updateInternship(editing.id, payload).subscribe({
@@ -1465,7 +1523,7 @@ export class InternshipManagementComponent implements OnInit {
         start_date: formVal.start_date!,
         end_date: formVal.end_date!,
         status: formVal.status ?? 'DRAFT',
-        roadmap_id: formVal.roadmap_id || null,
+        roadmap_ids: [...new Set(formVal.roadmap_ids ?? [])],
         description: formVal.description,
       };
       this.internshipService.createInternship(payload).subscribe({
@@ -1565,6 +1623,42 @@ export class InternshipManagementComponent implements OnInit {
   }
 
   // --- Helpers ---
+  protected configuredRoadmaps(internship: Internship): InternshipRoadmap[] {
+    if (internship.roadmaps) return internship.roadmaps;
+    const ids = new Set(internship.roadmap_ids ?? []);
+    return this.availableRoadmaps().filter((roadmap) => ids.has(roadmap.id));
+  }
+
+  protected isOriginallyConfigured(id: string): boolean {
+    const editing = this.editingInternship();
+    return (editing?.roadmap_ids ?? editing?.roadmaps?.map((roadmap) => roadmap.id) ?? []).includes(
+      id,
+    );
+  }
+
+  private validateRoadmapSelection(ids: string[]): boolean {
+    const positions = new Set<string>();
+    for (const id of new Set(ids)) {
+      const roadmap = this.roadmapOptions().find((item) => item.id === id);
+      if (!roadmap?.position || (roadmap.status !== 'ACTIVE' && !this.isOriginallyConfigured(id))) {
+        this.internshipForm.controls.roadmap_ids.setErrors({ invalidRoadmap: true });
+        this.internshipForm.controls.roadmap_ids.markAsTouched();
+        this.message.error(
+          'Chỉ chọn lộ trình đang hoạt động và đã được phân loại vị trí thực tập.',
+        );
+        return false;
+      }
+      if (positions.has(roadmap.position)) {
+        this.internshipForm.controls.roadmap_ids.setErrors({ duplicatePosition: true });
+        this.internshipForm.controls.roadmap_ids.markAsTouched();
+        this.message.error('Mỗi vị trí thực tập chỉ được chọn một lộ trình.');
+        return false;
+      }
+      positions.add(roadmap.position);
+    }
+    return true;
+  }
+
   roadmapName(roadmapId: string | null): string {
     if (!roadmapId) return 'Chưa giao';
     return this.availableRoadmaps().find((roadmap) => roadmap.id === roadmapId)?.name ?? roadmapId;

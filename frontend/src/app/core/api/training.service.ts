@@ -1,6 +1,8 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import type { LibraryDocument } from './documents.service';
+import type { InternshipPosition } from './internship.service';
 
 export type RoadmapStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
 export type ContentType = 'LESSON' | 'DOCUMENT' | 'VIDEO' | 'LINK';
@@ -8,6 +10,7 @@ export type QuizStatus = 'DRAFT' | 'PUBLISHED';
 export type QuestionType = 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'TEXT';
 
 export interface Roadmap {
+  position: InternshipPosition | null;
   id: string;
   name: string;
   description: string | null;
@@ -36,6 +39,9 @@ export interface LearningContent {
   type: ContentType;
   content: string | null;
   resource_url: string | null;
+  document_ids?: string[];
+  documents?: (Pick<LibraryDocument, 'id' | 'title' | 'url' | 'format' | 'positions'> &
+    Partial<Pick<LibraryDocument, 'original_filename'>>)[];
   order_no: number;
   created_at: string;
   updated_at: string;
@@ -95,6 +101,7 @@ export class TrainingService {
   }
 
   createRoadmap(payload: {
+    position: InternshipPosition;
     name: string;
     description?: string | null;
     status?: RoadmapStatus;
@@ -108,7 +115,12 @@ export class TrainingService {
 
   updateRoadmap(
     id: string,
-    payload: { name?: string; description?: string | null; status?: RoadmapStatus },
+    payload: {
+      name?: string;
+      description?: string | null;
+      status?: RoadmapStatus;
+      position?: InternshipPosition;
+    },
   ): Observable<Roadmap> {
     return this.http.patch<Roadmap>(`/api/v1/training/roadmaps/${id}`, payload, {});
   }
@@ -152,6 +164,7 @@ export class TrainingService {
     type: ContentType;
     content?: string | null;
     resource_url?: string | null;
+    document_ids?: string[];
     order_no: number;
   }): Observable<LearningContent> {
     return this.http.post<LearningContent>('/api/v1/training/contents', payload, {});
@@ -165,6 +178,7 @@ export class TrainingService {
       type?: ContentType;
       content?: string | null;
       resource_url?: string | null;
+      document_ids?: string[];
       order_no?: number;
     },
   ): Observable<LearningContent> {
@@ -251,11 +265,14 @@ export class TrainingService {
 
   // ── File Upload ───────────────────────────────────────────────────────────
 
-  uploadFiles(files: File[]): Observable<{ urls: string[] }> {
+  uploadFiles(files: File[]): Observable<{ urls: string[]; documents?: LibraryDocument[] }> {
     const formData = new FormData();
     for (const file of files) {
       formData.append('files', file, file.name);
     }
-    return this.http.post<{ urls: string[] }>('/api/v1/training/upload', formData);
+    return this.http.post<{ urls: string[]; documents?: LibraryDocument[] }>(
+      '/api/v1/training/upload',
+      formData,
+    );
   }
 }

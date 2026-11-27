@@ -12,6 +12,7 @@ from app.models.internship import (
     InternshipApplication,
     InternshipMember,
     InternshipRequest,
+    InternshipRoadmap,
 )
 from app.models.roadmap import Roadmap
 from app.models.user import User
@@ -34,6 +35,7 @@ from app.schemas.internship import (
     MyInternshipMembershipRead,
     UserSummary,
 )
+from app.services.document import DocumentService
 
 
 class InternshipService:
@@ -96,21 +98,115 @@ class InternshipService:
         ]
 
     @staticmethod
-    def _validate_roadmap(db: Session, roadmap_id: uuid.UUID | None) -> uuid.UUID | None:
-        if roadmap_id is None:
-            return None
-        roadmap = db.get(Roadmap, roadmap_id)
+    def _configuration_ids(data) -> list[uuid.UUID] | None:
+        fields = data.model_fields_set
+        if "roadmap_ids" in fields:
+            if data.roadmap_ids is None:
+                raise HTTPException(422, "Danh sách lộ trình không được là null.")
+            ids = list(dict.fromkeys(data.roadmap_ids))
+            if data.roadmap_id is not None and ids != [data.roadmap_id]:
+                raise HTTPException(422, "Không thể gửi hai cấu hình lộ trình khác nhau.")
+            return ids
+        if "roadmap_id" in fields:
+            return [data.roadmap_id] if data.roadmap_id else []
+        return None
+
+    @staticmethod
+    def _configure_roadmaps(db: Session, internship: Internship, ids: list[uuid.UUID]) -> None:
+        previous = {item.position: item.roadmap_id for item in internship.roadmap_configs}
+        roadmaps = list(
+            db.scalars(
+                select(Roadmap).where(Roadmap.id.in_(ids)).execution_options(populate_existing=True)
+            )
+        )
+        if len(roadmaps) != len(ids):
+            raise HTTPException(404, "Không tìm thấy một hoặc nhiều lộ trình.")
+        by_position = {}
+        for roadmap in roadmaps:
+            if roadmap.position is None:
+                raise HTTPException(
+                    409, "Cần phân loại vị trí của lộ trình trước khi cấu hình đợt thực tập."
+                )
+            if roadmap.position in by_position:
+                raise HTTPException(
+                    409, "Mỗi vị trí chỉ được chọn một lộ trình trong đợt thực tập."
+                )
+            if roadmap.status != "ACTIVE" and previous.get(roadmap.position) != roadmap.id:
+                raise HTTPException(409, "Chỉ có thể thêm lộ trình đang hoạt động.")
+            by_position[roadmap.position] = roadmap.id
+        members = list(
+            db.scalars(
+                select(InternshipMember)
+                .where(InternshipMember.internship_id == internship.id)
+                .execution_options(populate_existing=True)
+            )
+        )
+        for member in members:
+            if member.roadmap_id is None:
+                continue
+            former_position = next(
+                (
+                    position
+                    for position, roadmap_id in previous.items()
+                    if roadmap_id == member.roadmap_id
+                ),
+                None,
+            )
+            if (
+                former_position is not None
+                and by_position.get(former_position) != member.roadmap_id
+            ):
+                raise HTTPException(
+                    409, "Không thể bỏ hoặc thay lộ trình đang được thực tập sinh sử dụng."
+                )
+        existing = {item.position: item for item in internship.roadmap_configs}
+        for position, configuration in list(existing.items()):
+            if by_position.get(position) != configuration.roadmap_id:
+                internship.roadmap_configs.remove(configuration)
+        db.flush()
+        for position, roadmap_id in by_position.items():
+            if position not in existing or existing[position].roadmap_id != roadmap_id:
+                internship.roadmap_configs.append(
+                    InternshipRoadmap(position=position, roadmap_id=roadmap_id)
+                )
+        # A cohort no longer has a cross-position default; keep the old column only as API alias.
+        internship.roadmap_id = ids[0] if len(ids) == 1 else None
+        for member in members:
+            if (
+                member.roadmap_id is None
+                and member.position in by_position
+                and any(
+                    roadmap.id == by_position[member.position] and roadmap.status == "ACTIVE"
+                    for roadmap in roadmaps
+                )
+            ):
+                member.roadmap_id = by_position[member.position]
+
+    @staticmethod
+    def _position_roadmap(db: Session, internship_id: uuid.UUID, position: str | None) -> Roadmap:
+        if position is None:
+            raise HTTPException(
+                409, "Đơn đăng ký chưa có vị trí thực tập. Cần bổ sung trước khi phê duyệt."
+            )
+        roadmap = db.scalar(
+            select(Roadmap)
+            .join(
+                InternshipRoadmap,
+                (InternshipRoadmap.roadmap_id == Roadmap.id)
+                & (InternshipRoadmap.position == Roadmap.position),
+            )
+            .where(
+                InternshipRoadmap.internship_id == internship_id,
+                InternshipRoadmap.position == position,
+                Roadmap.status == "ACTIVE",
+            )
+            .execution_options(populate_existing=True)
+        )
         if roadmap is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Roadmap not found",
+                409, "Đợt thực tập chưa có lộ trình đang hoạt động phù hợp vị trí đã chọn."
             )
-        if roadmap.status != "ACTIVE":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only ACTIVE roadmaps can be assigned to an internship",
-            )
-        return roadmap.id
+        return roadmap
 
     @staticmethod
     def create_internship(
@@ -118,6 +214,7 @@ class InternshipService:
         data: InternshipCreate,
         creator_id: uuid.UUID | None = None,
     ) -> Internship:
+        DocumentService.mutation_lock(db)
         if data.end_date < data.start_date:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -131,17 +228,18 @@ class InternshipService:
                 detail=f"Internship with name '{data.name}' already exists",
             )
 
-        roadmap_id = InternshipService._validate_roadmap(db, data.roadmap_id)
+        roadmap_ids = InternshipService._configuration_ids(data) or []
         internship = Internship(
             name=data.name,
             description=data.description,
             start_date=data.start_date,
             end_date=data.end_date,
             status=data.status,
-            roadmap_id=roadmap_id,
             created_by=creator_id,
         )
         db.add(internship)
+        db.flush()
+        InternshipService._configure_roadmaps(db, internship, roadmap_ids)
         db.commit()
         db.refresh(internship)
         return internship
@@ -171,6 +269,7 @@ class InternshipService:
         stmt = (
             select(Internship)
             .where(Internship.id == internship_id)
+            .execution_options(populate_existing=True)
             .options(selectinload(Internship.members))
         )
         internship = db.scalar(stmt)
@@ -187,6 +286,7 @@ class InternshipService:
         internship_id: uuid.UUID,
         data: InternshipUpdate,
     ) -> Internship:
+        DocumentService.mutation_lock(db)
         internship = InternshipService.get_internship_by_id(db, internship_id)
 
         new_start = data.start_date if data.start_date is not None else internship.start_date
@@ -215,15 +315,44 @@ class InternshipService:
         if data.status is not None:
             internship.status = data.status
         update_data = data.model_dump(exclude_unset=True)
-        if "roadmap_id" in update_data:
-            roadmap_id = InternshipService._validate_roadmap(db, data.roadmap_id)
-            internship.roadmap_id = roadmap_id
-            for member in internship.members:
-                member.roadmap_id = roadmap_id
+        if "roadmap_ids" in update_data or "roadmap_id" in update_data:
+            InternshipService._configure_roadmaps(
+                db, internship, InternshipService._configuration_ids(data) or []
+            )
 
         db.commit()
         db.refresh(internship)
         return internship
+
+    @staticmethod
+    def delete_internship(db: Session, internship_id: uuid.UUID) -> None:
+        DocumentService.mutation_lock(db)
+        internship = db.scalar(
+            select(Internship)
+            .where(Internship.id == internship_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if internship is None:
+            raise HTTPException(404, "Không tìm thấy đợt thực tập.")
+        member = db.scalar(
+            select(InternshipMember.id)
+            .where(InternshipMember.internship_id == internship_id)
+            .limit(1)
+        )
+        application = db.scalar(
+            select(InternshipApplication.id)
+            .where(InternshipApplication.internship_id == internship_id)
+            .limit(1)
+        )
+        if member is not None or application is not None:
+            raise HTTPException(
+                409,
+                "Không thể xóa đợt thực tập đã có thành viên hoặc đơn đăng ký. "
+                "Dữ liệu tham gia và lịch sử đăng ký cần được giữ lại.",
+            )
+        db.delete(internship)
+        db.commit()
 
     @staticmethod
     def add_member_to_internship(
@@ -267,6 +396,7 @@ class InternshipService:
         stmt = (
             select(InternshipMember)
             .where(InternshipMember.id == member_id)
+            .execution_options(populate_existing=True)
             .options(
                 selectinload(InternshipMember.intern),
                 selectinload(InternshipMember.mentor),
@@ -312,6 +442,7 @@ class InternshipService:
         member_id: uuid.UUID,
         payload: InternshipMemberUpdate,
     ) -> InternshipMember:
+        DocumentService.mutation_lock(db)
         member = InternshipService.get_member_by_id(db, member_id)
 
         update_data = payload.model_dump(exclude_unset=True)
@@ -347,7 +478,16 @@ class InternshipService:
         if "status" in update_data and update_data["status"] is not None:
             member.status = update_data["status"]
         if "roadmap_id" in update_data:
-            member.roadmap_id = update_data["roadmap_id"]
+            target_id = update_data["roadmap_id"]
+            if target_id is not None:
+                matched = InternshipService._position_roadmap(
+                    db, member.internship_id, member.position
+                )
+                if matched.id != target_id:
+                    raise HTTPException(
+                        409, "Lộ trình không phù hợp vị trí và cấu hình đợt thực tập."
+                    )
+            member.roadmap_id = target_id
 
         db.commit()
         db.refresh(member)
@@ -672,7 +812,7 @@ class InternshipService:
     def enrich_application(db: Session, app: InternshipApplication) -> InternshipApplicationRead:
         internship_name = app.internship.name if app.internship else None
         if not internship_name and app.internship_id:
-            it = db.get(Internship, app.internship_id)
+            it = db.get(Internship, app.internship_id, populate_existing=True)
             if it:
                 internship_name = it.name
 
@@ -723,7 +863,8 @@ class InternshipService:
         intern_id: uuid.UUID,
         data: InternshipApplicationCreate,
     ) -> InternshipApplicationRead:
-        internship = db.get(Internship, internship_id)
+        DocumentService.mutation_lock(db)
+        internship = db.get(Internship, internship_id, populate_existing=True)
         if not internship:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -757,6 +898,8 @@ class InternshipService:
                     "Mỗi thực tập sinh chỉ được đăng ký một đợt thực tập."
                 ),
             )
+
+        InternshipService._position_roadmap(db, internship_id, data.position)
 
         app_stmt = select(InternshipApplication).where(
             InternshipApplication.internship_id == internship_id,
@@ -871,6 +1014,7 @@ class InternshipService:
         payload: InternshipApplicationReview,
         reviewer_id: uuid.UUID,
     ) -> InternshipApplicationRead:
+        DocumentService.mutation_lock(db)
         intern_id = db.scalar(
             select(InternshipApplication.intern_id).where(InternshipApplication.id == app_id)
         )
@@ -894,7 +1038,7 @@ class InternshipService:
             )
 
         if payload.status == "APPROVED":
-            internship = db.get(Internship, app.internship_id)
+            internship = db.get(Internship, app.internship_id, populate_existing=True)
             if not internship or internship.status == InternshipStatus.CANCELLED:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -905,10 +1049,13 @@ class InternshipService:
             if InternshipService._has_membership(db, app.intern_id):
                 raise InternshipService._enrollment_conflict()
 
+            selected_roadmap = InternshipService._position_roadmap(
+                db, app.internship_id, app.position
+            )
             new_member = InternshipMember(
                 internship_id=app.internship_id,
                 intern_id=app.intern_id,
-                roadmap_id=internship.roadmap_id,
+                roadmap_id=selected_roadmap.id,
                 position=app.position,
                 start_date=internship.start_date,
                 end_date=internship.end_date,
@@ -932,6 +1079,7 @@ class InternshipService:
         payload: BatchReviewPayload,
         reviewer_id: uuid.UUID,
     ) -> BatchResult:
+        DocumentService.mutation_lock(db)
         if not payload.ids:
             return BatchResult(processed_count=0, message="Không có đơn đăng ký nào được chọn.")
 
@@ -945,6 +1093,29 @@ class InternshipService:
         )
         for intern_id in sorted(intern_ids):
             InternshipService._lock_intern(db, intern_id)
+        selected_roadmaps = {}
+        if payload.status == "APPROVED":
+            pending = list(
+                db.scalars(
+                    select(InternshipApplication)
+                    .where(
+                        InternshipApplication.id.in_(payload.ids),
+                        InternshipApplication.status == "PENDING",
+                    )
+                    .order_by(InternshipApplication.id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                )
+            )
+            for application in pending:
+                cohort = db.get(Internship, application.internship_id, populate_existing=True)
+                if not cohort or cohort.status == InternshipStatus.CANCELLED:
+                    continue
+                if InternshipService._has_membership(db, application.intern_id):
+                    continue
+                selected_roadmaps[application.id] = InternshipService._position_roadmap(
+                    db, application.internship_id, application.position
+                ).id
         skipped_enrolled = 0
         processed = 0
         now = datetime.now(UTC)
@@ -959,7 +1130,7 @@ class InternshipService:
                 continue
 
             if payload.status == "APPROVED":
-                internship = db.get(Internship, app.internship_id)
+                internship = db.get(Internship, app.internship_id, populate_existing=True)
                 if not internship or internship.status == InternshipStatus.CANCELLED:
                     continue
 
@@ -970,7 +1141,7 @@ class InternshipService:
                 new_member = InternshipMember(
                     internship_id=app.internship_id,
                     intern_id=app.intern_id,
-                    roadmap_id=internship.roadmap_id,
+                    roadmap_id=selected_roadmaps[app.id],
                     position=app.position,
                     start_date=internship.start_date,
                     end_date=internship.end_date,

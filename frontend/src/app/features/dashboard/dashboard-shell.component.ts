@@ -37,6 +37,7 @@ import { MentorInternManagementComponent } from '../mentor/mentor-intern-managem
 import { ProfileComponent } from '../profile/profile.component';
 import { TaskManagementComponent } from '../tasks/task-management.component';
 import { TrainingManagementComponent } from '../training/training-management.component';
+import { DocumentManagementComponent } from '../documents/document-management.component';
 import { UserManagementComponent } from '../users/user-management.component';
 import { RequestManagementComponent } from '../requests/request-management.component';
 import { NotificationManagementComponent } from '../notifications/notification-management.component';
@@ -167,6 +168,7 @@ const dashboards: Record<Role, Dashboard> = {
       { id: 'users', label: 'Quản lý người dùng', icon: 'team' },
       { id: 'internships', label: 'Quản lý đợt thực tập', icon: 'solution' },
       { id: 'training', label: 'Quản lý lộ trình', icon: 'book' },
+      { id: 'documents', label: 'Quản lý tài liệu', icon: 'file-text' },
       { id: 'evaluations', label: 'Quản lý đánh giá', icon: 'star' },
       { id: 'requests', label: 'Duyệt đơn đăng ký', icon: 'solution' },
       ...common,
@@ -235,6 +237,7 @@ const dashboards: Record<Role, Dashboard> = {
     ProfileComponent,
     TaskManagementComponent,
     TrainingManagementComponent,
+    DocumentManagementComponent,
     UserManagementComponent,
     RequestManagementComponent,
     NotificationManagementComponent,
@@ -745,6 +748,8 @@ const dashboards: Record<Role, Dashboard> = {
             } @else if (section() === 'training' && (role() === 'ADMIN' || role() === 'MENTOR')) {
               <!-- UC-16: Quản lý đào tạo (LMS) -->
               <app-training-management />
+            } @else if (section() === 'documents' && role() === 'ADMIN') {
+              <app-document-management />
             } @else if (section() === 'tasks' && (role() === 'MENTOR' || role() === 'INTERN')) {
               <!-- UC-7: Quản lý Task — Mentor giao/review, Intern nộp (Sprint 2) -->
               <app-task-management />

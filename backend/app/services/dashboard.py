@@ -3,14 +3,19 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Query, Session
 
 from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole, UserStatus
 from app.models.evaluation import Evaluation
-from app.models.exam import QuizAttempt
-from app.models.internship import Internship, InternshipApplication, InternshipMember
-from app.models.roadmap import LearningProgress, Roadmap
+from app.models.exam import Quiz, QuizAttempt
+from app.models.internship import (
+    Internship,
+    InternshipApplication,
+    InternshipMember,
+    InternshipRoadmap,
+)
+from app.models.roadmap import LearningContent, LearningProgress, Phase, Roadmap
 from app.models.task import Task, TaskAssignee, task_status_for_members
 from app.models.user import User
 from app.schemas.dashboard import (
@@ -151,6 +156,14 @@ class DashboardService:
         active_members = members.filter(InternshipMember.status.in_(ACTIVE_MEMBER_STATUSES))
         tasks = DashboardService._tasks(db, member_ids)
         status_column = task_status_for_members(member_ids)
+        completed_quizzes = DashboardService._current_roadmap_rows(
+            db.query(QuizAttempt).join(Quiz, Quiz.id == QuizAttempt.quiz_id),
+            Quiz.phase_id,
+            QuizAttempt.internship_member_id,
+        ).filter(
+            QuizAttempt.internship_member_id.in_(member_ids),
+            QuizAttempt.submitted_at.is_not(None),
+        )
         latest_score = (
             db.query(Evaluation.total_score)
             .filter(
@@ -181,12 +194,7 @@ class DashboardService:
             DashboardMetricRead(
                 key="completed_quizzes",
                 label="Quiz đã hoàn thành",
-                value=db.query(QuizAttempt)
-                .filter(
-                    QuizAttempt.internship_member_id.in_(member_ids),
-                    QuizAttempt.submitted_at.is_not(None),
-                )
-                .count(),
+                value=completed_quizzes.count(),
             ),
             DashboardMetricRead(
                 key="latest_evaluation_score",
@@ -200,7 +208,7 @@ class DashboardService:
             role=UserRole.INTERN,
             metrics=metrics,
             task_breakdown=DashboardService._task_breakdown(tasks, status_column),
-            progress=DashboardService._progress(db, member_ids),
+            progress=DashboardService._progress(db, member_ids, current_roadmap_only=True),
             recent_items=DashboardService._recent_tasks(tasks, status_column),
         )
 
@@ -245,10 +253,40 @@ class DashboardService:
         )
 
     @staticmethod
-    def _progress(db: Session, member_ids) -> DashboardProgressRead | None:
+    def _current_roadmap_rows(query: Query, phase_id_column, member_id_column) -> Query:
+        return (
+            query.join(Phase, Phase.id == phase_id_column)
+            .join(InternshipMember, InternshipMember.id == member_id_column)
+            .join(Roadmap, Roadmap.id == Phase.roadmap_id)
+            .join(
+                InternshipRoadmap,
+                and_(
+                    InternshipRoadmap.internship_id == InternshipMember.internship_id,
+                    InternshipRoadmap.position == InternshipMember.position,
+                    InternshipRoadmap.roadmap_id == Roadmap.id,
+                ),
+            )
+            .filter(
+                Roadmap.id == InternshipMember.roadmap_id,
+                Roadmap.position == InternshipMember.position,
+                Roadmap.status == "ACTIVE",
+                InternshipMember.status.in_(ACTIVE_MEMBER_STATUSES),
+            )
+        )
+
+    @staticmethod
+    def _progress(
+        db: Session, member_ids, *, current_roadmap_only: bool = False
+    ) -> DashboardProgressRead | None:
         progress = db.query(LearningProgress).filter(
             LearningProgress.internship_member_id.in_(member_ids)
         )
+        if current_roadmap_only:
+            progress = DashboardService._current_roadmap_rows(
+                progress.join(LearningContent, LearningContent.id == LearningProgress.content_id),
+                LearningContent.phase_id,
+                LearningProgress.internship_member_id,
+            )
         total = progress.count()
         if total == 0:
             return None

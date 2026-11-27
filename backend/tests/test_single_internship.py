@@ -11,7 +11,13 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.session import get_session_factory
 from app.main import app as api_app
-from app.models.internship import Internship, InternshipApplication, InternshipMember
+from app.models.internship import (
+    Internship,
+    InternshipApplication,
+    InternshipMember,
+    InternshipRoadmap,
+)
+from app.models.roadmap import Roadmap
 from app.models.user import User
 from app.schemas.internship import (
     BatchReviewPayload,
@@ -48,6 +54,16 @@ def single_internship_data():
             for _ in range(2)
         ]
         db.add_all([intern, admin, *batches])
+        db.flush()
+        roadmap = Roadmap(
+            name=f"Single curriculum {uuid.uuid4().hex}", status="ACTIVE", position="BACKEND"
+        )
+        db.add(roadmap)
+        db.flush()
+        for batch in batches:
+            db.add(
+                InternshipRoadmap(internship_id=batch.id, position="BACKEND", roadmap_id=roadmap.id)
+            )
         db.commit()
         yield db, intern, admin, batches
 
@@ -59,7 +75,7 @@ def test_any_previous_membership_blocks_applying_and_approval(
     db, intern, admin, batches = single_internship_data
     db.add(InternshipMember(internship_id=batches[0].id, intern_id=intern.id, status=member_status))
     application = InternshipApplication(
-        internship_id=batches[1].id, intern_id=intern.id, status="PENDING"
+        internship_id=batches[1].id, intern_id=intern.id, status="PENDING", position="BACKEND"
     )
     db.add(application)
     db.commit()
@@ -88,7 +104,9 @@ def test_any_previous_membership_blocks_applying_and_approval(
 def test_batch_approves_only_one_of_multiple_pending_applications(single_internship_data):
     db, intern, admin, batches = single_internship_data
     applications = [
-        InternshipApplication(internship_id=batch.id, intern_id=intern.id, status="PENDING")
+        InternshipApplication(
+            internship_id=batch.id, intern_id=intern.id, status="PENDING", position="BACKEND"
+        )
         for batch in batches
     ]
     db.add_all(applications)
@@ -123,11 +141,10 @@ def test_pending_or_approved_application_blocks_another_registration(
     db.add(original)
     db.commit()
     target = batches[0] if same_batch else batches[1]
-    response = TestClient(api_app).post(
-        f"/api/v1/internships/{target.id}/apply",
-        headers={"X-User-Id": str(intern.id)},
-        json={"position": "AI"},
-    )
+    client = TestClient(api_app)
+    url = f"/api/v1/internships/{target.id}/apply"
+    headers = {"X-User-Id": str(intern.id)}
+    response = client.post(url, headers=headers, json={"position": "AI"})
     assert response.status_code == 409
     applications = list(
         db.scalars(
@@ -151,13 +168,15 @@ def test_rejected_application_allows_registration_when_no_other_blocking_applica
     db.add(rejected)
     db.commit()
     target = batches[0] if same_batch else batches[1]
-    response = TestClient(api_app).post(
-        f"/api/v1/internships/{target.id}/apply",
-        headers={"X-User-Id": str(intern.id)},
-        json={"position": "AI"},
-    )
+    client = TestClient(api_app)
+    url = f"/api/v1/internships/{target.id}/apply"
+    headers = {"X-User-Id": str(intern.id)}
+    assert client.post(url, headers=headers, json={"position": "AI"}).status_code == 409
+    db.refresh(rejected)
+    assert rejected.status == "REJECTED"
+    response = client.post(url, headers=headers, json={"position": "BACKEND"})
     assert response.status_code == 201
-    assert response.json()["position"] == "AI"
+    assert response.json()["position"] == "BACKEND"
     assert response.json()["status"] == "PENDING"
     if same_batch:
         assert response.json()["id"] == str(rejected.id)
@@ -173,7 +192,10 @@ def test_rejected_resubmission_is_blocked_by_another_pending_application(single_
         [
             rejected,
             InternshipApplication(
-                internship_id=batches[1].id, intern_id=intern.id, status="PENDING", position="AI"
+                internship_id=batches[1].id,
+                intern_id=intern.id,
+                status="PENDING",
+                position="AI",
             ),
         ]
     )
@@ -208,7 +230,7 @@ def test_approval_translates_unique_constraint_race_to_conflict(
     db, intern, admin, batches = single_internship_data
     db.add(InternshipMember(internship_id=batches[0].id, intern_id=intern.id, status="ACTIVE"))
     application = InternshipApplication(
-        internship_id=batches[1].id, intern_id=intern.id, status="PENDING"
+        internship_id=batches[1].id, intern_id=intern.id, status="PENDING", position="BACKEND"
     )
     db.add(application)
     db.commit()
@@ -229,7 +251,7 @@ def test_batch_skips_unique_constraint_conflict_without_marking_approved(
     db, intern, admin, batches = single_internship_data
     db.add(InternshipMember(internship_id=batches[0].id, intern_id=intern.id, status="STOPPED"))
     application = InternshipApplication(
-        internship_id=batches[1].id, intern_id=intern.id, status="PENDING"
+        internship_id=batches[1].id, intern_id=intern.id, status="PENDING", position="BACKEND"
     )
     db.add(application)
     db.commit()

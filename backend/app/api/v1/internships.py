@@ -210,6 +210,8 @@ def get_internship(
     """Retrieve internship details by ID."""
     internship = InternshipService.get_internship_by_id(db, internship_id=id)
     return InternshipDetailRead(
+        roadmap_ids=internship.roadmap_ids,
+        roadmaps=internship.roadmaps,
         id=internship.id,
         name=internship.name,
         description=internship.description,
@@ -234,6 +236,16 @@ def update_internship(
     """Admin updates an internship batch."""
     internship = InternshipService.update_internship(db, internship_id=id, data=payload)
     return InternshipRead.model_validate(internship)
+
+
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_internship(
+    id: uuid.UUID,
+    _: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
+) -> None:
+    """Delete an empty internship without removing registration or participation history."""
+    InternshipService.delete_internship(db, internship_id=id)
 
 
 @router.post(

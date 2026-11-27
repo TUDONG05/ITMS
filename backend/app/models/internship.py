@@ -9,6 +9,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     String,
     Text,
@@ -64,6 +65,21 @@ class Internship(Base):
         "InternshipMember", cascade="all, delete-orphan"
     )
     roadmap: Mapped[Roadmap | None] = relationship("Roadmap", foreign_keys=[roadmap_id])
+    roadmap_configs: Mapped[list[InternshipRoadmap]] = relationship(
+        "InternshipRoadmap",
+        back_populates="internship",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="InternshipRoadmap.position",
+    )
+
+    @property
+    def roadmap_ids(self) -> list[uuid.UUID]:
+        return [configuration.roadmap_id for configuration in self.roadmap_configs]
+
+    @property
+    def roadmaps(self) -> list[Roadmap]:
+        return [configuration.roadmap for configuration in self.roadmap_configs]
 
     @property
     def members_count(self) -> int:
@@ -71,6 +87,31 @@ class Internship(Base):
             return len(self.members) if self.members else 0
         except Exception:
             return 0
+
+
+class InternshipRoadmap(Base):
+    __tablename__ = "internship_roadmaps"
+    __table_args__ = (
+        UniqueConstraint("internship_id", "roadmap_id", name="uq_internship_roadmaps_roadmap"),
+        ForeignKeyConstraint(
+            ["roadmap_id", "position"],
+            ["lo_trinh_dao_tao.id", "lo_trinh_dao_tao.position"],
+            name="fk_internship_roadmap_position",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT",
+        ),
+        CheckConstraint(
+            "position IN ('BACKEND','FRONTEND','FULLSTACK','AI','BA','OTHER')",
+            name="ck_internship_roadmaps_position",
+        ),
+    )
+    internship_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("dot_thuc_tap.id", ondelete="CASCADE"), primary_key=True
+    )
+    position: Mapped[str] = mapped_column(String(20), primary_key=True)
+    roadmap_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    internship: Mapped[Internship] = relationship("Internship", back_populates="roadmap_configs")
+    roadmap: Mapped[Roadmap] = relationship("Roadmap", lazy="joined")
 
 
 class InternshipMember(Base):

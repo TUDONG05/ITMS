@@ -21,6 +21,7 @@ from app.models import (
     User,
 )
 from app.models.enums import InternshipMemberStatus, InternshipStatus, UserRole, UserStatus
+from app.models.internship import InternshipRoadmap
 from app.services.learning import (
     correct_keys,
     grade_question,
@@ -111,9 +112,15 @@ def learning_data() -> Generator[dict]:
     session.add_all([admin, mentor, intern_a, intern_b, intern_c])
     session.commit()
 
-    roadmap = Roadmap(name=f"RM active {suffix}", status="ACTIVE", created_by=admin.id)
-    other_roadmap = Roadmap(name=f"RM other {suffix}", status="ACTIVE", created_by=admin.id)
-    draft_roadmap = Roadmap(name=f"RM draft {suffix}", status="DRAFT", created_by=admin.id)
+    roadmap = Roadmap(
+        name=f"RM active {suffix}", status="ACTIVE", position="BACKEND", created_by=admin.id
+    )
+    other_roadmap = Roadmap(
+        name=f"RM other {suffix}", status="ACTIVE", position="FRONTEND", created_by=admin.id
+    )
+    draft_roadmap = Roadmap(
+        name=f"RM draft {suffix}", status="DRAFT", position="BACKEND", created_by=admin.id
+    )
     session.add_all([roadmap, other_roadmap, draft_roadmap])
     session.commit()
 
@@ -238,6 +245,7 @@ def learning_data() -> Generator[dict]:
         mentor_id=mentor.id,
         roadmap_id=roadmap.id,
         status=InternshipMemberStatus.ACTIVE,
+        position="BACKEND",
     )
     member_b = InternshipMember(
         internship_id=internship.id,
@@ -245,6 +253,7 @@ def learning_data() -> Generator[dict]:
         mentor_id=mentor.id,
         roadmap_id=roadmap.id,
         status=InternshipMemberStatus.ACTIVE,
+        position="BACKEND",
     )
     member_c = InternshipMember(
         internship_id=internship.id,
@@ -252,6 +261,10 @@ def learning_data() -> Generator[dict]:
         mentor_id=mentor.id,
         roadmap_id=None,
         status=InternshipMemberStatus.ACTIVE,
+        position="BACKEND",
+    )
+    session.add(
+        InternshipRoadmap(internship_id=internship.id, position="BACKEND", roadmap_id=roadmap.id)
     )
     session.add_all([member_a, member_b, member_c])
     session.commit()
@@ -738,3 +751,33 @@ def test_learning_progress_rows_removed_with_member(learning_data):
         )
     )
     session.commit()
+
+
+def test_mismatched_position_cannot_read_write_or_submit_started_attempt(client, learning_data):
+    data = learning_data
+    h = _h(data["intern_a"])
+    started = _start(client, data)
+    assert started.status_code == 200
+    attempt_id = started.json()["attempt_id"]
+    db = data["session"]
+    data["member_a"].position = "FRONTEND"
+    db.commit()
+    cid = data["contents"][0].id
+    for url in (
+        "/api/v1/learning/roadmap",
+        f"/api/v1/learning/contents/{cid}",
+        f"/api/v1/learning/quizzes/{data['quiz'].id}/results",
+    ):
+        response = client.get(url, headers=h)
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "ROADMAP_POSITION_MISMATCH"
+    assert client.post(f"/api/v1/learning/contents/{cid}/complete", headers=h).status_code == 409
+    assert _start(client, data).status_code == 409
+    submitted = client.post(
+        f"/api/v1/learning/attempts/{attempt_id}/submit", headers=h, json={"answers": []}
+    )
+    assert submitted.status_code == 409
+    attempt = db.get(QuizAttempt, uuid.UUID(attempt_id))
+    db.refresh(attempt)
+    assert attempt.submitted_at is None
+    assert attempt.score is None

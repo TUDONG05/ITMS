@@ -6,11 +6,10 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_roles
-from app.core.errors import ApiError
-from app.core.settings import TRAINING_UPLOAD_DIR
 from app.db.session import get_db
 from app.models.enums import UserRole
 from app.models.user import User
+from app.schemas.document import DocumentCreate
 from app.schemas.training import (
     LearningContentCreate,
     LearningContentRead,
@@ -30,33 +29,11 @@ from app.schemas.training import (
     RoadmapRead,
     RoadmapUpdate,
 )
+from app.services.document import DocumentService
+from app.services.document_storage import store_document
 from app.services.training import TrainingService
 
 router = APIRouter(prefix="/training", tags=["training"])
-
-_ALLOWED_MIME = {
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "text/plain",
-    "text/csv",
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "image/webp",
-    "video/mp4",
-    "video/webm",
-    "audio/mpeg",
-    "audio/wav",
-    "application/zip",
-    "application/x-zip-compressed",
-}
-_MAX_FILE_BYTES = 50 * 1024 * 1024  # 50 MB per file
-
 
 # ---------------------------------------------------------------------------
 # File upload
@@ -67,34 +44,28 @@ _MAX_FILE_BYTES = 50 * 1024 * 1024  # 50 MB per file
 async def upload_training_files(
     files: Annotated[list[UploadFile], File(description="Danh sách tệp cần upload")],
     current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
-    """Upload one or more resource files. Returns list of accessible URLs."""
+    """Upload resources durably and register each file in the central catalog."""
     urls: list[str] = []
+    documents = []
     for file in files:
-        content_type = file.content_type or ""
-        if content_type not in _ALLOWED_MIME:
-            raise ApiError(
-                415,
-                "UNSUPPORTED_FILE_TYPE",
-                f"Loại tệp '{content_type}' không được hỗ trợ.",
-            )
-        data = await file.read()
-        if len(data) > _MAX_FILE_BYTES:
-            raise ApiError(
-                413,
-                "FILE_TOO_LARGE",
-                f"Tệp '{file.filename}' vượt quá giới hạn 50 MB.",
-            )
-        original_name = file.filename or "file"
-        # keep extension from original filename, sanitise
-        ext = ""
-        if "." in original_name:
-            ext = "." + original_name.rsplit(".", 1)[-1].lower()
-        safe_name = f"{uuid_module.uuid4().hex}{ext}"
-        dest = TRAINING_UPLOAD_DIR / safe_name
-        dest.write_bytes(data)
-        urls.append(f"/api/v1/uploads/training/{safe_name}")
-    return JSONResponse(content={"urls": urls})
+        stored = await store_document(file)
+        payload = DocumentCreate(title=stored["original_filename"], url=stored["url"])
+        document = DocumentService.create(db, payload, current_user.id, commit=False)
+        document.original_filename = stored["original_filename"]
+        document.size_bytes = stored["size_bytes"]
+        urls.append(document.url)
+        documents.append(document)
+    db.commit()
+    return JSONResponse(
+        content={
+            "urls": urls,
+            "documents": [
+                DocumentService.read(db, document).model_dump(mode="json") for document in documents
+            ],
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +137,7 @@ def get_roadmap(
     return RoadmapDetailRead(
         id=roadmap.id,
         name=roadmap.name,
+        position=roadmap.position,
         description=roadmap.description,
         status=roadmap.status,
         created_by=roadmap.created_by,

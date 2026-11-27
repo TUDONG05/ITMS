@@ -4,7 +4,9 @@ from typing import Any
 
 from pydantic import Field
 
+from app.models.enums import InternshipPosition
 from app.schemas.base import BaseSchema
+from app.schemas.document import DocumentSummary
 
 # ---------------------------------------------------------------------------
 # Roadmap schemas
@@ -12,18 +14,21 @@ from app.schemas.base import BaseSchema
 
 
 class RoadmapCreate(BaseSchema):
+    position: InternshipPosition
     name: str = Field(..., max_length=200)
     description: str | None = None
     status: str = "DRAFT"
 
 
 class RoadmapUpdate(BaseSchema):
+    position: InternshipPosition | None = None
     name: str | None = Field(None, max_length=200)
     description: str | None = None
     status: str | None = None
 
 
 class RoadmapRead(BaseSchema):
+    position: InternshipPosition | None = None
     id: uuid.UUID
     name: str
     description: str | None = None
@@ -68,6 +73,7 @@ class PhaseRead(BaseSchema):
 
 
 class LearningContentCreate(BaseSchema):
+    document_ids: list[uuid.UUID] = Field(default_factory=list, max_length=100)
     phase_id: uuid.UUID
     title: str = Field(..., max_length=255)
     description: str | None = None
@@ -78,6 +84,7 @@ class LearningContentCreate(BaseSchema):
 
 
 class LearningContentUpdate(BaseSchema):
+    document_ids: list[uuid.UUID] | None = Field(None, max_length=100)
     title: str | None = Field(None, max_length=255)
     description: str | None = None
     type: str | None = None
@@ -87,6 +94,8 @@ class LearningContentUpdate(BaseSchema):
 
 
 class LearningContentRead(BaseSchema):
+    document_ids: list[uuid.UUID] = Field(default_factory=list)
+    documents: list[DocumentSummary] = Field(default_factory=list)
     id: uuid.UUID
     phase_id: uuid.UUID
     title: str

@@ -456,13 +456,7 @@ import {
         flex-wrap: wrap;
       }
       .btn-approve-all {
-        background-color: #10b981 !important;
-        border-color: #10b981 !important;
         font-weight: 500;
-      }
-      .btn-batch-approve {
-        background-color: #10b981 !important;
-        border-color: #10b981 !important;
       }
       .btn-batch-reject {
         margin: 0 !important;
@@ -745,7 +739,9 @@ export class RequestManagementComponent implements OnInit {
         this.loadApplications();
       },
       error: (err) => {
-        this.message.error(err?.error?.detail || 'Lỗi khi phê duyệt đơn.');
+        this.message.error(
+          err?.error?.error?.message || err?.error?.detail || 'Lỗi khi phê duyệt đơn.',
+        );
       },
     });
   }
@@ -793,7 +789,9 @@ export class RequestManagementComponent implements OnInit {
             this.loadApplications();
           },
           error: (err) => {
-            this.message.error(err?.error?.detail || 'Lỗi khi từ chối đơn.');
+            this.message.error(
+              err?.error?.error?.message || err?.error?.detail || 'Lỗi khi từ chối đơn.',
+            );
             this.isBatchSubmitting.set(false);
           },
         });
@@ -816,7 +814,9 @@ export class RequestManagementComponent implements OnInit {
         this.loadApplications();
       },
       error: (err) => {
-        this.message.error(err?.error?.detail || 'Lỗi khi xử lý hàng loạt.');
+        this.message.error(
+          err?.error?.error?.message || err?.error?.detail || 'Lỗi khi xử lý hàng loạt.',
+        );
         this.isBatchSubmitting.set(false);
       },
     });
@@ -832,7 +832,9 @@ export class RequestManagementComponent implements OnInit {
         this.loadApplications();
       },
       error: (err) => {
-        this.message.error(err?.error?.detail || 'Lỗi khi duyệt tất cả đơn.');
+        this.message.error(
+          err?.error?.error?.message || err?.error?.detail || 'Lỗi khi duyệt tất cả đơn.',
+        );
         this.isBatchSubmitting.set(false);
       },
     });
