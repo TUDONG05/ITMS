@@ -453,7 +453,13 @@ const dashboards: Record<Role, Dashboard> = {
     <div class="dashboard-shell" [class.dashboard-shell--sidebar-collapsed]="isSidebarCollapsed()">
       <nz-layout>
         <nz-sider class="sidebar" [nzWidth]="250" nzTheme="light">
-          <ul nz-menu nzMode="inline" class="sidebar__nav" aria-label="Chức năng">
+          <ul
+            id="dashboard-sidebar-nav"
+            nz-menu
+            nzMode="inline"
+            class="sidebar__nav"
+            aria-label="Chức năng"
+          >
             <li
               nz-menu-item
               role="button"
@@ -481,6 +487,28 @@ const dashboards: Record<Role, Dashboard> = {
               </li>
             }
           </ul>
+          <div class="sidebar__footer">
+            <button
+              nz-button
+              nzType="text"
+              type="button"
+              class="sidebar-collapse-toggle"
+              [attr.aria-label]="
+                isSidebarCollapsed() ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'
+              "
+              aria-controls="dashboard-sidebar-nav"
+              [attr.aria-expanded]="!isSidebarCollapsed()"
+              [title]="
+                isSidebarCollapsed() ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'
+              "
+              (click)="toggleSidebar()"
+            >
+              <span nz-icon [nzType]="isSidebarCollapsed() ? 'right' : 'left'"></span>
+              @if (!isSidebarCollapsed()) {
+                <span>Thu gọn</span>
+              }
+            </button>
+          </div>
         </nz-sider>
         <nz-layout class="dashboard-main">
           <nz-header class="topbar">
@@ -488,22 +516,6 @@ const dashboards: Record<Role, Dashboard> = {
               <div class="topbar__brand">
                 <img src="/itms-logo.png" alt="ITMS — Hệ thống quản lý thực tập sinh" />
               </div>
-              <button
-                nz-button
-                nzType="text"
-                type="button"
-                class="sidebar-collapse-toggle"
-                [attr.aria-label]="
-                  isSidebarCollapsed() ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'
-                "
-                [attr.aria-expanded]="!isSidebarCollapsed()"
-                [title]="
-                  isSidebarCollapsed() ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'
-                "
-                (click)="toggleSidebar()"
-              >
-                <span nz-icon [nzType]="isSidebarCollapsed() ? 'right' : 'left'"></span>
-              </button>
             </div>
             <div class="topbar__right">
               @if (role() !== 'ADMIN') {

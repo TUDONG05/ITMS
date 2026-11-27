@@ -616,23 +616,47 @@ nz-layout.dashboard-main {
   height: 56px;
   object-fit: contain;
 }
+.sidebar > .ant-layout-sider-children > .sidebar__nav {
+  flex: 1 1 auto;
+  align-content: start;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sidebar__footer {
+  flex: 0 0 auto;
+  padding: 8px 0;
+  border-top: 1px solid #f0f0f0;
+}
+
 .sidebar-collapse-toggle.ant-btn {
   display: inline-flex;
   min-width: 44px;
   min-height: 44px;
-  margin-left: 8px;
+  width: 100%;
+  gap: 12px;
   align-items: center;
-  justify-content: center;
-  padding: 0;
+  justify-content: flex-start;
+  padding-inline: 24px;
   color: #284162;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 14px;
+
+  [nz-icon] {
+    width: 18px;
+    text-align: center;
+  }
 
   &:hover,
   &:focus-visible {
     color: #1677ff;
     background: #f3f7fd;
   }
+}
+.dashboard-shell--sidebar-collapsed .sidebar-collapse-toggle.ant-btn {
+  justify-content: center;
+  padding-inline: 0;
 }
 .notification {
   position: relative;
@@ -1294,7 +1318,7 @@ nz-layout.dashboard-main {
     width: 52px;
     height: 48px;
   }
-  .sidebar-collapse-toggle.ant-btn {
+  .sidebar__footer {
     display: none;
   }
   .topbar__right {
